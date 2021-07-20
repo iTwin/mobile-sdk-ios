@@ -1,0 +1,5 @@
+module ITMNative [system] {
+    header "../../Headers/ITMNative-Bridging-Header.h"
+    link "ITMNative"
+    export *
+}

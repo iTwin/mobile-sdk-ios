@@ -20,6 +20,15 @@
         }
       },
       {
+        "package": "itwin-mobile-ios",
+        "repositoryURL": "https://github.com/toddsouthenbentley/itwin-iostest",
+        "state": {
+          "branch": null,
+          "revision": "0caa34f28060f2f64b36ae5deac72d4130293a84",
+          "version": "0.0.3"
+        }
+      },
+      {
         "package": "PromiseKit",
         "repositoryURL": "https://github.com/mxcl/PromiseKit",
         "state": {

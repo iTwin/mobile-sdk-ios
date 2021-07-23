@@ -6,6 +6,7 @@
 //
 //---------------------------------------------------------------------------------------
 
+import IModelJsNative
 import PromiseKit
 import WebKit
 

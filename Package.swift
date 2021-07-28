@@ -13,9 +13,6 @@ let package = Package(
         .library(
             name: "ITwinMobile",
             targets: ["ITwinMobile"]),
-        .library(
-            name: "ITMNative",
-            targets: ["ITMNative"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -26,6 +23,7 @@ let package = Package(
         .package(name: "PMKFoundation", url: "https://github.com/PromiseKit/Foundation.git", from: "3.0.0"),
         // The following is a fork of CoreLocation that changes the iOS platform to v9
         .package(name: "PMKCoreLocation", url: "https://github.com/fallingspirit/CoreLocation", from: "3.1.2"),
+        .package(name: "Reachability", url: "https://github.com/ashleymills/Reachability.swift", from: "5.1.0"),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -37,9 +35,8 @@ let package = Package(
                 .product(name: "PromiseKit", package: "PromiseKit"),
                 .product(name: "PMKFoundation", package: "PMKFoundation"),
                 .product(name: "PMKCoreLocation", package: "PMKCoreLocation"),
-                "ITMNative",
+                .product(name: "Reachability", package: "Reachability"),
             ]),
-        .systemLibrary(name: "ITMNative"),
 //        .testTarget(
 //            name: "ITwinMobileTests",
 //            dependencies: ["ITwinMobile"]),

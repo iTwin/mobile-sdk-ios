@@ -7,7 +7,9 @@
 //---------------------------------------------------------------------------------------
 
 import PromiseKit
+#if SWIFT_PACKAGE
 import PMKFoundation
+#endif
 import WebKit
 
 extension String {

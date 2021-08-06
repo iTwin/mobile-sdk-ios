@@ -9,8 +9,10 @@
 import CoreLocation
 import Foundation
 import PromiseKit
+#if SWIFT_PACKAGE
 import PMKFoundation
 import PMKCoreLocation
+#endif
 import WebKit
 
 fileprivate class ITMDevicePermissionsHelper {

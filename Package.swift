@@ -18,7 +18,7 @@ let package = Package(
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
         // .package(url: "https://github.com/iTwin/itwin-mobile-ios-package", from: "2.16.3"),        
-        .package(name: "itwin-mobile-ios", url: "https://github.com/toddsouthenbentley/itwin-iostest", from: "0.0.3"),
+        .package(name: "itwin-mobile-ios", url: "https://github.com/toddsouthenbentley/itwin-iostest", from: "0.0.9"),
         .package(url: "https://github.com/mxcl/PromiseKit", from: "6.15.3"),
         .package(name: "PMKFoundation", url: "https://github.com/PromiseKit/Foundation.git", from: "3.0.0"),
         // The following is a fork of CoreLocation that changes the iOS platform to v9
@@ -31,7 +31,7 @@ let package = Package(
         .target(
             name: "ITwinMobile",
             dependencies: [
-                .product(name: "IModelJs", package: "itwin-mobile-ios"),
+                .product(name: "IModelJsNative", package: "itwin-mobile-ios"),
                 .product(name: "PromiseKit", package: "PromiseKit"),
                 .product(name: "PMKFoundation", package: "PMKFoundation"),
                 .product(name: "PMKCoreLocation", package: "PMKCoreLocation"),

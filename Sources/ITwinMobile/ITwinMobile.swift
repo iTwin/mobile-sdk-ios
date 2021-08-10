@@ -41,17 +41,17 @@ extension CGRect {
 
 open class ITwinMobile {
     private var components: [ITMComponent] = []
-    init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
+    public init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
         components.append(ITMActionSheet(viewController: viewController, wmuMessenger: wmuMessenger))
         components.append(ITMAlert(viewController: viewController, wmuMessenger: wmuMessenger))
 //        components.append(ITMDatePicker(viewController: viewController, wmuMessenger: wmuMessenger))
     }
 
-    func addComponent(_ component: ITMComponent) {
+    public func addComponent(_ component: ITMComponent) {
         components.append(component)
     }
 
-    func detach() {
+    public func detach() {
         for component in components {
             component.detach()
         }
@@ -63,13 +63,13 @@ open class ITMComponent: NSObject {
     public var wmuMessenger: ITMMessenger
     public weak var viewController: UIViewController?
 
-    init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
+    public init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
         self.viewController = viewController
         self.wmuMessenger = wmuMessenger
         super.init()
     }
 
-    func detach() {
+    public func detach() {
         if let queryHandler = queryHandler {
             wmuMessenger.unregisterQueryHandler(queryHandler)
             self.queryHandler = nil

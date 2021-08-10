@@ -25,6 +25,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webViewLogger = type(of: self).createWebViewLogger(webView)
         wmuMessenger = type(of: self).createITMMessenger(webView)
         super.init()
+        webView.uiDelegate = self
+        webView.navigationDelegate = self
     }
 
     deinit {
@@ -87,23 +89,23 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return URL(string: "ITMApplication/frontend/index.html")!
     }
 
-    public func getBackendUrl() -> URL {
+    open func getBackendUrl() -> URL {
         return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "ITMApplication/backend")!
     }
 
-    public func getBaseUrl() -> String {
+    open func getBaseUrl() -> String {
         return "imodeljs://app/index.html"
     }
 
-    public func getUrlHashParams() -> String {
+    open func getUrlHashParams() -> String {
         return ""
     }
 
-    public func getAuthClient() -> AuthorizationClient? {
+    open func getAuthClient() -> AuthorizationClient? {
         return nil
     }
 
-    public func loadBackend(_ allowInspectBackend: Bool) {
+    open func loadBackend(_ allowInspectBackend: Bool) {
         let backendUrl = getBackendUrl()
 
         IModelJsHost.sharedInstance().loadBackend(
@@ -114,11 +116,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         IModelJsHost.sharedInstance().register(webView)
     }
 
-    public func getUserAgentSuffix() -> String {
+    open func getUserAgentSuffix() -> String {
         return ""
     }
 
-    public func loadFrontend() {
+    open func loadFrontend() {
         var url = getBaseUrl()
         url += "#port=\(IModelJsHost.sharedInstance().getPort())"
         url += "&platform=ios"
@@ -175,7 +177,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // If the view is valid, application is added in active state.
     // If the view is nil, appliation is added in dormant state
-    public func addApplicationToView(_ view: UIView?) {
+    open func addApplicationToView(_ view: UIView?) {
         guard let parentView = view ?? ITMApplication.topView else {
             return
         }
@@ -205,17 +207,17 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
-    public func presentInView(_ view: UIView) {
+    open func presentInView(_ view: UIView) {
         addApplicationToView(view)
     }
 
-    public func presentHidden() {
+    open func presentHidden() {
         addApplicationToView(nil)
     }
 
     // MARK: - WKUIDelegate Methods
 
-    public func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
             completionHandler()
@@ -225,7 +227,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
-    public func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
             completionHandler(true)
@@ -239,7 +241,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
-    public func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> ()) {
         let alert = ITMAlertController(title: nil, message: prompt, preferredStyle: .alert)
         alert.addTextField { textField in
             textField.text = defaultText
@@ -260,7 +262,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
-    public func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+    open func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         // The iModelJs about panel has a link to www.bentley.com with the link target set to "_blank".
         // This requests that the link be opened in a new window. The check below detects this, and
         // then opens the link in the default browser.
@@ -277,7 +279,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: - WKNavigationDelegate
 
-    public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    open func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // There is an apparent bug in WKWebView when running in landscape mode on a
         // phone with a notch. In that case, the html page content doesn't go all the
         // way across the screen.

@@ -39,7 +39,7 @@ extension CGRect {
 
 // MARK: - ITwinMobile class
 
-class ITwinMobile {
+open class ITwinMobile {
     private var components: [ITMComponent] = []
     init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
         components.append(ITMActionSheet(viewController: viewController, wmuMessenger: wmuMessenger))
@@ -58,10 +58,10 @@ class ITwinMobile {
     }
 }
 
-class ITMComponent: NSObject {
-    var queryHandler: ITMQueryHandler?
-    var wmuMessenger: ITMMessenger
-    weak var viewController: UIViewController?
+open class ITMComponent: NSObject {
+    public var queryHandler: ITMQueryHandler?
+    public var wmuMessenger: ITMMessenger
+    public weak var viewController: UIViewController?
 
     init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
         self.viewController = viewController

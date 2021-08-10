@@ -113,12 +113,12 @@ open class ITMError: Error {
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
 open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private class ITMWKQueryHandler<T, U>: NSObject, ITMQueryHandler {
-        private var wmuMessenger: ITMMessenger
+        private var itmMessenger: ITMMessenger
         private var type: String
         private var handler: (T) -> Promise<U>
 
-        init(_ wmuMessenger: ITMMessenger, _ type: String, _ handler: @escaping (T) -> Promise<U>) {
-            self.wmuMessenger = wmuMessenger
+        init(_ itmMessenger: ITMMessenger, _ type: String, _ handler: @escaping (T) -> Promise<U>) {
+            self.itmMessenger = itmMessenger
             self.type = type
             self.handler = handler
         }
@@ -128,7 +128,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
 
         func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) -> Bool {
-            wmuMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
+            itmMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
             let promise: Promise<U>
             // swiftformat:disable void
             if T.self == Void.self {
@@ -136,14 +136,14 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             } else if let typedBody = body as? T {
                 promise = handler(typedBody)
             } else {
-                wmuMessenger.respondToQuery(queryId, nil)
+                itmMessenger.respondToQuery(queryId, nil)
                 return true
             }
             promise.done { response in
-                let responseString = self.wmuMessenger.jsonString(response)
-                self.wmuMessenger.respondToQuery(queryId, responseString)
+                let responseString = self.itmMessenger.jsonString(response)
+                self.itmMessenger.respondToQuery(queryId, responseString)
             }.catch { _ in
-                self.wmuMessenger.respondToQuery(queryId, nil)
+                self.itmMessenger.respondToQuery(queryId, nil)
             }
             return true
         }

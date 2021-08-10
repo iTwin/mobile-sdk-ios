@@ -41,10 +41,10 @@ extension CGRect {
 
 open class ITwinMobile {
     private var components: [ITMComponent] = []
-    public init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
-        components.append(ITMActionSheet(viewController: viewController, wmuMessenger: wmuMessenger))
-        components.append(ITMAlert(viewController: viewController, wmuMessenger: wmuMessenger))
-//        components.append(ITMDatePicker(viewController: viewController, wmuMessenger: wmuMessenger))
+    public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
+        components.append(ITMActionSheet(viewController: viewController, itmMessenger: itmMessenger))
+        components.append(ITMAlert(viewController: viewController, itmMessenger: itmMessenger))
+//        components.append(ITMDatePicker(viewController: viewController, itmMessenger: itmMessenger))
     }
 
     public func addComponent(_ component: ITMComponent) {
@@ -60,18 +60,18 @@ open class ITwinMobile {
 
 open class ITMComponent: NSObject {
     public var queryHandler: ITMQueryHandler?
-    public var wmuMessenger: ITMMessenger
+    public var itmMessenger: ITMMessenger
     public weak var viewController: UIViewController?
 
-    public init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
+    public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         self.viewController = viewController
-        self.wmuMessenger = wmuMessenger
+        self.itmMessenger = itmMessenger
         super.init()
     }
 
     public func detach() {
         if let queryHandler = queryHandler {
-            wmuMessenger.unregisterQueryHandler(queryHandler)
+            itmMessenger.unregisterQueryHandler(queryHandler)
             self.queryHandler = nil
         }
     }

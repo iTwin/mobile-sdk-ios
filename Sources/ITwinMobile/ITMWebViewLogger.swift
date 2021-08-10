@@ -26,7 +26,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
                 console[type] = function(msg) {
                     originalLogger.apply(console, arguments);
                     if (msg == null) msg = "";
-                    window.webkit.messageHandlers.wmuLogger.postMessage({ "type" : type, "msg" : msg });
+                    window.webkit.messageHandlers.itmLogger.postMessage({ "type" : type, "msg" : msg });
                 };
             };
 
@@ -41,11 +41,11 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
                 originalAssert.apply(console, arguments);
                 if (expr) return;
                 if (msg == null) msg = "";
-                window.webkit.messageHandlers.wmuLogger.postMessage({ "type" : "assert", "msg" : "Assertion Failed: " + msg });
+                window.webkit.messageHandlers.itmLogger.postMessage({ "type" : "assert", "msg" : "Assertion Failed: " + msg });
             }
 
             window.addEventListener("error", function (e) {
-                window.webkit.messageHandlers.wmuLogger.postMessage({ "type" : "error", "msg" : e.message });
+                window.webkit.messageHandlers.itmLogger.postMessage({ "type" : "error", "msg" : e.message });
                 return false;
             });
         })();
@@ -62,7 +62,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
 
     /// Forward JavaScript console output to NSLog. Can be called on any new web view after creation.
     public func attach(_ webView: WKWebView) {
-        webView.configuration.userContentController.add(self, name: "wmuLogger")
+        webView.configuration.userContentController.add(self, name: "itmLogger")
         reattach(webView)
     }
 

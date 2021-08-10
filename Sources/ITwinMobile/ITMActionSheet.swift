@@ -11,9 +11,9 @@ import UIKit
 import WebKit
 
 class ITMActionSheet: ITMComponent {
-    override init(viewController: UIViewController, wmuMessenger: ITMMessenger) {
-        super.init(viewController: viewController, wmuMessenger: wmuMessenger)
-        queryHandler = wmuMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet") { (params: [String: Any]) -> Promise<()> in
+    override init(viewController: UIViewController, itmMessenger: ITMMessenger) {
+        super.init(viewController: viewController, itmMessenger: itmMessenger)
+        queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet") { (params: [String: Any]) -> Promise<()> in
             if self.viewController == nil {
                 return Promise.value(())
             }
@@ -23,7 +23,7 @@ class ITMActionSheet: ITMComponent {
             if let actions = params["actions"] as? [[String: Any]],
                 let senderId = params["senderId"] as? Int64 {
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
-                alert.popoverPresentationController?.sourceView = self.wmuMessenger.webView
+                alert.popoverPresentationController?.sourceView = self.itmMessenger.webView
                 if let sourceRectDict = params["sourceRect"] as? [String: Any],
                     let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
                     alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
@@ -36,7 +36,7 @@ class ITMActionSheet: ITMComponent {
                     if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict),
                         let actionStyle = ITMAlertActionStyle(rawValue: action.style) {
                         alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(actionStyle)) { _ in
-                            wmuMessenger.query("Bentley_ITM_actionSheetAction", ["senderId": senderId, "name": action.name])
+                            itmMessenger.query("Bentley_ITM_actionSheetAction", ["senderId": senderId, "name": action.name])
                         })
                     }
                 }

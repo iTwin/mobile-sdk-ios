@@ -128,12 +128,12 @@ extension CLLocation {
 public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScriptMessageHandler {
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
-    var wmuMessenger: ITMMessenger
+    var itmMessenger: ITMMessenger
     var webView: WKWebView
     private var orientationObserver: Any?
 
-    init(wmuMessenger: ITMMessenger, webView: WKWebView) {
-        self.wmuMessenger = wmuMessenger
+    init(itmMessenger: ITMMessenger, webView: WKWebView) {
+        self.itmMessenger = itmMessenger
         self.webView = webView
         super.init()
         locationManager.delegate = self
@@ -295,8 +295,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             "positionId": positionId,
             "error": errorJson
         ]
-        let js = "window.Bentley_ITMGeolocation('\(messageName)', '\(wmuMessenger.jsonString(message).toBase64())')"
-        wmuMessenger.evaluateJavaScript(js)
+        let js = "window.Bentley_ITMGeolocation('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
+        itmMessenger.evaluateJavaScript(js)
     }
 
     private func getCurrentPosition(_ message: [String: Any]) {
@@ -317,8 +317,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 "positionId": positionId,
                 "position": position
             ]
-            let js = "window.Bentley_ITMGeolocation('getCurrentPosition', '\(self.wmuMessenger.jsonString(message).toBase64())')"
-            self.wmuMessenger.evaluateJavaScript(js)
+            let js = "window.Bentley_ITMGeolocation('getCurrentPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
+            self.itmMessenger.evaluateJavaScript(js)
         }.catch { error in
             var errorJson: [String: Any]
             self.stopUpdating()
@@ -351,8 +351,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                             "positionId": positionId,
                             "position": positionJson
                         ]
-                        let js = "window.Bentley_ITMGeolocation('watchPosition', '\(self.wmuMessenger.jsonString(message).toBase64())')"
-                        self.wmuMessenger.evaluateJavaScript(js)
+                        let js = "window.Bentley_ITMGeolocation('watchPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
+                        self.itmMessenger.evaluateJavaScript(js)
                     }
                 }
             }

@@ -13,7 +13,7 @@ import WebKit
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let webView: WKWebView
     public let webViewLogger: ITMWebViewLogger
-    public let wmuMessenger: ITMMessenger
+    public let itmMessenger: ITMMessenger
     public var fullyLoaded = false
     public var dormant = true
     private var queryHandlers: [ITMQueryHandler] = []
@@ -23,7 +23,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     override public init() {
         webView = type(of: self).createEmptyWebView()
         webViewLogger = type(of: self).createWebViewLogger(webView)
-        wmuMessenger = type(of: self).createITMMessenger(webView)
+        itmMessenger = type(of: self).createITMMessenger(webView)
         super.init()
         webView.uiDelegate = self
         webView.navigationDelegate = self
@@ -31,7 +31,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     deinit {
         for queryHandler in queryHandlers {
-            wmuMessenger.unregisterQueryHandler(queryHandler)
+            itmMessenger.unregisterQueryHandler(queryHandler)
         }
         queryHandlers.removeAll()
         if reachabilityObserver != nil {
@@ -74,7 +74,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) {
-        let queryHandler = wmuMessenger.registerQueryHandler(type, handler)
+        let queryHandler = itmMessenger.registerQueryHandler(type, handler)
         queryHandlers.append(queryHandler)
     }
 
@@ -82,7 +82,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // NOTE: In addition to setting a variable, in the future we might want to
         // send a message that can trigger an event that our TS code can listen for.
         let js = "window.Bentley_InternetReachabilityStatus = \(ITMInternetReachability.shared.currentReachabilityStatus().rawValue)"
-        wmuMessenger.evaluateJavaScript(js)
+        itmMessenger.evaluateJavaScript(js)
     }
 
     public class func getFrontendIndexPath() -> URL {
@@ -289,6 +289,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             webView.isHidden = false
         }
         updateReachability()
-        wmuMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")
+        itmMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")
     }
 }

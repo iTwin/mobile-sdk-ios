@@ -17,7 +17,7 @@ class ITMInternetReachability {
         try? reachability.startNotifier()
     }
 
-    public enum NetworkStatus: String {
+    public enum NetworkStatus: Int {
         case notReachable, reachableViaWiFi, reachableViaWWAN
     }
     

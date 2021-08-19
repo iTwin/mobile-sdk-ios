@@ -102,7 +102,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     open func getAuthClient() -> AuthorizationClient? {
-        return nil
+        guard let viewController = ITMApplication.topViewController else {
+            return nil
+        }
+        return MobileAuthorizationClient(viewController: viewController)
     }
 
     open func loadBackend(_ allowInspectBackend: Bool) {

@@ -527,7 +527,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             "Could not cast response data from '\(dataType)' to expected type '\(expectedType)'. " +
             "Check your type cast for message response of type '\(messageType)' and if data arrived as expected."
 
-        print("ERROR: \(reason)")
+        ITMApplication.logger.log(.error, reason)
         #if DEBUG
             assert(false, reason)
         #endif

@@ -10,12 +10,36 @@ import IModelJsNative
 import PromiseKit
 import WebKit
 
+// MARK: - JSON convenience
+public typealias JSON = [String: Any]
+
+// extension for JSON-like-Dictionaries
+extension JSON {
+    //! Deserializes passed String and returns Dictionary representing the JSON object encoded in the string
+    //! @param jsonString: string to parse and convert to Dictionary
+    //! @param encoding: encoding of the source jsonString. Defaults to UTF8.
+    //! @return Dictionary representation of the JSON string
+    static func fromString(_ jsonString: String?, _ encoding: String.Encoding = String.Encoding.utf8) -> JSON? {
+        if jsonString == nil {
+            return nil
+        }
+        let stringData = jsonString!.data(using: encoding)
+        do {
+            return try JSONSerialization.jsonObject(with: stringData!, options: []) as? JSON
+        } catch {
+            ITMApplication.logger.log(.error, error.localizedDescription)
+        }
+        return nil
+    }
+}
+
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let webView: WKWebView
     public let webViewLogger: ITMWebViewLogger
     public let itmMessenger: ITMMessenger
     public var fullyLoaded = false
     public var dormant = true
+    public var usingRemoteServer = false
     private var queryHandlers: [ITMQueryHandler] = []
     private var reachabilityObserver: Any?
     public static var logger = ITMLogger()
@@ -85,15 +109,25 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         itmMessenger.evaluateJavaScript(js)
     }
 
+    public class func getWebAppDir() -> String {
+        return "ITMApplication"
+    }
+
     public class func getFrontendIndexPath() -> URL {
-        return URL(string: "ITMApplication/frontend/index.html")!
+        return URL(string: "\(getWebAppDir())/frontend/index.html")!
     }
 
     open func getBackendUrl() -> URL {
-        return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "ITMApplication/backend")!
+        return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "\(type(of: self).getWebAppDir())/backend")!
     }
 
     open func getBaseUrl() -> String {
+        if let configData = loadITMAppConfig(),
+            let baseUrlString = configData["baseUrl"] as? String {
+            usingRemoteServer = true
+            return baseUrlString
+        }
+        usingRemoteServer = false
         return "imodeljs://app/index.html"
     }
 
@@ -108,7 +142,32 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return MobileAuthorizationClient(viewController: viewController)
     }
 
+    open func loadITMAppConfig() -> JSON? {
+        if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: type(of: self).getWebAppDir()),
+            let configString = try? String(contentsOf: configUrl),
+            let configData = JSON.fromString(configString) {
+            return configData
+        }
+        return nil
+    }
+
+    public func extractConfigsToEnv(configData: JSON, configs: [(String, String)]) {
+        for config in configs {
+            if let configValue = configData[config.0] as? String {
+                setenv(config.1, configValue, 1)
+            }
+        }
+    }
+
     open func loadBackend(_ allowInspectBackend: Bool) {
+        if let configData = loadITMAppConfig() {
+            extractConfigsToEnv(configData: configData, configs: [
+                ("clientId", "ITMAPPLICATION_CLIENT_ID"),
+                ("scope", "ITMAPPLICATION_SCOPE"),
+                ("issuerUrl", "ITMAPPLICATION_ISSUER_URL"),
+                ("redirectUri", "ITMAPPLICATION_REDIRECT_URI"),
+            ])
+        }
         let backendUrl = getBackendUrl()
 
         IModelJsHost.sharedInstance().loadBackend(
@@ -151,6 +210,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                     webView.customUserAgent = customUserAgent
                 }
                 webView.load(request)
+                if self.usingRemoteServer {
+                    _ = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
+                        if !self.fullyLoaded {
+                            let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server.", preferredStyle: .alert)
+                            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+                                ITMAlertController.doneWithAlertWindow()
+                            }))
+                            alert.modalPresentationCapturesStatusBarAppearance = true
+                            ITMApplication.topViewController?.present(alert, animated: true, completion: nil)
+                        }
+                    }
+                }
                 self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil, using: { _ in
                     self.updateReachability()
                 })

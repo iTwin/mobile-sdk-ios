@@ -20,7 +20,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     private var reachabilityObserver: Any?
     public static var logger = ITMLogger()
 
-    override public init() {
+    required public override init() {
         webView = type(of: self).createEmptyWebView()
         webViewLogger = type(of: self).createWebViewLogger(webView)
         itmMessenger = type(of: self).createITMMessenger(webView)

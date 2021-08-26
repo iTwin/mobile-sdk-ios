@@ -10,7 +10,7 @@ import PromiseKit
 import UIKit
 import WebKit
 
-class ITMActionSheet: ITMComponent {
+class ITMActionSheet: ITMNativeUIComponent {
     override init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         super.init(viewController: viewController, itmMessenger: itmMessenger)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet") { (params: [String: Any]) -> Promise<()> in

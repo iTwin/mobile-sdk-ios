@@ -40,14 +40,14 @@ extension CGRect {
 // MARK: - ITwinMobile class
 
 open class ITMNativeUI {
-    private var components: [ITMComponent] = []
+    private var components: [ITMNativeUIComponent] = []
     public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         components.append(ITMActionSheet(viewController: viewController, itmMessenger: itmMessenger))
         components.append(ITMAlert(viewController: viewController, itmMessenger: itmMessenger))
 //        components.append(ITMDatePicker(viewController: viewController, itmMessenger: itmMessenger))
     }
 
-    public func addComponent(_ component: ITMComponent) {
+    public func addComponent(_ component: ITMNativeUIComponent) {
         components.append(component)
     }
 
@@ -58,7 +58,7 @@ open class ITMNativeUI {
     }
 }
 
-open class ITMComponent: NSObject {
+open class ITMNativeUIComponent: NSObject {
     public var queryHandler: ITMQueryHandler?
     public var itmMessenger: ITMMessenger
     public weak var viewController: UIViewController?

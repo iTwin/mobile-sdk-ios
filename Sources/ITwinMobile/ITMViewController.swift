@@ -14,7 +14,7 @@ open class ITMViewController: UIViewController {
     public static var autoLoadWebApplication = true
     public static var delayedAutoLoad = false
     public let application: ITMApplication
-    private var iTwinMobile: ITwinMobile?
+    private var itmNativeUI: ITMNativeUI?
     private var loadedOnce = false
     private var willEnterForegroundObserver: Any? = nil
 
@@ -35,13 +35,13 @@ open class ITMViewController: UIViewController {
     }
 
     open override func viewWillAppear(_ animated: Bool) {
-        iTwinMobile = ITwinMobile(viewController: self, itmMessenger: application.itmMessenger)
+        itmNativeUI = ITMNativeUI(viewController: self, itmMessenger: application.itmMessenger)
         super.viewWillAppear(animated)
     }
 
     open override func viewWillDisappear(_ animated: Bool) {
-        iTwinMobile?.detach()
-        iTwinMobile = nil
+        itmNativeUI?.detach()
+        itmNativeUI = nil
         super.viewWillDisappear(animated)
     }
 

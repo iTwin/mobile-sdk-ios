@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------------------
 //
-//     $Source: FieldiOS/App/Utils/ITwinMobile.swift $
+//     $Source: FieldiOS/App/Utils/ITMNativeUI.swift $
 //
 //  $Copyright: (c) 2020 Bentley Systems, Incorporated. All rights reserved. $
 //
@@ -39,7 +39,7 @@ extension CGRect {
 
 // MARK: - ITwinMobile class
 
-open class ITwinMobile {
+open class ITMNativeUI {
     private var components: [ITMComponent] = []
     public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         components.append(ITMActionSheet(viewController: viewController, itmMessenger: itmMessenger))

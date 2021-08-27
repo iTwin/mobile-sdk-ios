@@ -10,21 +10,25 @@ import SwiftUI
 
 @available(iOS 13.0, *)
 public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
+    public var application: ITMApplication
     public func makeUIViewController(context: Context) -> ITMViewController {
+        ITMViewController.application = application
         return ITMViewController()
     }
     
     public func updateUIViewController(_ uiViewController: ITMViewController, context: Context) {
-        //intentionally doing nothing here
+        // intentionally doing nothing here
     }
 }
 
 @available(iOS 13.0, *)
 public struct ITMSwiftUIContentView: View {
-    // wihtout this empty init, things wouldn't compile
-    public init() {
+    public var application: ITMApplication
+    
+    public init(application: ITMApplication) {
+        self.application = application
     }
     public var body: some View {
-        ITMSwiftUIWebView()
+        ITMSwiftUIWebView(application: application)
     }
 }

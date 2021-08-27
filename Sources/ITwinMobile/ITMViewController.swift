@@ -24,7 +24,7 @@ open class ITMViewController: UIViewController {
     }
 
     open override func viewWillAppear(_ animated: Bool) {
-        itmNativeUI = ITMNativeUI(viewController: self, itmMessenger: application.itmMessenger)
+        itmNativeUI = ITMNativeUI(viewController: self, itmMessenger: ITMViewController.application.itmMessenger)
         super.viewWillAppear(animated)
     }
 

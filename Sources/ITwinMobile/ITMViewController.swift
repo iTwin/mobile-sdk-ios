@@ -18,7 +18,7 @@ open class ITMViewController: UIViewController {
     public static var autoLoadWebApplication = true
     /// Whether or not to delay loading the web application the first time the view loads.
     public static var delayedAutoLoad = false
-    private var itmNativeUI: ITMNativeUI?
+    public private(set) var itmNativeUI: ITMNativeUI?
     private var loadedOnce = false
     private var willEnterForegroundObserver: Any? = nil
 
@@ -31,6 +31,7 @@ open class ITMViewController: UIViewController {
     /// Creates an `ITMNativeUI` and attaches it to this view controller and the `application`'s `itmMessenger`.
     open override func viewWillAppear(_ animated: Bool) {
         itmNativeUI = ITMNativeUI(viewController: self, itmMessenger: ITMViewController.application.itmMessenger)
+        ITMViewController.application.viewWillAppear(viewController: self)
         super.viewWillAppear(animated)
     }
 

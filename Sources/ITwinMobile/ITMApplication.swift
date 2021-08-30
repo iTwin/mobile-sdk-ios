@@ -77,6 +77,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    open func viewWillAppear(viewController: ITMViewController) {
+        // do nothing, here for sub-classes to add their own components to the native UI
+    }
+    
     /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: A `WKWebView` configured for use by iTwin Mobile.

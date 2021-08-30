@@ -9,7 +9,8 @@
 import UIKit
 import WebKit
 
-class ITMAssetHandler: NSObject, WKURLSchemeHandler {
+/// Default asset handler for loading frontend resources.
+final class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     private let assetPath: String
 
     init(assetPath: String) {

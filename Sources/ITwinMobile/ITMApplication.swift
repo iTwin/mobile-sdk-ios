@@ -11,14 +11,16 @@ import PromiseKit
 import WebKit
 
 // MARK: - JSON convenience
+/// Convenience type alias for a dictionary intended for interop via JSON.
 public typealias JSON = [String: Any]
 
-// extension for JSON-like-Dictionaries
+/// Extension to create a dictionary from JSON text.
 extension JSON {
-    //! Deserializes passed String and returns Dictionary representing the JSON object encoded in the string
-    //! @param jsonString: string to parse and convert to Dictionary
-    //! @param encoding: encoding of the source jsonString. Defaults to UTF8.
-    //! @return Dictionary representation of the JSON string
+    /// Deserializes passed String and returns Dictionary representing the JSON object encoded in the string
+    /// - Parameters:
+    ///   - jsonString: string to parse and convert to Dictionary
+    ///   - encoding: encoding of the source `jsonString`. Defaults to UTF8.
+    /// - Returns: Dictionary representation of the JSON string
     static func fromString(_ jsonString: String?, _ encoding: String.Encoding = String.Encoding.utf8) -> JSON? {
         if jsonString == nil {
             return nil
@@ -33,17 +35,29 @@ extension JSON {
     }
 }
 
+/// Main class for interacting with one iTwin Mobile web app.
+/// - Note: Most applications will override this class in order to customize the behavior and register for messages.
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
+    /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
+    /// The `ITMWebViewLogger` for JavaScript console output.
     public let webViewLogger: ITMWebViewLogger
+    /// The `ITMMessenger` for communication between native code and JavaScript code (and vice versa).
     public let itmMessenger: ITMMessenger
+    /// Tracks whether the initial page has been loaded in the web view.
     public var fullyLoaded = false
+    /// Tracks whether the web view should be visible in the application, or kept hidden. (Once the web view has been created
+    /// it cannot be destroyed. It must instead be hidden.)
     public var dormant = true
+    /// Tracks whether the fronend URL is on a remote server (used for debugging via react-scripts).
     public var usingRemoteServer = false
     private var queryHandlers: [ITMQueryHandler] = []
     private var reachabilityObserver: Any?
+    /// The `ITMLogger` responsible for handling log messages (both from native code and JavaScript code). The default logger
+    /// uses `NSLog` for the messages. Replace this object with an `ITMLogger` subclass to change the logging behavior.
     public static var logger = ITMLogger()
 
+    /// Creates an `ITMApplication`
     required public override init() {
         webView = type(of: self).createEmptyWebView()
         webViewLogger = type(of: self).createWebViewLogger(webView)
@@ -63,6 +77,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: A `WKWebView` configured for use by iTwin Mobile.
     public class func createEmptyWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let contentController = WKUserContentController()
@@ -83,25 +100,60 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return webView
     }
 
+    /// Creates a `WKURLSchemeHandler` for use with an iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: An `ITMAssetHandler` object that properly loads appropriate files.
     public class func createAssetHandler(assetPath: String) -> WKURLSchemeHandler {
         return ITMAssetHandler(assetPath: assetPath)
     }
 
+    /// Creates an `ITMMessenger` for use with an iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Parameter webView: The `WKWebView` to which to attach the `ITMMessenger`.
+    /// - Returns: An `ITMMessenger` object attached to `webView`.
     public class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
         return ITMMessenger(webView)
     }
 
+    /// Creates an `ITMWebViewLogger` for use with an iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Parameter webView: The `WKWebView` to which to attach the `ITMWebViewLogger`.
+    /// - Returns: An `ITMWebViewLogger` object attached to `webView`.
     public class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
         let webViewLogger = ITMWebViewLogger(name: "ITMApplication")
         webViewLogger.attach(webView)
         return webViewLogger
     }
 
+    /// Registers a handler for the given query from the web view.
+    /// You can use `unregisterQueryHandler` to unregister this at any time. Otherwise, it will be automatically unregistered when
+    /// this `ITMApplication` is destroyed.
+    /// - Parameters:
+    ///   - type: The query type used by the JavaScript code to perform the query.
+    ///   - handler: The handler for the query.
     public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) {
         let queryHandler = itmMessenger.registerQueryHandler(type, handler)
         queryHandlers.append(queryHandler)
     }
 
+    /// Unregisters a handler for the given query from the web view.
+    /// - Note: This can only be used to unregister a handler that was previously registered using `registerQueryHandler`.
+    /// - Parameter type: The type used when the query was registered.
+    /// - Returns: true if the given query was previously registered (and thus unregistered here), or false otherwise.
+    public func unregisterQueryHandler(_ type: String) -> Bool {
+        for i in 0..<queryHandlers.count {
+            let queryHandler = queryHandlers[i]
+            if queryHandler.getQueryType() == type {
+                itmMessenger.unregisterQueryHandler(queryHandler)
+                queryHandlers.remove(at: i)
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Updates the reachability status in the web view. This is called automatically any time the reachability status changes.
+    /// - Note: You should not ever need to call this.
     public func updateReachability() {
         // NOTE: In addition to setting a variable, in the future we might want to
         // send a message that can trigger an event that our TS code can listen for.
@@ -109,18 +161,30 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         itmMessenger.evaluateJavaScript(js)
     }
 
+    /// Gets the directory name used for the iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: The name of the directory in the main bundle that contains the iTwin Mobile web app.
     public class func getWebAppDir() -> String {
         return "ITMApplication"
     }
 
+    /// Gets the relative path inside the main bundle to the index.html file for the frontend of the iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: The relative path inside the main bundle to the index.html file for the frontend of the iTwin Mobile web app.
     public class func getFrontendIndexPath() -> URL {
         return URL(string: "\(getWebAppDir())/frontend/index.html")!
     }
 
+    /// Gets the file URL to the main.js file for the iTwin Mobile web app's backend.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: A file URL to the main.js file for the iTwin Mobile web app's backend.
     open func getBackendUrl() -> URL {
         return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "\(type(of: self).getWebAppDir())/backend")!
     }
 
+    /// Gets the base URL string for the frontend. `loadFrontend` will automatically add necessary hash parameters to this URL string.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
         if let configData = loadITMAppConfig(),
             let baseUrlString = configData["baseUrl"] as? String {
@@ -131,17 +195,28 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return "imodeljs://app/index.html"
     }
 
+    /// Gets custom URL hash parameters to be passed when loading the frontend.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: Empty string.
     open func getUrlHashParams() -> String {
         return ""
     }
 
+    /// Gets the `AuthorizationClient` to be used for this iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// If your application handles authorization on its own, create a class that implements the `AuthorizationClient` protocol
+    /// to handle authorization.
+    /// - Returns: A `MobileAuthorizationClient` instance from IModelJsNative.
     open func getAuthClient() -> AuthorizationClient? {
-        guard let viewController = ITMApplication.topViewController else {
+        guard let viewController = type(of: self).topViewController else {
             return nil
         }
         return MobileAuthorizationClient(viewController: viewController)
     }
 
+    /// Loads the app config JSON from the main bundle.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: The parsed contents of ITMAppConfig.json in the main bundle in the directory returned by `getWebAppDir`.
     open func loadITMAppConfig() -> JSON? {
         if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: type(of: self).getWebAppDir()),
             let configString = try? String(contentsOf: configUrl),
@@ -151,6 +226,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return nil
     }
 
+    /// Extracts the given configs and stores the in the environment so they can be seen by the backend JavaScript code.
+    /// - Parameters:
+    ///   - configData: The JSON dictionary containing the configs (by default from ITMAppConfig.json).
+    ///   - configs: An array of tuples, where the first element of each tuple is the key in `configData` and the second is the name
+    ///              name of the environment variable to store the value in.
+    /// - Note: Configs with keys that do not exist in configData are ignored.
     public func extractConfigsToEnv(configData: JSON, configs: [(String, String)]) {
         for config in configs {
             if let configValue = configData[config.0] as? String {
@@ -159,6 +240,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    /// Loads the iTwin Mobile web app backend.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Parameter allowInspectBackend: Whether or not to all debugging of the backend.
     open func loadBackend(_ allowInspectBackend: Bool) {
         if let configData = loadITMAppConfig() {
             extractConfigsToEnv(configData: configData, configs: [
@@ -178,10 +262,15 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         IModelJsHost.sharedInstance().register(webView)
     }
 
+    /// Suffix to add to the user agent reported by the frontend.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: Empty string.
     open func getUserAgentSuffix() -> String {
         return ""
     }
 
+    /// Loads the iTwin Mobile web app frontend.
+    /// Override this function in a subclass in order to add custom behavior.
     open func loadFrontend() {
         var url = getBaseUrl()
         url += "#port=\(IModelJsHost.sharedInstance().getPort())"
@@ -218,7 +307,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                                 ITMAlertController.doneWithAlertWindow()
                             }))
                             alert.modalPresentationCapturesStatusBarAppearance = true
-                            ITMApplication.topViewController?.present(alert, animated: true, completion: nil)
+                            type(of: self).topViewController?.present(alert, animated: true, completion: nil)
                         }
                     }
                 }
@@ -231,15 +320,19 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: - ITMApplication (WebView) presentation
 
-    // Top View for presenting application in dormant state.
-    // Always add dormant application to topViewController's view
-    // to ensure it appears in presented view hierarchy
-    public static var topView: UIView? {
+    /// Top view for presenting iTwin Mobile web app in dormant state.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// Always add dormant application to `topViewController`'s view to ensure it appears in presented view hierarchy
+    /// - Returns: The top view.
+    public class var topView: UIView? {
         guard let topViewController = self.topViewController else { return nil }
         return topViewController.view
     }
 
-    public static var topViewController: UIViewController? {
+    /// Top view controller for presenting iTwin Mobile web app.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: The top view controller.
+    public class var topViewController: UIViewController? {
         if var topController = UIApplication.shared.keyWindow?.rootViewController {
             while let presentedViewController = topController.presentedViewController {
                 topController = presentedViewController
@@ -249,10 +342,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return nil
     }
 
-    // If the view is valid, application is added in active state.
-    // If the view is nil, appliation is added in dormant state
+    /// If the view is valid, iTwin Mobile app is added in active state.
+    /// If the view is nil, iTwin Mobile app is hidden and set as dormant.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hid the iTwin Mobile app.
     open func addApplicationToView(_ view: UIView?) {
-        guard let parentView = view ?? ITMApplication.topView else {
+        guard let parentView = view ?? type(of: self).topView else {
             return
         }
         dormant = view == nil ? true : false
@@ -281,16 +376,23 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    /// Present the iTwin Mobile app in the given view, filling it completely.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Parameter view: View in which to present the iTiwn Mobile app.
     open func presentInView(_ view: UIView) {
         addApplicationToView(view)
     }
 
+    /// Hide the iTwin Mobile app and set it as dormant.
+    /// Override this function in a subclass in order to add custom behavior.
     open func presentHidden() {
         addApplicationToView(nil)
     }
 
     // MARK: - WKUIDelegate Methods
 
+    /// See `WKUIDelegate` documentation.
+    /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
@@ -301,6 +403,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
+    /// See `WKUIDelegate` documentation.
+    /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
@@ -315,6 +419,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
+    /// See `WKUIDelegate` documentation.
+    /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> ()) {
         let alert = ITMAlertController(title: nil, message: prompt, preferredStyle: .alert)
         alert.addTextField { textField in
@@ -336,6 +442,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
     }
 
+    /// Open the URL for the given navigation action.
+    /// If the navigation action's `targetFrame` is nil, open the URL using iOS default behavior (opens it in Safari).
+    /// If the navigation action's `targetFrame` is not nil, return an unattached WKWebView (which prevents a crash). In
+    /// this case, the URL is not opened anywhere.
+    /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         // The iModelJs about panel has a link to www.bentley.com with the link target set to "_blank".
         // This requests that the link be opened in a new window. The check below detects this, and
@@ -353,11 +464,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: - WKNavigationDelegate
 
+    /// Handle necessary actions after the frontend web page is loaded (or reloaded).
+    /// See `WKNavigationDelegate` documentation.
+    /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // There is an apparent bug in WKWebView when running in landscape mode on a
         // phone with a notch. In that case, the html page content doesn't go all the
         // way across the screen.
         webView.setNeedsLayout()
+        if fullyLoaded {
+            // Reattach our webViewLogger.
+            webViewLogger.attach(webView)
+        }
         fullyLoaded = true
         if !dormant {
             webView.isHidden = false

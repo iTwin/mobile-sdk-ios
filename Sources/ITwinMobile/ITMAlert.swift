@@ -41,16 +41,16 @@ struct ITMAlertAction: Codable, Equatable {
 
 // MARK: - ITMAlert class
 
-class ITMAlert: ITMNativeUIComponent {
+/// `ITMNativeUIComponent` that presents a `UIAlertController` with a style of `.alert`.
+/// This class is used by the `presentAlert` TypeScript function in @itwin/mobile-core.
+final class ITMAlert: ITMNativeUIComponent {
     override init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         super.init(viewController: viewController, itmMessenger: itmMessenger)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentAlert", handleQuery)
     }
 
     private func handleQuery(params: [String: Any]) -> Promise<String> {
-        let presentedPromise: Promise<String>
-        let presentedResolver: Resolver<String>
-        (presentedPromise, presentedResolver) = Promise<String>.pending()
+        let (presentedPromise, presentedResolver) = Promise<String>.pending()
         if viewController == nil {
             presentedResolver.reject(ITMError())
         } else {

@@ -49,19 +49,22 @@ fileprivate class ITMDevicePermissionsHelper {
 // in most browsers. The objective of these structs is to map values between
 // CoreLocation and objects expected by the browser API (window.navigator.geolocation)
 
-// https://developer.mozilla.org/en-US/docs/Web/API/GeolocationCoordinates
-private struct GeolocationCoordinates: Codable {
+/// Swift struct representing a JavaScript `GeolocationCoordinates` value.
+/// See https://developer.mozilla.org/en-US/docs/Web/API/GeolocationCoordinates
+public struct GeolocationCoordinates: Codable {
     var accuracy: CLLocationAccuracy
     var altitude: CLLocationDistance?
     var altitudeAccuracy: CLLocationAccuracy?
-    var heading: CLLocationDirection? // relative to true north. Use trueHeading
+    /// The device's compass heading, not the movement heading that `GeolocationCoordinates` normally contain.
+    var heading: CLLocationDirection?
     var latitude: CLLocationDegrees
     var longitude: CLLocationDegrees
     var speed: CLLocationSpeed?
 }
 
-// https://developer.mozilla.org/en-US/docs/Web/API/GeolocationPosition
-private struct GeolocationPosition: Codable {
+/// Swift struct representing a JavaScript `GeolocationPosition` value.
+/// See https://developer.mozilla.org/en-US/docs/Web/API/GeolocationPosition
+public struct GeolocationPosition: Codable {
     var coords: GeolocationCoordinates
     var timestamp: TimeInterval
 
@@ -71,8 +74,9 @@ private struct GeolocationPosition: Codable {
     }
 }
 
-// https://developer.mozilla.org/en-US/docs/Web/API/GeolocationPositionError
-private struct GeolocationPositionError: Codable {
+/// Swift struct representing a JavaScript `GeolocationPositionError` value.
+/// See https://developer.mozilla.org/en-US/docs/Web/API/GeolocationPositionError
+public struct GeolocationPositionError: Codable {
     enum Code: UInt16, Codable {
         case PERMISSION_DENIED = 1
         case POSITION_UNAVAILABLE = 2
@@ -94,7 +98,10 @@ private struct GeolocationPositionError: Codable {
     }
 }
 
-extension CLLocationManager {
+public extension CLLocationManager {
+    /// Get the current location and convert it into a JavaScript-compatible `GeolocationPosition` object converted to a JSON-compatible dictionary..
+    /// - Returns: `Promise` that when resolved contains a `GeolocationPosition` object converted to a JSON-compatible dictionary.
+    ///            The `Promise` is rejected if there is an error looking up the position.
     static func geolocationPosition() -> Promise<[String: Any]> {
         firstly {
             // NOTE: authorizationType: .whenInUse is REQUIRED below. The .automatic
@@ -110,7 +117,11 @@ extension CLLocationManager {
     }
 }
 
-extension CLLocation {
+public extension CLLocation {
+    /// Convert the `CLLocation` to a `GeolocationPosition` object converted to a JSON-compatible dictionary.
+    /// - Parameter heading: The optional direction that will be stored in the `heading` field of the `GeolocationCoordinates` in the `GeolocationPosition`.
+    ///                      Note that this is the device's compass heading, not the motion heading as would normally be expected.
+    /// - Returns: A `GeolocationPosition` object representing the `CLLocation` at the given heading, converted to a JSON-compatible dictionary.
     func geolocationPosition(_ heading: CLLocationDirection? = nil) throws -> [String: Any] {
         let coordinates = GeolocationCoordinates(
             accuracy: horizontalAccuracy,
@@ -125,6 +136,7 @@ extension CLLocation {
     }
 }
 
+/// Class for the native-side implementation of a `navigator.geolocation` polyfill.
 public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScriptMessageHandler {
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
@@ -132,6 +144,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     var webView: WKWebView
     private var orientationObserver: Any?
 
+    /// - Parameters:
+    ///   - itmMessenger: The `ITMMessenger` used to communicate with the JavaScript side of this polyfill.
+    ///   - webView: The `WKWebView` containing the JavaScript side of this polyfill.
     init(itmMessenger: ITMMessenger, webView: WKWebView) {
         self.itmMessenger = itmMessenger
         self.webView = webView
@@ -155,6 +170,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    /// `WKScriptMessageHandler` function for handling messages from the JavaScript side of this polyfill.
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? String,
             let data = body.data(using: .utf8),
@@ -237,6 +253,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    /// Ask the user for location authorization if not already granted.
+    /// - Returns: `Promise` with no data that resolves if authorization is granted, or rejects if authorization is denied.
     public func checkAuth() -> Promise<()> {
         switch CLLocationManager.authorizationStatus() {
         case .authorizedAlways, .authorizedWhenInUse:
@@ -364,14 +382,19 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    // MARK: - CLLocationManagerDelegate
+    
+    /// `CLLocationManagerDelegate` function that reports location updates to the JavaScript side of the polyfill.
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         sendLocationUpdates()
     }
 
+    /// `CLLocationManagerDelegate` function that reports heading updates to the JavaScript side of the polyfill.
     public func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         sendLocationUpdates()
     }
 
+    /// `CLLocationManagerDelegate` function that reports location errors to the JavaScript side of the polyfill.
     public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         let (domain, code) = { ($0.domain, $0.code) }(error as NSError)
         if code == CLError.locationUnknown.rawValue, domain == kCLErrorDomain {
@@ -393,6 +416,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    /// `CLLocationManagerDelegate` function that reports location  to the JavaScript side of the polyfill when the authorization first comes through.
     public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         if !watchIds.isEmpty {
             sendLocationUpdates()

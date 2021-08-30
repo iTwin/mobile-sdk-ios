@@ -8,9 +8,12 @@
 
 import WebKit
 
+/// Logger that, when attached to a `WKWebView`, redirects console messages from JavaScript to `ITMApplication.logger`.
 open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
+    /// The logger name to show in log messages.
     private let name: String
 
+    /// - Parameter name: The logger name to show in log messages.
     public init(name: String) {
         self.name = name
     }
@@ -60,12 +63,13 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         })
     }
 
-    /// Forward JavaScript console output to NSLog. Can be called on any new web view after creation.
+    /// Attach this `ITMWebViewLogger` to the given `WKWebView`.
     public func attach(_ webView: WKWebView) {
         webView.configuration.userContentController.add(self, name: "itmLogger")
         reattach(webView)
     }
 
+    /// `WKScriptMessageHandler` delegate function.
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? [String: String] else {
             log("error", "ITMWebViewLogger: bad message format")
@@ -77,6 +81,10 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         log(type, logMessage)
     }
 
+    /// Log the given message using `ITMApplication.logger`.
+    /// - Parameters:
+    ///   - severity: The log severity string. Must be a value from `ITMLogger.Severity`.
+    ///   - logMessage: The message to log.
     func log(_ severity: String?, _ logMessage: String) {
         ITMApplication.logger.log(ITMLogger.Severity(severity), logMessage)
     }

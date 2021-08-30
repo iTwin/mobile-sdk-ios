@@ -56,12 +56,13 @@ fileprivate extension JSONSerialization {
 /// Protocol for ITMMessenger query handlers.
 public protocol ITMQueryHandler: NSObjectProtocol {
     /// Called when a query arrives from TypeScript.
-    /// You must eventually call [[ITMMessenger.respondToQuery]] (passing the given queryId) if you respond to a given query. You can do that after returning
+    /// You must eventually call `ITMMessenger.respondToQuery` (passing the given queryId) if you respond to a given query. You can do that after returning
     /// true from this function, but you must do so once you are done with the query.
-    /// - Parameter queryId: The query ID that must be sent back to TypeScript in the reponse.
-    /// - Parameter type: The query type.
-    /// - Parameter body: Optional message data sent from TypeScript.
-    /// - Returns: true if you handle the given query, or false otherwise
+    /// - Parameters:
+    ///   - queryId: The query ID that must be sent back to TypeScript in the reponse.
+    ///   - type: The query type.
+    ///   - body: Optional message data sent from TypeScript.
+    /// - Returns: true if you handle the given query, or false otherwise. If you return true, the query will not be passed to any other query handlers.
     func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) -> Bool
     func getQueryType() -> String?
 }
@@ -156,10 +157,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
+    /// Convenience typealias for a function that takes an optional string as input an returns void.
     public typealias ITMResponseHandler = (String?) -> ()
+    /// Convenience typealias for a function that takes an optional UIViewController and an Error and returns a Guarantee that resolves to void.
     public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) -> Guarantee<()>
 
+    /// The webView associated with this ITMMessenger.
     open var webView: WKWebView
+    /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
+    /// The default handler simply logs the error using ITMApplication.logger.
     public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) -> Guarantee<()> in
         ITMApplication.logger.log(.error, baseError.localizedDescription)
         return Guarantee.value(())
@@ -171,6 +177,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     // create another.
     private static var queryId: Int64 = 0
     private static var weakWebViews: [WeakWKWebView] = []
+    /// Whether or not full logging of all messages (with their optional bodies) is enabled.
+    /// - warning: You should only enable this in debug builds, since message bodies may contain private information.
     public static var isFullLoggingEnabled = false
     private let queryName = "Bentley_ITMMessenger_Query"
     private let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
@@ -183,8 +191,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private var frontendLaunchPromise: Promise<()>
     private var frontendLaunchResolver: Resolver<()>
 
-    /// - Parameter webView: The WKWebView to attach this ITMMessageSender to.
-    /// - Parameter errorHandler: The ITMErrorHandler that handles errors inside queryAndShowError.
+    /// - Parameter webView: The WKWebView to which to attach this ITMMessageSender.
     public init(_ webView: WKWebView) {
         let weakWebView = WeakWKWebView(webView: webView)
         if ITMMessenger.weakWebViews.contains(weakWebView) {
@@ -211,10 +218,11 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
-    /// Send query and receive parsed void response via Promise. Errors are shown automatically using errorHandler().
-    /// - Parameter vc: if specified, is checked for visiblity and only then error is shown. view controller that displays error dialog if still visible. Errors shown globally if nil.
-    /// - Parameter type: query type.
-    /// - Parameter data: optional request data to send.
+    /// Send query and receive void response via Promise. Errors are shown automatically using errorHandler().
+    /// - Parameters:
+    ///   - vc: if specified, is checked for visiblity and only then error is shown. View controller that displays error dialog if still visible. Errors shown globally if nil.
+    ///   - type: query type.
+    ///   - data: optional request data to send.
     /// - Returns: A void promise that completes when the query has been handled by the TypeScript code.
     @discardableResult
     public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) -> Promise<()> {
@@ -222,18 +230,20 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Send message and receive parsed typed response via Promise. Errors are shown automatically using errorHandler().
-    /// - Parameter vc: if specified, is checked for visiblity and only then error is shown. view controller that displays error dialog if still visible. Errors shown globally if nil.
-    /// - Parameter type: query type.
-    /// - Parameter data: optional request data to send.
+    /// - Parameters:
+    ///   - vc: if specified, is checked for visiblity and only then error is shown. View controller that displays error dialog if still visible. Errors shown globally if nil.
+    ///   - type: query type.
+    ///   - data: optional request data to send.
     /// - Returns: A promise that completes with the value returned by the TypeScript code.
     @discardableResult
     public func queryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) -> Promise<T> {
         return internalQueryAndShowError(vc, type, data)
     }
 
-    /// Send message and receive parsed void response via Promise. Errors cause the returned promise to reject.
-    /// - Parameter type: query type.
-    /// - Parameter data: optional request data to send.
+    /// Send message and receive void response via Promise. Errors cause the returned promise to reject.
+    /// - Parameters:
+    ///   - type: query type.
+    ///   - data: optional request data to send.
     /// - Returns: A void promise that completes when the query has been handled by the TypeScript code.
     @discardableResult
     public func query(_ type: String, _ data: Any? = nil) -> Promise<()> {
@@ -241,8 +251,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Send message and receive parsed typed response via Promise. Errors cause the returned promise to reject.
-    /// - Parameter type: query type.
-    /// - Parameter data: optional request data to send.
+    /// - Parameters:
+    ///   - type: query type.
+    ///   - data: optional request data to send.
     /// - Returns: A promise that completes with the value returned by the TypeScript code.
     @discardableResult
     public func query<T>(_ type: String, _ data: Any? = nil) -> Promise<T> {
@@ -250,8 +261,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Register specific query handler for the given query type. Returns created handler, use it with unregisterQueryHandler.
-    /// - Parameter type: query type.
-    /// - Parameter handler: callback function for query.
+    /// - Parameters:
+    ///   - type: query type.
+    ///   - handler: callback function for query.
     /// - Returns: The query handler created to handle the given query type.
     public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) -> ITMQueryHandler {
         return internalRegisterQueryHandler(type, handler)
@@ -260,12 +272,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Register query handler for any otherwise unhandled query type.
     /// If you want one query handler to handle queries from multiple query types, create your own class that implements the ITMQueryHandler protocol. Then,
     /// in its handleQuery function, check the type, and handle any queries that have a type that you recognize and return true. Return false from other queries.
+    /// - Note: Handlers registered here will only be called on queries that don't match the type of any queries that are registered with an explicit type.
+    ///         In other words, if you call `registerQueryHandler("myHandler") ...`, then "myHandler" queries will never get to queries
+    ///         registered here.
     /// - Parameter handler: query handler to register.
     public func registerQueryHandler(_ handler: ITMQueryHandler) {
         queryHandlers.append(handler)
     }
 
-    /// Unregister a query handler registered with either [[registerQueryHandler]] function.
+    /// Unregister a query handler registered with either `registerQueryHandler` function.
     /// - Parameter handler: query handler to unregister.
     public func unregisterQueryHandler(_ handler: ITMQueryHandler) {
         if let queryType = handler.getQueryType() {
@@ -327,9 +342,10 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Send query response to WKWebView.
-    /// - Parameter queryId: The queryId for the query. This must be the queryId passed into [[ITMQueryHandler.handleQuery]].
-    /// - Parameter responseJson: The JSON-encoded response string. If this is nil, it indicates an error. To indicate "no response" without triggering an
-    ///                           error, use an empty string.
+    /// - Parameters:
+    ///   - queryId: The queryId for the query. This must be the queryId passed into `ITMQueryHandler.handleQuery`.
+    ///   - responseJson: The JSON-encoded response string. If this is nil, it indicates an error. To indicate "no response" without triggering an
+    ///                   error, use an empty string.
     open func respondToQuery(_ queryId: Int64, _ responseJson: String?) {
         logQuery("Response SWIFT -> JS", "WKID\(queryId)", nil, dataString: responseJson)
         let js: String
@@ -353,11 +369,12 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         return JSONSerialization.string(withITMJSONObject: value) ?? ""
     }
 
-    /// Log the given query using [[logInfo]].
-    /// - Parameter title: A title to show along with the logged message.
-    /// - Parameter queryId: The queryId of the query.
-    /// - Parameter type: The type of the query.
-    /// - Parameter prettyDataString: The pretty-printed JSON representation of the query data.
+    /// Log the given query using `logInfo`.
+    /// - Parameters:
+    ///   - title: A title to show along with the logged message.
+    ///   - queryId: The queryId of the query.
+    ///   - type: The type of the query.
+    ///   - prettyDataString: The pretty-printed JSON representation of the query data.
     open func logQuery(_ title: String, _ queryId: String, _ type: String?, prettyDataString: String?) {
         let typeString = type != nil ? "'\(type!)'" : "(Match ID from Request above)"
         if !ITMMessenger.isFullLoggingEnabled {
@@ -369,13 +386,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         logInfo("ITMMessenger [\(title)] \(queryId): \(typeString)\n\(prettyDataString ?? "null")")
     }
 
-    /// Log an error message using ITMApplication.logger.
+    /// Log an error message using `ITMApplication.logger`.
     /// - Parameter message: The error message to log.
     public func logError(_ message: String) {
         ITMApplication.logger.log(.error, message)
     }
 
-    /// Log an info message using ITMApplication.logger.
+    /// Log an info message using `ITMApplication.logger`.
     /// - Parameter message: The info message to log.
     public func logInfo(_ message: String) {
         ITMApplication.logger.log(.info, message)

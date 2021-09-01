@@ -478,7 +478,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webView.setNeedsLayout()
         if fullyLoaded {
             // Reattach our webViewLogger.
-            webViewLogger.attach(webView)
+            webViewLogger.reattach(webView)
         }
         fullyLoaded = true
         if !dormant {

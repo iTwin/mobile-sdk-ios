@@ -2,7 +2,7 @@ Pod::Spec.new do |spec|
   spec.name         = "itwin-mobile-sdk"
   spec.version      = "0.0.9"
   spec.summary      = "iTwin Mobile SDK"
-  spec.homepage     = "https://github.com/iTwin/itwin-mobile-sdk"
+  spec.homepage     = "https://github.com/iTwin/mobile-sdk"
   spec.license      = { :type => "MIT", :file => "LICENSE.md" }
   spec.author       = "Bentley Systems Inc."
   spec.platform     = :ios
@@ -17,5 +17,5 @@ Pod::Spec.new do |spec|
   spec.dependency "PromiseKit/CoreLocation", "~> 6.0"
   spec.dependency "PromiseKit/Foundation", "~> 6.0"
   spec.dependency "ReachabilitySwift"
-  spec.dependency "itwin-mobile-ios-package"
+  spec.dependency "mobile-ios-package"
 end

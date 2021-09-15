@@ -97,15 +97,20 @@ public class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 /// Error with a JSON-encoded string with information about what went wrong.
 open class ITMError: Error {
     public let jsonString: String
-
+    
+    /// Create an ITMError with an empty jsonString.
     public init() {
         self.jsonString = ""
     }
-
+    
+    /// Create an ITMError with the given JSON string.
+    /// - Parameter jsonString: The jsonString for this ITMError.
     public init(jsonString: String) {
         self.jsonString = jsonString
     }
-
+    
+    /// Create an ITMError with a JSON string created from the given dictionary.
+    /// - Parameter json: A dictionary that will be converted to a JSON string for this ITMError.
     public init(json: [String: Any]) {
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
     }

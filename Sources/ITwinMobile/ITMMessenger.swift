@@ -109,6 +109,14 @@ open class ITMError: Error {
     public init(json: [String: Any]) {
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
     }
+    
+    /// Create and return a Promise of the given type that has already been rejected using the receiver as the error
+    /// - Returns: A Promise of the given type that has already been rejected using the receiver as the error.
+    public func rejectedPromise<T>() -> Promise<T> {
+        let (promise, resolver) = Promise<T>.pending()
+        resolver.reject(self)
+        return promise
+    }
 }
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.

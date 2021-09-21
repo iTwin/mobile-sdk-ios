@@ -159,7 +159,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             self.updateHeadingOrientation()
         }
         updateHeadingOrientation()
-        webView.configuration.userContentController.add(WeakScriptMessageHandler(self), name: "Bentley_ITMGeolocation")
+        webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: "Bentley_ITMGeolocation")
     }
 
     deinit {

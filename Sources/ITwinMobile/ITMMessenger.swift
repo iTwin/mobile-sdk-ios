@@ -82,7 +82,7 @@ public extension ITMQueryHandler {
 /// strong reference to the WKWebView, a retain cycle is created if we connect
 /// the two directly. This class acts as a go-between, and since it has a weak
 /// reference to its delegate, the retain cycle is broken.
-public class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+public class ITMWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     weak var delegate: WKScriptMessageHandler?
     public init(_ delegate: WKScriptMessageHandler) {
         self.delegate = delegate
@@ -219,7 +219,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         (frontendLaunchPromise, frontendLaunchResolver) = Promise<()>.pending()
         super.init()
         for handlerName in handlerNames {
-            webView.configuration.userContentController.add(WeakScriptMessageHandler(self), name: handlerName)
+            webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
         }
     }
 

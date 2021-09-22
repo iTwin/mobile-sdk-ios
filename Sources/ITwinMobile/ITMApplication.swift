@@ -56,12 +56,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The `ITMLogger` responsible for handling log messages (both from native code and JavaScript code). The default logger
     /// uses `NSLog` for the messages. Replace this object with an `ITMLogger` subclass to change the logging behavior.
     public static var logger = ITMLogger()
+    private let geolocationManager: ITMGeolocationManager
 
     /// Creates an `ITMApplication`
     required public override init() {
         webView = type(of: self).createEmptyWebView()
         webViewLogger = type(of: self).createWebViewLogger(webView)
         itmMessenger = type(of: self).createITMMessenger(webView)
+        geolocationManager = ITMGeolocationManager(itmMessenger: itmMessenger, webView: webView)
         super.init()
         webView.uiDelegate = self
         webView.navigationDelegate = self

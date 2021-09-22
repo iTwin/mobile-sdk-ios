@@ -10,15 +10,18 @@ Interaction with the API starts with the ``ITMApplication`` class. You use this 
 
 ## Topics
 
-### Classes
+### Main Classes
 
 - ``ITMApplication``
-- ``ITMViewController``
 - ``ITMMessenger``
-- ``ITMNativeUI``
-- ``ITMNativeUIComponent``
+- ``ITMViewController``
+
+### Other Classes
+
 - ``ITMError``
 - ``ITMGeolocationManager``
 - ``ITMLogger``
-- ``ITMWebViewLogger``
+- ``ITMNativeUI``
+- ``ITMNativeUIComponent``
 - ``ITMWeakScriptMessageHandler``
+- ``ITMWebViewLogger``

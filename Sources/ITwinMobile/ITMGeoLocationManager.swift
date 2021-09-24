@@ -99,8 +99,8 @@ public struct GeolocationPositionError: Codable {
 }
 
 public extension CLLocationManager {
-    /// Get the current location and convert it into a JavaScript-compatible `GeolocationPosition` object converted to a JSON-compatible dictionary..
-    /// - Returns: `Promise` that when resolved contains a `GeolocationPosition` object converted to a JSON-compatible dictionary.
+    /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object converted to a JSON-compatible dictionary..
+    /// - Returns: `Promise` that when resolved contains a ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
     ///            The `Promise` is rejected if there is an error looking up the position.
     static func geolocationPosition() -> Promise<[String: Any]> {
         firstly {
@@ -118,10 +118,10 @@ public extension CLLocationManager {
 }
 
 public extension CLLocation {
-    /// Convert the `CLLocation` to a `GeolocationPosition` object converted to a JSON-compatible dictionary.
-    /// - Parameter heading: The optional direction that will be stored in the `heading` field of the `GeolocationCoordinates` in the `GeolocationPosition`.
+    /// Convert the ``CLLocation`` to a ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
+    /// - Parameter heading: The optional direction that will be stored in the `heading` field of the ``GeolocationCoordinates`` in the ``GeolocationPosition``.
     ///                      Note that this is the device's compass heading, not the motion heading as would normally be expected.
-    /// - Returns: A `GeolocationPosition` object representing the `CLLocation` at the given heading, converted to a JSON-compatible dictionary.
+    /// - Returns: A ``GeolocationPosition`` object representing the ``CLLocation`` at the given heading, converted to a JSON-compatible dictionary.
     func geolocationPosition(_ heading: CLLocationDirection? = nil) throws -> [String: Any] {
         let coordinates = GeolocationCoordinates(
             accuracy: horizontalAccuracy,
@@ -145,7 +145,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     private var orientationObserver: Any?
 
     /// - Parameters:
-    ///   - itmMessenger: The `ITMMessenger` used to communicate with the JavaScript side of this polyfill.
+    ///   - itmMessenger: The ``ITMMessenger`` used to communicate with the JavaScript side of this polyfill.
     ///   - webView: The `WKWebView` containing the JavaScript side of this polyfill.
     init(itmMessenger: ITMMessenger, webView: WKWebView) {
         self.itmMessenger = itmMessenger

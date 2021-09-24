@@ -11,8 +11,8 @@ import WebKit
 
 /// Convenience UIViewController that shows a `WKWebView` with an ITwin Mobile frontend running inside it.
 open class ITMViewController: UIViewController {
-    /// The `ITMApplication` used by this view controller. You **must** set this value before using this view controller.
-    /// - Note: This will often be set to an application-specific subclass of `ITMApplication`
+    /// The ``ITMApplication`` used by this view controller. You **must** set this value before using this view controller.
+    /// - Note: This will often be set to an application-specific subclass of ``ITMApplication``
     public static var application: ITMApplication!
     /// Whether or not to automatically load the web application the first time the view loads.
     public static var autoLoadWebApplication = true
@@ -28,14 +28,14 @@ open class ITMViewController: UIViewController {
         }
     }
 
-    /// Creates an `ITMNativeUI` and attaches it to this view controller and the `application`'s `itmMessenger`.
+    /// Creates an ``ITMNativeUI`` and attaches it to this view controller and the `application`'s `itmMessenger`.
     open override func viewWillAppear(_ animated: Bool) {
         itmNativeUI = ITMNativeUI(viewController: self, itmMessenger: ITMViewController.application.itmMessenger)
         ITMViewController.application.viewWillAppear(viewController: self)
         super.viewWillAppear(animated)
     }
 
-    /// Detaches and clears this view controller's `ITMNativeUI`.
+    /// Detaches and clears this view controller's ``ITMNativeUI``.
     open override func viewWillDisappear(_ animated: Bool) {
         itmNativeUI?.detach()
         itmNativeUI = nil
@@ -60,7 +60,7 @@ open class ITMViewController: UIViewController {
         }
     }
 
-    /// Loads the iTwin Mobile app if `autoLoadWebApplication` is true.
+    /// Loads the iTwin Mobile app if ``autoLoadWebApplication`` is true.
     open override func viewDidLoad() {
         if ITMViewController.autoLoadWebApplication {
             if ITMViewController.delayedAutoLoad {

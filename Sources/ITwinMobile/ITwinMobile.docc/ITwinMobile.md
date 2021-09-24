@@ -18,6 +18,10 @@ Interaction with the API starts with the ``ITMApplication`` class. You use this 
 
 ### Other Classes
 
+- ``ITMActionSheet``
+- ``ITMAlert``
+- ``ITMAlertController``
+- ``ITMAssetHandler``
 - ``ITMError``
 - ``ITMGeolocationManager``
 - ``ITMLogger``

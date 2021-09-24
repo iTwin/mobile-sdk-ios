@@ -10,7 +10,7 @@ import UIKit
 import WebKit
 
 /// Default asset handler for loading frontend resources.
-final class ITMAssetHandler: NSObject, WKURLSchemeHandler {
+final public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     private let assetPath: String
 
     init(assetPath: String) {
@@ -18,7 +18,7 @@ final class ITMAssetHandler: NSObject, WKURLSchemeHandler {
         super.init()
     }
 
-    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+    public func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let fileUrl = getFileUrl(urlSchemeTask: urlSchemeTask)
         if fileUrl != nil {
             respondWithDiskFile(urlSchemeTask: urlSchemeTask, fileUrl: fileUrl!)
@@ -29,7 +29,7 @@ final class ITMAssetHandler: NSObject, WKURLSchemeHandler {
         }
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    public func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 
     func getFileUrl(urlSchemeTask: WKURLSchemeTask) -> URL? {
         let assetFolderUrl = Bundle.main.resourceURL?.appendingPathComponent(assetPath)

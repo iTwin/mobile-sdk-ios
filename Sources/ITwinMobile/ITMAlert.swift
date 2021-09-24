@@ -41,9 +41,9 @@ struct ITMAlertAction: Codable, Equatable {
 
 // MARK: - ITMAlert class
 
-/// `ITMNativeUIComponent` that presents a `UIAlertController` with a style of `.alert`.
+/// ``ITMNativeUIComponent`` that presents a `UIAlertController` with a style of `.alert`.
 /// This class is used by the `presentAlert` TypeScript function in @itwin/mobile-core.
-final class ITMAlert: ITMNativeUIComponent {
+final public class ITMAlert: ITMNativeUIComponent {
     override init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         super.init(viewController: viewController, itmMessenger: itmMessenger)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentAlert", handleQuery)

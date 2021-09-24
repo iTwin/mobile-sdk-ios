@@ -63,7 +63,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         })
     }
 
-    /// Attach this `ITMWebViewLogger` to the given `WKWebView`.
+    /// Attach this ``ITMWebViewLogger`` to the given `WKWebView`.
     public func attach(_ webView: WKWebView) {
         webView.configuration.userContentController.add(self, name: "itmLogger")
         reattach(webView)
@@ -83,7 +83,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
 
     /// Log the given message using `ITMApplication.logger`.
     /// - Parameters:
-    ///   - severity: The log severity string. Must be a value from `ITMLogger.Severity`.
+    ///   - severity: The log severity string. Must be a value from ``ITMLogger.Severity``.
     ///   - logMessage: The message to log.
     func log(_ severity: String?, _ logMessage: String) {
         ITMApplication.logger.log(ITMLogger.Severity(severity), logMessage)

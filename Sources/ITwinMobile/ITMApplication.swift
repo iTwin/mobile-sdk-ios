@@ -40,9 +40,9 @@ extension JSON {
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
-    /// The `ITMWebViewLogger` for JavaScript console output.
+    /// The ``ITMWebViewLogger`` for JavaScript console output.
     public let webViewLogger: ITMWebViewLogger
-    /// The `ITMMessenger` for communication between native code and JavaScript code (and vice versa).
+    /// The ``ITMMessenger`` for communication between native code and JavaScript code (and vice versa).
     public let itmMessenger: ITMMessenger
     /// Tracks whether the initial page has been loaded in the web view.
     public var fullyLoaded = false
@@ -53,12 +53,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public var usingRemoteServer = false
     private var queryHandlers: [ITMQueryHandler] = []
     private var reachabilityObserver: Any?
-    /// The `ITMLogger` responsible for handling log messages (both from native code and JavaScript code). The default logger
-    /// uses `NSLog` for the messages. Replace this object with an `ITMLogger` subclass to change the logging behavior.
+    /// The ``ITMLogger`` responsible for handling log messages (both from native code and JavaScript code). The default logger
+    /// uses `NSLog` for the messages. Replace this object with an ``ITMLogger`` subclass to change the logging behavior.
     public static var logger = ITMLogger()
     private let geolocationManager: ITMGeolocationManager
 
-    /// Creates an `ITMApplication`
+    /// Creates an ``ITMApplication``
     required public override init() {
         webView = type(of: self).createEmptyWebView()
         webViewLogger = type(of: self).createWebViewLogger(webView)
@@ -108,23 +108,23 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Creates a `WKURLSchemeHandler` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
-    /// - Returns: An `ITMAssetHandler` object that properly loads appropriate files.
+    /// - Returns: An ``ITMAssetHandler`` object that properly loads appropriate files.
     public class func createAssetHandler(assetPath: String) -> WKURLSchemeHandler {
         return ITMAssetHandler(assetPath: assetPath)
     }
 
-    /// Creates an `ITMMessenger` for use with an iTwin Mobile web app.
+    /// Creates an ``ITMMessenger`` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
-    /// - Parameter webView: The `WKWebView` to which to attach the `ITMMessenger`.
-    /// - Returns: An `ITMMessenger` object attached to `webView`.
+    /// - Parameter webView: The `WKWebView` to which to attach the ``ITMMessenger``.
+    /// - Returns: An ``ITMMessenger`` object attached to `webView`.
     public class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
         return ITMMessenger(webView)
     }
 
-    /// Creates an `ITMWebViewLogger` for use with an iTwin Mobile web app.
+    /// Creates an ``ITMWebViewLogger`` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
-    /// - Parameter webView: The `WKWebView` to which to attach the `ITMWebViewLogger`.
-    /// - Returns: An `ITMWebViewLogger` object attached to `webView`.
+    /// - Parameter webView: The `WKWebView` to which to attach the ``ITMWebViewLogger``.
+    /// - Returns: An ``ITMWebViewLogger`` object attached to `webView`.
     public class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
         let webViewLogger = ITMWebViewLogger(name: "ITMApplication")
         webViewLogger.attach(webView)
@@ -133,7 +133,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Registers a handler for the given query from the web view.
     /// You can use `unregisterQueryHandler` to unregister this at any time. Otherwise, it will be automatically unregistered when
-    /// this `ITMApplication` is destroyed.
+    /// this ``ITMApplication`` is destroyed.
     /// - Parameters:
     ///   - type: The query type used by the JavaScript code to perform the query.
     ///   - handler: The handler for the query.
@@ -328,7 +328,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Top view for presenting iTwin Mobile web app in dormant state.
     /// Override this function in a subclass in order to add custom behavior.
-    /// Always add dormant application to `topViewController`'s view to ensure it appears in presented view hierarchy
+    /// Always add dormant application to ``topViewController``'s view to ensure it appears in presented view hierarchy
     /// - Returns: The top view.
     public class var topView: UIView? {
         guard let topViewController = self.topViewController else { return nil }

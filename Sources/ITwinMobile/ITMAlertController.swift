@@ -22,12 +22,12 @@ class ITMErrorViewController: UIViewController {
 }
 
 /// `UIAlertController` subclass that hides the status bar and presents on top of everything else.
-final class ITMAlertController: UIAlertController {
+open class ITMAlertController: UIAlertController {
     var rootBounds: CGRect?
     var deviceOrientation: UIDeviceOrientation?
     private static var alertWindow: UIWindow?
 
-    /// - Returns: And instance of `ITMAlertController` that is properly configured. May return a preexisting instance.
+    /// - Returns: An instance of ``ITMAlertController`` that is properly configured. May return a preexisting instance.
     public static var getAlertVC: () -> UIViewController = {
         // This avoids cases where topmost view controller is dismissed while presenting alert
         // Create temporary window to show alert anywhere and anytime and avoid view hiearchy issues.
@@ -41,22 +41,22 @@ final class ITMAlertController: UIAlertController {
         return alertWindow!.rootViewController!
     }
 
-    /// Call this to indicate that you are done using the `ITMAlertController`, so that it can clean up.
+    /// Call this to indicate that you are done using the ``ITMAlertController``, so that it can clean up.
     public static var doneWithAlertWindow: () -> () = {
         alertWindow = nil
     }
 
-    override var prefersStatusBarHidden: Bool {
+    open override var prefersStatusBarHidden: Bool {
         return true
     }
 
-    override func viewDidAppear(_ animated: Bool) {
+    open override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         rootBounds = view.window?.rootViewController?.view.bounds
         deviceOrientation = UIDevice.current.orientation
     }
 
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+    open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         if let deviceOrientation = deviceOrientation, deviceOrientation != UIDevice.current.orientation {
             dismiss(animated: true)

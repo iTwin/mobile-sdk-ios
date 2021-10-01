@@ -1,12 +1,10 @@
 // swift-tools-version:5.5
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-//---------------------------------------------------------------------------------------
-//
-// Copyright (c) Bentley Systems, Incorporated. All rights reserved.
-// See LICENSE.md in the project root for license terms and full copyright notice.
-//
-//---------------------------------------------------------------------------------------
+/*---------------------------------------------------------------------------------------------
+* Copyright (c) Bentley Systems, Incorporated. All rights reserved.
+* See LICENSE.md in the project root for license terms and full copyright notice.
+*--------------------------------------------------------------------------------------------*/
 
 import PackageDescription
 

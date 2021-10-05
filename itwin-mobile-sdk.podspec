@@ -17,5 +17,5 @@ Pod::Spec.new do |spec|
   spec.dependency "PromiseKit/CoreLocation", "~> 6.0"
   spec.dependency "PromiseKit/Foundation", "~> 6.0"
   spec.dependency "ReachabilitySwift"
-  spec.dependency "mobile-ios-package"
+  spec.dependency "itwin-mobile-ios-package"
 end

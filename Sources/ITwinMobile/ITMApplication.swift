@@ -305,7 +305,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 }
                 webView.load(request)
                 if self.usingRemoteServer {
-                    _ = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
+                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
                         if !self.fullyLoaded {
                             let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server.", preferredStyle: .alert)
                             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in

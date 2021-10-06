@@ -39,12 +39,17 @@ open class ITMLogger {
         public var description: String { return rawValue.uppercased() }
     }
 
+    /// Creates a logger.
+    public init() {
+        // do nothing, just here so it can be sub-classed
+    }
+    
     /// Log a message. This default implementation uses NSLog. Replace ITMMessenger's static logger instance
     /// with a subclass that overrides this function to change the logging behavior.
     /// - Parameters:
     ///   - severity: The severity of the log message.
     ///   - logMessage: The message to log.
-    public func log(_ severity: Severity?, _ logMessage: String) {
+    open func log(_ severity: Severity?, _ logMessage: String) {
         NSLog("%@  %@", severity?.description ?? "<UNKNOWN>", logMessage)
     }
 }

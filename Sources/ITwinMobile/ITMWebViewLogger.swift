@@ -16,7 +16,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
     }
 
     /// Reattach to webview so that console output will continue to be forwarded after the webview has been reloaded.
-    func reattach(_ webView: WKWebView) {
+    public func reattach(_ webView: WKWebView) {
         // TODO: this overrides stack traces when looking into console logs via Safari browser.
         // TODO: only "Script error." is printed for unhandled exceptions.
         let js = """

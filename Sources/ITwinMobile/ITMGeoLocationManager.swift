@@ -144,7 +144,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     /// - Parameters:
     ///   - itmMessenger: The ``ITMMessenger`` used to communicate with the JavaScript side of this polyfill.
     ///   - webView: The `WKWebView` containing the JavaScript side of this polyfill.
-    init(itmMessenger: ITMMessenger, webView: WKWebView) {
+    public init(itmMessenger: ITMMessenger, webView: WKWebView) {
         self.itmMessenger = itmMessenger
         self.webView = webView
         super.init()

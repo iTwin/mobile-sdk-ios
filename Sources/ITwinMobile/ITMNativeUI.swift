@@ -16,14 +16,16 @@ class ITMDictionaryDecoder<T: Decodable> {
 }
 
 
-struct ITMRect: Codable, Equatable {
+/// Struct for converting between JSON and Swift representing a rectangle.
+public struct ITMRect: Codable, Equatable {
     let x: Double
     let y: Double
     let width: Double
     let height: Double
 }
 
-extension CGRect {
+public extension CGRect {
+    /// Create a CGRect from an ``ITMRect``.
     init(_ alertRect: ITMRect) {
         // NOTE: Even though CGFloat is Float on 32-bit hardware, CGPoint and CGSize both have overridden initializers
         // that explicitly take Double.

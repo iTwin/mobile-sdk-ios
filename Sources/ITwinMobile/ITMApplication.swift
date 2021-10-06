@@ -53,7 +53,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The ``ITMLogger`` responsible for handling log messages (both from native code and JavaScript code). The default logger
     /// uses `NSLog` for the messages. Replace this object with an ``ITMLogger`` subclass to change the logging behavior.
     public static var logger = ITMLogger()
-    private let geolocationManager: ITMGeolocationManager
+    
+    /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
+    public let geolocationManager: ITMGeolocationManager
 
     /// Creates an ``ITMApplication``
     required public override init() {
@@ -83,7 +85,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: A `WKWebView` configured for use by iTwin Mobile.
-    public class func createEmptyWebView() -> WKWebView {
+    open class func createEmptyWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
         let contentController = WKUserContentController()
         configuration.userContentController = contentController
@@ -106,7 +108,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Creates a `WKURLSchemeHandler` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: An ``ITMAssetHandler`` object that properly loads appropriate files.
-    public class func createAssetHandler(assetPath: String) -> WKURLSchemeHandler {
+    open class func createAssetHandler(assetPath: String) -> WKURLSchemeHandler {
         return ITMAssetHandler(assetPath: assetPath)
     }
 
@@ -114,7 +116,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter webView: The `WKWebView` to which to attach the ``ITMMessenger``.
     /// - Returns: An ``ITMMessenger`` object attached to `webView`.
-    public class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
+    open class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
         return ITMMessenger(webView)
     }
 
@@ -122,7 +124,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter webView: The `WKWebView` to which to attach the ``ITMWebViewLogger``.
     /// - Returns: An ``ITMWebViewLogger`` object attached to `webView`.
-    public class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
+    open class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
         let webViewLogger = ITMWebViewLogger(name: "ITMApplication")
         webViewLogger.attach(webView)
         return webViewLogger
@@ -167,14 +169,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Gets the directory name used for the iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The name of the directory in the main bundle that contains the iTwin Mobile web app.
-    public class func getWebAppDir() -> String {
+    open class func getWebAppDir() -> String {
         return "ITMApplication"
     }
 
     /// Gets the relative path inside the main bundle to the index.html file for the frontend of the iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The relative path inside the main bundle to the index.html file for the frontend of the iTwin Mobile web app.
-    public class func getFrontendIndexPath() -> URL {
+    open class func getFrontendIndexPath() -> URL {
         return URL(string: "\(getWebAppDir())/frontend/index.html")!
     }
 

@@ -56,6 +56,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
+    
+    /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
+    /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
+    /// may lead to deadlock. This is done automatically in `loadFrontend`.
+    public let backendLoadingDispatchGroup = DispatchGroup()
 
     /// Creates an ``ITMApplication``
     required public override init() {
@@ -66,6 +71,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         super.init()
         webView.uiDelegate = self
         webView.navigationDelegate = self
+        backendLoadingDispatchGroup.enter()
     }
 
     deinit {
@@ -263,7 +269,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             backendUrl,
             withAuthClient: getAuthClient(),
             withInspect: allowInspectBackend
-        )
+        ) { _ in
+            self.backendLoadingDispatchGroup.leave()
+        }
         IModelJsHost.sharedInstance().register(webView)
     }
 
@@ -277,48 +285,56 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Loads the iTwin Mobile web app frontend.
     /// Override this function in a subclass in order to add custom behavior.
     open func loadFrontend() {
-        var url = getBaseUrl()
-        url += "#port=\(IModelJsHost.sharedInstance().getPort())"
-        url += "&platform=ios"
-        url += getUrlHashParams()
-        let request = URLRequest(url: URL(string: url)!)
-        // NOTE: the below runs before the webView's main page has been loaded, and
-        // we wait for the execution to complete before loading the main page. So we
-        // can't use wkMessageSender.evaluateJavaScript here, even though we use it
-        // everywhere else in this file.
-        webView.evaluateJavaScript("navigator.userAgent") { [weak webView = self.webView] result, error in
-            if let webView = webView {
-                if let userAgent = result as? String {
-                    var customUserAgent: String
-                    if userAgent.contains("Mobile") {
-                        // The userAgent in the webView starts out as a mobile userAgent, and
-                        // then subsequently changes to a Mac desktop userAgent. If we set
-                        // customUserAgent to the original mobile one, all will be fine.
-                        customUserAgent = userAgent
-                    } else {
-                        // If in the future the webView starts out with a Mac desktop userAgent,
-                        // append /Mobile to the end so that UIFramework.isMobile() will work.
-                        customUserAgent = userAgent + " Mobile"
-                    }
-                    customUserAgent += self.getUserAgentSuffix()
-                    webView.customUserAgent = customUserAgent
-                }
-                webView.load(request)
-                if self.usingRemoteServer {
-                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
-                        if !self.fullyLoaded {
-                            let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(url).", preferredStyle: .alert)
-                            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
-                                ITMAlertController.doneWithAlertWindow()
-                            }))
-                            alert.modalPresentationCapturesStatusBarAppearance = true
-                            type(of: self).topViewController?.present(alert, animated: true, completion: nil)
+        DispatchQueue(label: "ITM.WaitForBackend", qos: .userInitiated).async {
+            // We must wait for the backend to finish loading before loading the frontend.
+            // The wait has to happen without blocking the main thread.
+            self.backendLoadingDispatchGroup.wait()
+            var url = self.getBaseUrl()
+            url += "#port=\(IModelJsHost.sharedInstance().getPort())"
+            url += "&platform=ios"
+            url += self.getUrlHashParams()
+            let request = URLRequest(url: URL(string: url)!)
+            // The call to evaluateJavaScript must happen in the main thread.
+            DispatchQueue.main.async {
+                // NOTE: the below runs before the webView's main page has been loaded, and
+                // we wait for the execution to complete before loading the main page. So we
+                // can't use itmMessenger.evaluateJavaScript here, even though we use it
+                // everywhere else in this file.
+                self.webView.evaluateJavaScript("navigator.userAgent") { [weak webView = self.webView] result, error in
+                    if let webView = webView {
+                        if let userAgent = result as? String {
+                            var customUserAgent: String
+                            if userAgent.contains("Mobile") {
+                                // The userAgent in the webView starts out as a mobile userAgent, and
+                                // then subsequently changes to a Mac desktop userAgent. If we set
+                                // customUserAgent to the original mobile one, all will be fine.
+                                customUserAgent = userAgent
+                            } else {
+                                // If in the future the webView starts out with a Mac desktop userAgent,
+                                // append /Mobile to the end so that UIFramework.isMobile() will work.
+                                customUserAgent = userAgent + " Mobile"
+                            }
+                            customUserAgent += self.getUserAgentSuffix()
+                            webView.customUserAgent = customUserAgent
                         }
+                        webView.load(request)
+                        if self.usingRemoteServer {
+                            _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
+                                if !self.fullyLoaded {
+                                    let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(url).", preferredStyle: .alert)
+                                    alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+                                        ITMAlertController.doneWithAlertWindow()
+                                    }))
+                                    alert.modalPresentationCapturesStatusBarAppearance = true
+                                    type(of: self).topViewController?.present(alert, animated: true, completion: nil)
+                                }
+                            }
+                        }
+                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil, using: { _ in
+                            self.updateReachability()
+                        })
                     }
                 }
-                self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil, using: { _ in
-                    self.updateReachability()
-                })
             }
         }
     }

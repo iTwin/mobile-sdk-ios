@@ -49,10 +49,7 @@ open class ITMViewController: UIViewController {
     public func loadWebApplication() {
         if !self.loadedOnce {
             ITMViewController.application.loadBackend(true)
-            // Due to a bug in iModelJS, loadFrontend must be executed after the initial willEnterForegroundNotification.
-            Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { _ in
-                ITMViewController.application.loadFrontend();
-            }
+            ITMViewController.application.loadFrontend();
             self.loadedOnce = true
         }
     }

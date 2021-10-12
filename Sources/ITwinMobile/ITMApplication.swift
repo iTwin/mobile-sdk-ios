@@ -307,7 +307,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 if self.usingRemoteServer {
                     _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
                         if !self.fullyLoaded {
-                            let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server.", preferredStyle: .alert)
+                            let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(url).", preferredStyle: .alert)
                             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
                                 ITMAlertController.doneWithAlertWindow()
                             }))

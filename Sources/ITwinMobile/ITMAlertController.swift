@@ -20,6 +20,7 @@ class ITMErrorViewController: UIViewController {
 
 /// `UIAlertController` subclass that hides the status bar and presents on top of everything else.
 open class ITMAlertController: UIAlertController {
+    var onClose: (() -> Void)?
     var rootBounds: CGRect?
     var deviceOrientation: UIDeviceOrientation?
     private static var alertWindow: UIWindow?
@@ -51,6 +52,11 @@ open class ITMAlertController: UIAlertController {
         super.viewDidAppear(animated)
         rootBounds = view.window?.rootViewController?.view.bounds
         deviceOrientation = UIDevice.current.orientation
+    }
+    
+    open override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        onClose?()
     }
 
     open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {

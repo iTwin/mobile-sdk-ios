@@ -253,6 +253,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Loads the iTwin Mobile web app backend.
     /// Override this function in a subclass in order to add custom behavior.
+    /// - Note: This function returns before the loading has completed.
     /// - Parameter allowInspectBackend: Whether or not to all debugging of the backend.
     open func loadBackend(_ allowInspectBackend: Bool) {
         if let configData = loadITMAppConfig() {
@@ -284,6 +285,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Loads the iTwin Mobile web app frontend.
     /// Override this function in a subclass in order to add custom behavior.
+    /// - Note: This function returns before the loading has completed.
     open func loadFrontend() {
         DispatchQueue(label: "ITM.WaitForBackend", qos: .userInitiated).async {
             // We must wait for the backend to finish loading before loading the frontend.

@@ -61,6 +61,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
     /// may lead to deadlock. This is done automatically in `loadFrontend`.
     public let backendLoadingDispatchGroup = DispatchGroup()
+    private var backendLoaded = false
 
     /// Creates an ``ITMApplication``
     required public override init() {
@@ -256,6 +257,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Note: This function returns before the loading has completed.
     /// - Parameter allowInspectBackend: Whether or not to all debugging of the backend.
     open func loadBackend(_ allowInspectBackend: Bool) {
+        if backendLoaded {
+            return
+        }
         if let configData = loadITMAppConfig() {
             extractConfigsToEnv(configData: configData, configs: [
                 ("clientId", "ITMAPPLICATION_CLIENT_ID"),
@@ -271,7 +275,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             withAuthClient: getAuthClient(),
             withInspect: allowInspectBackend
         ) { _ in
-            self.backendLoadingDispatchGroup.leave()
+            // This callback gets called each time the app returns to the foreground. That is
+            // probably a bug in iModelJS, but this check avoids having that cause problems.
+            if !self.backendLoaded {
+                self.backendLoaded = true
+                self.backendLoadingDispatchGroup.leave()
+            }
         }
         IModelJsHost.sharedInstance().register(webView)
     }

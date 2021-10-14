@@ -30,8 +30,14 @@ fileprivate class ITMDevicePermissionsHelper {
     private static func openMissingPermisionsDialog(message: String, title: String? = nil, cancelAction: ((UIAlertAction) -> ())? = nil) {
         let viewController = ITMAlertController.getAlertVC()
         let alert = UIAlertController(title: title == nil ? accesRequiredStr : title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: cancelStr, style: .cancel, handler: cancelAction))
-        alert.addAction(UIAlertAction(title: settingStr, style: .default, handler: { _ in self.openApplicationSettings() }))
+        alert.addAction(UIAlertAction(title: cancelStr, style: .cancel) { action in
+            cancelAction?(action)
+            ITMAlertController.doneWithAlertWindow()
+        })
+        alert.addAction(UIAlertAction(title: settingStr, style: .default) { _ in
+            self.openApplicationSettings()
+            ITMAlertController.doneWithAlertWindow()
+        })
         viewController.present(alert, animated: true)
     }
 

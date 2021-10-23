@@ -47,17 +47,18 @@ def changeCommand(args):
 def commitDir(args, dir):
     dir = os.path.realpath(dir)
     print "Committing in dir: " + dir;
-    rc = subprocess.call(['git', 'diff', '--exit-code'])
+    rc = subprocess.call(['git', 'diff', '--quiet'], cwd=dir)
     if rc:
+        subprocess.check_call(['git', 'add', '.'], cwd=dir)
         subprocess.check_call(['git', 'commit', '-m', 'v' + args.newVersion], cwd=dir)
-    else
-        print "  Nothing to commit."
+    else:
+        print "Nothing to commit."
 
 def commitCommand(args):
-    commitDir('.')
-    commitDir('../mobile-sdk-core')
-    commitDir('../mobile-ui-react')
-    commitDir('../mobile-sdk-samples')
+    commitDir(args, '.')
+    commitDir(args, '../mobile-sdk-core')
+    commitDir(args, '../mobile-ui-react')
+    commitDir(args, '../mobile-sdk-samples')
 
 def releaseCommand(args):
     print "Release not implemented yet"

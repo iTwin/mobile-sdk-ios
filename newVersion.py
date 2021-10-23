@@ -25,7 +25,7 @@ def modifyPackageJson(args, fileName):
 def modifyPackageSwift(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
     replaceAll(fileName, [
-        ('(https://github.com/iTwin/mobile-ios-package", .exact\()"' + args.oldIos, '\\1"' + args.newIos)
+        ('(mobile-ios-package", .exact\()"' + args.oldIos, '\\1"' + args.newIos)
     ])
 
 def modifyPodspec(args, fileName):
@@ -36,7 +36,6 @@ def modifyPodspec(args, fileName):
     ])
 
 def changeCommand(args):
-    dir = getExecutingDirectory()
     modifyPackageSwift(args, dir + '/Package.swift')
     modifyPackageSwift(args, dir + '/Package@swift-5.5.swift')
     modifyPodspec(args, dir + '/itwin-mobile-sdk.podspec')
@@ -55,15 +54,38 @@ def commitDir(args, dir):
         print "Nothing to commit."
 
 def commitCommand(args):
-    commitDir(args, '.')
-    commitDir(args, '../mobile-sdk-core')
-    commitDir(args, '../mobile-ui-react')
-    commitDir(args, '../mobile-sdk-samples')
+    for dir in dirs:
+        commitDir(args, dir)
+
+def pushDir(args, dir):
+    dir = os.path.realpath(dir)
+    print "Pushing in dir: " + dir;
+    subprocess.check_call(['git', 'push'], cwd=dir)
+
+def pushCommand(args):
+    for dir in dirs:
+        pushDir(args, dir)
+
+def releaseDir(args, dir):
+    dir = os.path.realpath(dir)
+    print "Releasing in dir: " + dir
+    subprocess.check_call(['gh', 'release', 'create', args.newVersion, '-t', 'v' + args.newVersion], cwd=dir)
+
+def releaseUpload(args, dir, fileName):
+    dir = os.path.realpath(dir)
+    print "Uploading in dir: {} file: {}".format(dir, fileName)
+    subprocess.check_call(['gh', 'release', 'upload', args.newVersion, fileName], cwd=dir)
 
 def releaseCommand(args):
-    print "Release not implemented yet"
+    print "Releasing"
+    for dir in dirs:
+        releaseDir(args, dir)
+    releaseUpload(args, '.', 'itwin-mobile-sdk.podspec')
 
 if __name__ == '__main__':
+    dir = getExecutingDirectory()
+    dirs = ['.', '../mobile-sdk-core', '../mobile-ui-react', '../mobile-sdk-samples']
+
     parser = argparse.ArgumentParser(description='Script for helping with creating a new Mobile SDK version.')
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
     
@@ -79,6 +101,9 @@ if __name__ == '__main__':
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
     parser_commit.set_defaults(func=commitCommand)
     parser_commit.add_argument('-n', '--new', dest='newVersion', required=True, help='New release version')
+
+    parser_push = sub_parsers.add_parser('push', help='Push changes')
+    parser_push.set_defaults(func=pushCommand)
 
     parser_release = sub_parsers.add_parser('release', help='Create releases')
     parser_release.set_defaults(func=releaseCommand)

@@ -24,15 +24,15 @@ def modifyPackageJson(args, fileName):
     ])
 
 def modifyPackageSwift(args, fileName):
-    if args.oldIos != args.newIos:
-        print "Processing: " + os.path.realpath(fileName)
-        replaceAll(fileName, [('(mobile-ios-package", .exact\()"' + args.oldIos, '\\1"' + args.newIos)])
+    # if args.oldIos != args.newIos:
+    print "Processing: " + os.path.realpath(fileName)
+    replaceAll(fileName, [('(mobile-ios-package", .exact\()"' + '[\.0-9]+', '\\1"' + args.newIos)])
 
 def modifyPodspec(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
     replacements = [('(spec.version.*= )"' + args.oldVersion, '\\1"' + args.newVersion)]
-    if args.oldIos != args.newIos:
-        replacements.append(('(spec.dependency +"itwin-mobile-ios-package", +"~>) ' + args.oldIos, '\\1 ' + args.newIos))
+    # if args.oldIos != args.newIos:
+    replacements.append(('(spec.dependency +"itwin-mobile-ios-package", +"~>) ' + '[\.0-9]+', '\\1 ' + args.newIos))
     replaceAll(fileName, replacements)
 
 def changeCommand(args, dirs):
@@ -127,7 +127,7 @@ def bumpCommand(args, dirs):
         print "New release: " + newRelease
         imodeljsVersion = getLatestBentleyVersion()
         print "Current @bentley version: " + imodeljsVersion
-        lastAddOnVersion = getLastMobilePackageVersion("Package.swift")
+        lastAddOnVersion = getLastMobilePackageVersion(executingDir + "/Package.swift")
         addOnVersion = getLatestNativeVersion()
         if lastAddOnVersion and addOnVersion:
             foundAll = True
@@ -141,11 +141,18 @@ def bumpCommand(args, dirs):
         args.oldVersion = lastRelease
         args.newBentley = imodeljsVersion
         args.newIos = addOnVersion
-        args.oldIos = lastAddOnVersion
+        # args.oldIos = lastAddOnVersion
         changeCommand(args, dirs)
     else:
         print "Unable to determine all versions."
 
+def doCommand(args, dirs):
+    if args.strings:
+        allArgs = ' '.join(args.strings)
+        args = allArgs.split()
+        for dir in dirs:
+            subprocess.call(args, cwd=dir)
+    
 if __name__ == '__main__':
     executingDir = getExecutingDirectory()
     dirs = []
@@ -160,9 +167,8 @@ if __name__ == '__main__':
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', default='0.9.3') #required=True, 
     parser_change.add_argument('-o', '--old', dest='oldVersion', help='Old release version', default='0.9.2')
     parser_change.add_argument('-nb', '--newBentley', dest='newBentley', help='New @bentley package version', default='2.19.18')
-    # parser_change.add_argument('-ob', '--oldBentley', dest='oldBentley', help='Old @bentley package version', default='2.19.16')
     parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-ios-package version', default='2.19.20')
-    parser_change.add_argument('-oi', '--oldIos', dest='oldIos', help='Old itwin-mobile-ios-package version', default='2.19.19')
+    # parser_change.add_argument('-oi', '--oldIos', dest='oldIos', help='Old itwin-mobile-ios-package version', default='2.19.19')
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
     parser_commit.set_defaults(func=commitCommand)
@@ -177,6 +183,10 @@ if __name__ == '__main__':
 
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)
+
+    parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
+    parser_do.set_defaults(func=doCommand)
+    parser_do.add_argument('strings', metavar='arg', nargs='+')
 
     args = parser.parse_args()
     args.func(args, dirs)

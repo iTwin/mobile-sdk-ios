@@ -18,7 +18,7 @@ def replaceAll(fileName, replacements):
 def modifyPackageJson(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
     replaceAll(fileName, [
-        ('("version": )"' + args.oldVersion, '\\1"' + args.newVersion),
+        ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
         ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley)
     ])
 
@@ -28,7 +28,7 @@ def modifyPackageSwift(args, fileName):
 
 def modifyPodspec(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
-    replacements = [('(spec.version.*= )"' + args.oldVersion, '\\1"' + args.newVersion)]
+    replacements = [('(spec.version.*= )"[\.0-9]+', '\\1"' + args.newVersion)]
     replacements.append(('(spec.dependency +"itwin-mobile-ios-package", +"~>) [\.0-9]+', '\\1 ' + args.newIos))
     replaceAll(fileName, replacements)
 
@@ -85,20 +85,14 @@ def getLastRelease():
     if isinstance(tags, list):
         return tags[len(tags)-1]
 
-def getNextRelease(lastRelease):
-    parts = lastRelease.split('.')
-    if len(parts) == 3:
-        parts[2] = str(int(parts[2]) + 1)
-        newRelease = '.'.join(parts)
-        return newRelease
-
-def getLastAndNextReleases():
+def getNextRelease():
     lastRelease = getLastRelease()
     if lastRelease:
-        newRelease = getNextRelease(lastRelease)
-        if newRelease:
-            return (lastRelease, newRelease)
-    return (None, None)
+        parts = lastRelease.split('.')
+        if len(parts) == 3:
+            parts[2] = str(int(parts[2]) + 1)
+            newRelease = '.'.join(parts)
+            return newRelease
 
 def getLatestBentleyVersion():
     return subprocess.check_output(['npm', 'show', '@bentley/imodeljs-backend', 'version']).strip()
@@ -118,20 +112,18 @@ def getLastMobilePackageVersion(packageSwiftFile):
 
 def bumpCommand(args, dirs):
     foundAll = False
-    (lastRelease, newRelease) = getLastAndNextReleases()
-    if lastRelease and newRelease:
-        print "Last release: " + lastRelease
+    newRelease = getNextRelease()
+    if newRelease:
         print "New release: " + newRelease
         imodeljsVersion = getLatestBentleyVersion()
-        print "Current @bentley version: " + imodeljsVersion
+        print "@bentley version: " + imodeljsVersion
         addOnVersion = getLatestNativeVersion()
         if addOnVersion:
             foundAll = True
-            print "ios-package version: " + addOnVersion           
+            print "mobile-ios-package version: " + addOnVersion           
 
     if foundAll:
         args.newVersion = newRelease
-        args.oldVersion = lastRelease
         args.newBentley = imodeljsVersion
         args.newIos = addOnVersion
         changeCommand(args, dirs)
@@ -157,7 +149,6 @@ if __name__ == '__main__':
     parser_change = sub_parsers.add_parser('change', help='Change version')
     parser_change.set_defaults(func=changeCommand)
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
-    parser_change.add_argument('-o', '--old', dest='oldVersion', help='Old release version', required=True)
     parser_change.add_argument('-nb', '--newBentley', dest='newBentley', help='New @bentley package version', required=True)
     parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-ios-package version', required=True)
 

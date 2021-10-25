@@ -126,16 +126,16 @@ def bumpCommand(args, dirs):
         print "Last release: " + lastRelease
         print "New release: " + newRelease
         imodeljsVersion = getLatestBentleyVersion()
-        print "@bentley version: " + imodeljsVersion
+        print "Current @bentley version: " + imodeljsVersion
         lastAddOnVersion = getLastMobilePackageVersion("Package.swift")
         addOnVersion = getLatestNativeVersion()
         if lastAddOnVersion and addOnVersion:
             foundAll = True
             if lastAddOnVersion != addOnVersion:
-                print "Last addOn version: " + lastAddOnVersion
-                print "New addOn version: " + addOnVersion
+                print "Last ios-package version: " + lastAddOnVersion
+                print "New ios-package version: " + addOnVersion
             else:
-                print "addOn version unchanged: " + addOnVersion           
+                print "ios-package version unchanged: " + addOnVersion           
     if foundAll:
         args.newVersion = newRelease
         args.oldVersion = lastRelease
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     parser_release.set_defaults(func=releaseCommand)
     parser_release.add_argument('-n', '--new', dest='newVersion', required=True, help='New release version')
 
-    parser_bump = sub_parsers.add_parser('bump', help='Bump version')
+    parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)
 
     args = parser.parse_args()

@@ -52,7 +52,7 @@ def commitDir(args, dir):
 
 def commitCommand(args, dirs):
     if not args.newVersion:
-        args.newVersion = getLastMobilePackageVersion(executingDir + '/Package.swift')
+        args.newVersion = getNextRelease()
 
     if args.newVersion:
         for dir in dirs:
@@ -70,7 +70,8 @@ def pushCommand(args, dirs):
 def releaseDir(args, dir):
     dir = os.path.realpath(dir)
     print "Releasing in dir: " + dir
-    subprocess.check_call(['gh', 'release', 'create', args.newVersion, '-t', 'v' + args.newVersion], cwd=dir)
+    subprocess.check_call(['gh', 'release', 'create', '-t', 'v' + args.newVersion, args.newVersion], cwd=dir)
+    subprocess.check_call(['git', 'pull'], cwd=dir)
 
 def releaseUpload(args, dir, fileName):
     dir = os.path.realpath(dir)
@@ -78,10 +79,14 @@ def releaseUpload(args, dir, fileName):
     subprocess.check_call(['gh', 'release', 'upload', args.newVersion, fileName], cwd=dir)
 
 def releaseCommand(args, dirs):
-    print "Releasing"
-    for dir in dirs:
-        releaseDir(args, dir)
-    releaseUpload(args, '.', 'itwin-mobile-sdk.podspec')
+    if not args.newVersion:
+        args.newVersion = getNextRelease()
+    print "Releasing version: " + args.newVersion
+
+    if args.newVersion:
+        for dir in dirs:
+            releaseDir(args, dir)
+        releaseUpload(args, '.', 'itwin-mobile-sdk.podspec')
 
 def getLastRelease():
     result = subprocess.check_output(['git', 'tag'], cwd=executingDir)
@@ -165,7 +170,7 @@ if __name__ == '__main__':
 
     parser_release = sub_parsers.add_parser('release', help='Create releases')
     parser_release.set_defaults(func=releaseCommand)
-    parser_release.add_argument('-n', '--new', dest='newVersion', required=True, help='New release version')
+    parser_release.add_argument('-n', '--new', dest='newVersion', help='New release version')
 
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)

@@ -50,7 +50,7 @@ def commitDir(args, dir):
     rc = subprocess.call(['git', 'diff', '--quiet'], cwd=dir)
     if rc:
         subprocess.check_call(['git', 'add', '.'], cwd=dir)
-        subprocess.check_call(['git', 'commit', '-m', 'v' + args.newVersion], cwd=dir)
+        subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.newVersion], cwd=dir)
     else:
         print "Nothing to commit."
 

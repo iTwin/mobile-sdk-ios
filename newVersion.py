@@ -70,7 +70,8 @@ def pushCommand(args, dirs):
 def releaseDir(args, dir):
     dir = os.path.realpath(dir)
     print "Releasing in dir: " + dir
-    subprocess.check_call(['gh', 'release', 'create', '-t', 'v' + args.newVersion, args.newVersion], cwd=dir)
+    title = args.title if args.title else 'v' + args.newVersion
+    subprocess.check_call(['gh', 'release', 'create', '-t', title, args.newVersion], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
 def releaseUpload(args, dir, fileName):
@@ -174,6 +175,7 @@ if __name__ == '__main__':
     parser_release = sub_parsers.add_parser('release', help='Create releases')
     parser_release.set_defaults(func=releaseCommand)
     parser_release.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_release.add_argument('-t', '--title', dest='title', help='Release title')
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
     parser_do.set_defaults(func=doCommand)

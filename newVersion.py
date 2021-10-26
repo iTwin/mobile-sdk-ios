@@ -51,8 +51,12 @@ def commitDir(args, dir):
         print "Nothing to commit."
 
 def commitCommand(args, dirs):
-    for dir in dirs:
-        commitDir(args, dir)
+    if not args.newVersion:
+        args.newVersion = getLastMobilePackageVersion(executingDir + '/Package.swift')
+
+    if args.newVersion:
+        for dir in dirs:
+            commitDir(args, dir)
 
 def pushDir(args, dir):
     dir = os.path.realpath(dir)
@@ -154,7 +158,7 @@ if __name__ == '__main__':
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
     parser_commit.set_defaults(func=commitCommand)
-    parser_commit.add_argument('-n', '--new', dest='newVersion', required=True, help='New release version')
+    parser_commit.add_argument('-n', '--new', dest='newVersion', help='New release version')
 
     parser_push = sub_parsers.add_parser('push', help='Push changes')
     parser_push.set_defaults(func=pushCommand)

@@ -32,6 +32,13 @@ extension JSON {
     }
 }
 
+/// The MobileUi.preferredColorScheme value set by the TypeScript code.
+public enum ITMPreferredColorScheme: Int, Codable, Equatable {
+    case automatic = 0
+    case light = 1
+    case dark = 2
+}
+
 /// Main class for interacting with one iTwin Mobile web app.
 /// - Note: Most applications will override this class in order to customize the behavior and register for messages.
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
@@ -63,6 +70,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let backendLoadingDispatchGroup = DispatchGroup()
     private var backendLoaded = false
     private var debugI18n = false
+    /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
+    static public var preferredColorScheme = ITMPreferredColorScheme.automatic
 
     /// Creates an ``ITMApplication``
     required public override init() {
@@ -74,6 +83,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webView.uiDelegate = self
         webView.navigationDelegate = self
         backendLoadingDispatchGroup.enter()
+        registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> Promise<()> in
+            if let preferredColorScheme = params["preferredColorScheme"] as? Int {
+                ITMApplication.preferredColorScheme = ITMPreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
+            }
+            return Promise.value(())
+        }
     }
 
     deinit {

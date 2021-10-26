@@ -23,7 +23,8 @@ def modifyPackageJson(args, dir):
             ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
             ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley)
         ])
-        result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
+        if not args.skipInstall:
+            result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
 
 def modifyPackageSwift(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
@@ -35,11 +36,29 @@ def modifyPodspec(args, fileName):
     replacements.append(('(spec.dependency +"itwin-mobile-ios-package", +"~>) [\.0-9]+', '\\1 ' + args.newIos))
     replaceAll(fileName, replacements)
 
+def modifyPackageResolved(args, fileName):
+    print "Processing: " + os.path.realpath(fileName)
+    package = None
+    for line in fileinput.input(fileName, inplace=1):
+        match = re.search('"package": "(.*)"', line)
+        if match and len(match.groups()) == 1:
+            package = match.group(1)
+        if package == 'itwin-mobile-ios':
+            line = re.sub('("version": )".*"', '\\1"' + args.newIos + '"', line)
+            if (args.newIosCommitId):
+                line = re.sub('("revision": )".*"', '\\1"' + args.newIosCommitId + '"', line)
+        elif package == 'itwin-mobile-sdk':
+            line = re.sub('("version": )".*"', '\\1"' + args.newVersion + '"', line)
+            if (args.newCommitId):
+                line = re.sub('("revision": )".*"', '\\1"' + args.newCommitId + '"', line)
+        sys.stdout.write(line)
+
 def changeCommand(args, dirs):
     dir = executingDir
     parentDir = os.path.realpath(os.path.join(dir, '..'))
     modifyPackageSwift(args, os.path.join(dir, 'Package.swift'))
     modifyPackageSwift(args, os.path.join(dir, 'Package@swift-5.5.swift'))
+    modifyPackageResolved(args, os.path.join(dir, 'Package.resolved'))
     modifyPodspec(args, os.path.join(dir, 'itwin-mobile-sdk.podspec'))
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-sdk-core'))
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-ui-react'))
@@ -61,6 +80,15 @@ def commitCommand(args, dirs):
     print "Committing version: " + args.newVersion
     if args.newVersion:
         for dir in dirs:
+            # The Package.resolved files in the sample projects need to be updated with the latest info. 
+            # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
+            if dir.endswith('mobile-sdk-samples'):
+                if not args.newCommitId:
+                    args.newCommitId = getLastCommitId(executingDir, args.newVersion)
+                modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+                modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+                modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+                modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
             commitDir(args, dir)
 
 def pushDir(args, dir):
@@ -118,6 +146,19 @@ def getLatestNativeVersion():
     if match and len(match.groups()) == 1:
         return match.group(1)
 
+def getFirstEntryOfLastLine(results):
+    last = results[len(results)-1]
+    entries = last.split()
+    return entries[0]
+
+def getLastCommitId(dir, tagFilter):
+    results = subprocess.check_output(['git', 'show-ref', '--tags', repo, tagFilter], cwd=dir).splitlines()
+    return getFirstEntryOfLastLine(results)
+
+def getLastRemoteCommitId(repo, tagFilter):
+    results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tagFilter]).splitlines()
+    return getFirstEntryOfLastLine(results)
+
 def bumpCommand(args, dirs):
     foundAll = False
     newRelease = getNextRelease()
@@ -128,12 +169,15 @@ def bumpCommand(args, dirs):
         addOnVersion = getLatestNativeVersion()
         if addOnVersion:
             foundAll = True
-            print "mobile-ios-package version: " + addOnVersion           
+            print "mobile-ios-package version: " + addOnVersion
+            addOnCommitId = getLastRemoteCommitId('https://github.com/iTwin/mobile-ios-package.git', addOnVersion)
+            print "mobile-ios-package revision: " + addOnCommitId
 
     if foundAll:
         args.newVersion = newRelease
         args.newBentley = imodeljsVersion
         args.newIos = addOnVersion
+        args.newIosCommitId = addOnCommitId
         changeCommand(args, dirs)
     else:
         print "Unable to determine all versions."
@@ -162,6 +206,7 @@ if __name__ == '__main__':
     
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)
+    parser_bump.add_argument('-si', '--skipInstall', dest='skipInstall', help='Skip npm install', action='store_true')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
     parser_change.set_defaults(func=changeCommand)

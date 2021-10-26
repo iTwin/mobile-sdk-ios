@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "itwin-mobile-sdk"
-  spec.version      = "0.9.3"
+  spec.version      = "0.9.4"
   spec.summary      = "iTwin Mobile SDK"
   spec.homepage     = "https://github.com/iTwin/mobile-sdk"
   spec.license      = { :type => "MIT", :file => "LICENSE.md" }

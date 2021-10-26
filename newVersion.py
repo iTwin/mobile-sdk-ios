@@ -155,7 +155,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Script for helping with creating a new Mobile SDK version.')
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
     
-    parser_change = sub_parsers.add_parser('change', help='Change version')
+    parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
+    parser_bump.set_defaults(func=bumpCommand)
+
+    parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
     parser_change.set_defaults(func=changeCommand)
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
     parser_change.add_argument('-nb', '--newBentley', dest='newBentley', help='New @bentley package version', required=True)
@@ -171,9 +174,6 @@ if __name__ == '__main__':
     parser_release = sub_parsers.add_parser('release', help='Create releases')
     parser_release.set_defaults(func=releaseCommand)
     parser_release.add_argument('-n', '--new', dest='newVersion', help='New release version')
-
-    parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
-    parser_bump.set_defaults(func=bumpCommand)
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
     parser_do.set_defaults(func=doCommand)

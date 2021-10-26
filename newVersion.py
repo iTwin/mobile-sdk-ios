@@ -15,12 +15,15 @@ def replaceAll(fileName, replacements):
             line = re.sub(searchExp, replaceExp, line)
         sys.stdout.write(line)
 
-def modifyPackageJson(args, fileName):
-    print "Processing: " + os.path.realpath(fileName)
-    replaceAll(fileName, [
-        ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
-        ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley)
-    ])
+def modifyPackageJson(args, dir):
+    fileName = os.path.join(dir, 'package.json')
+    if os.path.exists(fileName):
+        print "Processing: " + fileName
+        replaceAll(fileName, [
+            ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
+            ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley)
+        ])
+        result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
 
 def modifyPackageSwift(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
@@ -34,12 +37,13 @@ def modifyPodspec(args, fileName):
 
 def changeCommand(args, dirs):
     dir = executingDir
-    modifyPackageSwift(args, dir + '/Package.swift')
-    modifyPackageSwift(args, dir + '/Package@swift-5.5.swift')
-    modifyPodspec(args, dir + '/itwin-mobile-sdk.podspec')
-    modifyPackageJson(args, dir + '/../mobile-sdk-core/package.json')
-    modifyPackageJson(args, dir + '/../mobile-ui-react/package.json')
-    modifyPackageJson(args, dir + '/../mobile-sdk-samples/ios/MobileStarter/react-app/package.json')
+    parentDir = os.path.realpath(os.path.join(dir, '..'))
+    modifyPackageSwift(args, os.path.join(dir, 'Package.swift'))
+    modifyPackageSwift(args, os.path.join(dir, 'Package@swift-5.5.swift'))
+    modifyPodspec(args, os.path.join(dir, 'itwin-mobile-sdk.podspec'))
+    modifyPackageJson(args, os.path.join(parentDir, 'mobile-sdk-core'))
+    modifyPackageJson(args, os.path.join(parentDir, 'mobile-ui-react'))
+    modifyPackageJson(args, os.path.join(parentDir, 'mobile-sdk-samples/ios/MobileStarter/react-app'))
 
 def commitDir(args, dir):
     print "Committing in dir: " + dir
@@ -54,6 +58,7 @@ def commitCommand(args, dirs):
     if not args.newVersion:
         args.newVersion = getNextRelease()
 
+    print "Committing version: " + args.newVersion
     if args.newVersion:
         for dir in dirs:
             commitDir(args, dir)
@@ -113,13 +118,6 @@ def getLatestNativeVersion():
     if match and len(match.groups()) == 1:
         return match.group(1)
 
-def getLastMobilePackageVersion(packageSwiftFile):
-    with open(packageSwiftFile) as file:
-        for line in file:
-            match = re.search('mobile-ios-package", .exact\("([0-9\.]+)', line)
-            if match and len(match.groups()) == 1:
-                return match.group(1)
-
 def bumpCommand(args, dirs):
     foundAll = False
     newRelease = getNextRelease()
@@ -146,7 +144,13 @@ def doCommand(args, dirs):
         args = allArgs.split()
         for dir in dirs:
             subprocess.call(args, cwd=dir)
-    
+
+def allCommand(args, dirs):
+    bumpCommand(args, dirs)
+    commitCommand(args, dirs)
+    pushCommand(args, dirs)
+    releaseCommand(args, dirs)
+
 if __name__ == '__main__':
     executingDir = getExecutingDirectory()
     dirs = []
@@ -176,6 +180,9 @@ if __name__ == '__main__':
     parser_release.set_defaults(func=releaseCommand)
     parser_release.add_argument('-n', '--new', dest='newVersion', help='New release version')
     parser_release.add_argument('-t', '--title', dest='title', help='Release title')
+
+    parser_all = sub_parsers.add_parser('all', help='Create a new point release and do everything (bump, commit, push, release)')    
+    parser_all.set_defaults(func=allCommand)
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
     parser_do.set_defaults(func=doCommand)

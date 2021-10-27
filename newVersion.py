@@ -21,7 +21,9 @@ def modifyPackageJson(args, dir):
         print "Processing: " + fileName
         replaceAll(fileName, [
             ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
-            ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley)
+            ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.newBentley),
+            ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.newVersion),
+            ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.newVersion),
         ])
         if not args.skipInstall:
             result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)

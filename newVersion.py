@@ -25,8 +25,8 @@ def modifyPackageJson(args, dir):
             ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.newVersion),
             ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.newVersion),
         ])
-        if not args.skipInstall:
-            result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
+        # if not args.skipInstall:
+        #     result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
 
 def modifyPackageSwift(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
@@ -75,6 +75,14 @@ def commitDir(args, dir):
     else:
         print "Nothing to commit."
 
+def modifySamplesPackageResolved(args, dir):
+    if not hasattr(args, 'newCommitId'):
+        args.newCommitId = getLastCommitId(executingDir, args.newVersion)
+    modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+
 def commitCommand(args, dirs):
     if not args.newVersion:
         args.newVersion = getNextRelease()
@@ -85,12 +93,7 @@ def commitCommand(args, dirs):
             # The Package.resolved files in the sample projects need to be updated with the latest info. 
             # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
             if dir.endswith('mobile-sdk-samples'):
-                if not args.newCommitId:
-                    args.newCommitId = getLastCommitId(executingDir, args.newVersion)
-                modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-                modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-                modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-                modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+                modifySamplesPackageResolved(args, dir)
             commitDir(args, dir)
 
 def pushDir(args, dir):
@@ -105,7 +108,7 @@ def pushCommand(args, dirs):
 def releaseDir(args, dir):
     dir = os.path.realpath(dir)
     print "Releasing in dir: " + dir
-    title = args.title if args.title else 'v' + args.newVersion
+    title = args.title if hasattr(args, 'title') else 'v' + args.newVersion
     subprocess.check_call(['gh', 'release', 'create', '-t', title, args.newVersion], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
@@ -149,21 +152,24 @@ def getLatestNativeVersion():
         return match.group(1)
 
 def getFirstEntryOfLastLine(results):
-    last = results[len(results)-1]
-    entries = last.split()
-    return entries[0]
+    if results:
+        lines = results.splitlines()
+        last = lines[len(lines)-1]
+        entries = last.split()
+        return entries[0]
 
 def getLastCommitId(dir, tagFilter):
-    results = subprocess.check_output(['git', 'show-ref', '--tags', repo, tagFilter], cwd=dir).splitlines()
+    results = subprocess.check_output(['git', 'show-ref', '--tags', tagFilter], cwd=dir)
     return getFirstEntryOfLastLine(results)
 
 def getLastRemoteCommitId(repo, tagFilter):
-    results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tagFilter]).splitlines()
+    results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tagFilter])
     return getFirstEntryOfLastLine(results)
 
-def bumpCommand(args, dirs):
+def getVersions(args):
     foundAll = False
-    newRelease = getNextRelease()
+    newRelease = args.newVersion if hasattr(args, 'newVersion') else getNextRelease()
+
     if newRelease:
         print "New release: " + newRelease
         imodeljsVersion = getLatestBentleyVersion()
@@ -180,6 +186,11 @@ def bumpCommand(args, dirs):
         args.newBentley = imodeljsVersion
         args.newIos = addOnVersion
         args.newIosCommitId = addOnCommitId
+    return foundAll
+
+def bumpCommand(args, dirs):
+    foundAll = getVersions(args)
+    if foundAll:
         changeCommand(args, dirs)
     else:
         print "Unable to determine all versions."
@@ -197,6 +208,11 @@ def allCommand(args, dirs):
     pushCommand(args, dirs)
     releaseCommand(args, dirs)
 
+def samplesCommand(args, dirs):
+    foundAll = getVersions(args)
+    if foundAll:
+        modifySamplesPackageResolved(args, os.path.realpath(executingDir + '/' + '../mobile-sdk-samples'))
+
 if __name__ == '__main__':
     executingDir = getExecutingDirectory()
     dirs = []
@@ -208,7 +224,8 @@ if __name__ == '__main__':
     
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)
-    parser_bump.add_argument('-si', '--skipInstall', dest='skipInstall', help='Skip npm install', action='store_true')
+    parser_bump.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    # parser_bump.add_argument('-si', '--skipInstall', dest='skipInstall', help='Skip npm install', action='store_true')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
     parser_change.set_defaults(func=changeCommand)
@@ -234,6 +251,10 @@ if __name__ == '__main__':
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
     parser_do.set_defaults(func=doCommand)
     parser_do.add_argument('strings', metavar='arg', nargs='+')
+
+    parser_samples = sub_parsers.add_parser('samples', help='Modify samples')    
+    parser_samples.set_defaults(func=samplesCommand)
+    parser_samples.add_argument('-n', '--new', dest='newVersion', help='New release version')
 
     args = parser.parse_args()
     args.func(args, dirs)

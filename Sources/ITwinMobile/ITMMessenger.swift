@@ -16,7 +16,7 @@ extension String {
     }
 }
 
-fileprivate extension JSONSerialization {
+internal extension JSONSerialization {
     static func string(withITMJSONObject object: Any?) -> String? {
         return string(withITMJSONObject: object, prettyPrint: false)
     }

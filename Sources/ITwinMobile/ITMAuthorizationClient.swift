@@ -27,6 +27,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     public var userInfo: NSDictionary?
     /// The service configuration from the issuer URL.
     public var serviceConfig: OIDServiceConfiguration?
+    private var currentAuthorizationFlow: OIDExternalUserAgentSession?
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
@@ -215,9 +216,10 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                                               additionalParameters: nil)
         DispatchQueue.main.async {
             if let viewController = self.viewController ?? UIApplication.shared.keyWindow?.rootViewController {
-                // Note:The return value below is only used by AppAuth in versions of iOS prior to iOS 11.
-                // Since we require iOS 12.2, we can simply ignore it.
-                OIDAuthState.authState(byPresenting: request, presenting: viewController) { authState, error in
+                // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
+                // However, even though we require iOS 12.2, if we ignore the value, it gets deleted by the system,
+                // which prevents everything from working. So, store the value in our member variable.
+                self.currentAuthorizationFlow = OIDAuthState.authState(byPresenting: request, presenting: viewController) { authState, error in
                     self.authState = authState
                     if authState == nil {
                         if let error = error {

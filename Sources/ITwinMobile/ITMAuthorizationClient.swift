@@ -6,7 +6,9 @@
 import UIKit
 import IModelJsNative
 import AppAuth
+#if SWIFT_PACKAGE
 import AppAuthCore
+#endif
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {

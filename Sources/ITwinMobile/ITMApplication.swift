@@ -148,7 +148,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameter webView: The `WKWebView` to which to attach the ``ITMWebViewLogger``.
     /// - Returns: An ``ITMWebViewLogger`` object attached to `webView`.
     open class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
-        let webViewLogger = ITMWebViewLogger(name: "ITMApplication")
+        let webViewLogger = ITMWebViewLogger(name: "ITMApplication Logger")
         webViewLogger.attach(webView)
         return webViewLogger
     }

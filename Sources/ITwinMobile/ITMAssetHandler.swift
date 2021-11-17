@@ -7,25 +7,31 @@ import UIKit
 import WebKit
 
 /// Default asset handler for loading frontend resources.
-final public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
+public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     private let assetPath: String
 
     init(assetPath: String) {
         self.assetPath = assetPath
         super.init()
     }
-
+    
+    /// `WKURLSchemeHandler` protocol function.
+    /// - Parameters:
+    ///   - webView: The web view invoking the method.
+    ///   - urlSchemeTask: The task that your app should start loading data for.
     public func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let fileUrl = getFileUrl(urlSchemeTask: urlSchemeTask)
         if fileUrl != nil {
-            respondWithDiskFile(urlSchemeTask: urlSchemeTask, fileUrl: fileUrl!)
-        } else if canHandle(url: urlSchemeTask.request.url! as NSURL) {
-            handle(urlSchemeTask: urlSchemeTask)
+            type(of: self).respondWithDiskFile(urlSchemeTask: urlSchemeTask, fileUrl: fileUrl!)
         } else {
-            cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
+            type(of: self).cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
         }
     }
-
+    
+    /// `WKURLSchemeHandler` protocol function.
+    /// - Parameters:
+    ///   - webView: The web view invoking the method.
+    ///   - urlSchemeTask: The task that your app should stop handling.
     public func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
 
     func getFileUrl(urlSchemeTask: WKURLSchemeTask) -> URL? {
@@ -40,11 +46,16 @@ final public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
         ITMApplication.logger.log(.error, "Not found: \(url)")
         return nil
     }
-
-    func respondWithDiskFile(urlSchemeTask: WKURLSchemeTask, fileUrl: URL) {
+    
+    /// Responds to the given file URL with the file contents.
+    /// - Note: This loads the whole file into memory and then sends its data to the URL scheme task.
+    /// - Parameters:
+    ///   - urlSchemeTask: The `WKURLSchemeTask` that will receive the file data.
+    ///   - fileUrl: The file URL to get the data from.
+    open class func respondWithDiskFile(urlSchemeTask: WKURLSchemeTask, fileUrl: URL) {
         URLSession.shared.dataTask(with: fileUrl) { data, response, error in
             if error != nil {
-                // cancel
+                cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
                 return
             }
             let taskResponse: URLResponse
@@ -72,14 +83,10 @@ final public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
             urlSchemeTask.didFinish()
         }.resume()
     }
-
-    func canHandle(url: NSURL) -> Bool {
-        return false
-    }
-
-    func handle(urlSchemeTask: WKURLSchemeTask) {}
-
-    func cancelWithFileNotFound(urlSchemeTask: WKURLSchemeTask) {
+    
+    /// Cancels the request in the `urlSchemeTask` with a "file not found" error.
+    /// - Parameter urlSchemeTask: The `WKURLSchemeTask` object to send the error to.
+    open class func cancelWithFileNotFound(urlSchemeTask: WKURLSchemeTask) {
         let taskResponse = URLResponse(url: urlSchemeTask.request.url!, mimeType: "text", expectedContentLength: -1, textEncodingName: "utf8")
         urlSchemeTask.didReceive(taskResponse)
         urlSchemeTask.didReceive(Data())

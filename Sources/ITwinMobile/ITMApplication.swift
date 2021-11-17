@@ -119,6 +119,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let frontendFolder = path.deletingLastPathComponent()
         let handler = createAssetHandler(assetPath: frontendFolder.absoluteString)
         configuration.setURLSchemeHandler(handler, forURLScheme: "imodeljs")
+        updateWebViewConfiguration(configuration)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.isHidden = true
@@ -127,6 +128,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
         return webView
     }
+    
+    /// Override this to update the `WKWebViewConfiguration` used for the web view before the web view is created.
+    ///
+    /// An example use for this would be to add a custom URL scheme handler, which must be done before the web view is created.
+    /// - Parameter configuration: The `WKWebViewConfiguration` object that will be used to create the web view.
+    open class func updateWebViewConfiguration(_ configuration: WKWebViewConfiguration) {}
 
     /// Creates a `WKURLSchemeHandler` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.

@@ -29,56 +29,82 @@ open class ITMDevicePermissionsHelper {
     public static var noPhotoCapturePermissionsStr = NSLocalizedString("To take photos, allow access to Camera and Photos.", comment: "Missing photo galery and camera permissions to capture photo")
     /// Missing microphone access to record video
     public static var noMicrophonePermissionsStr = NSLocalizedString("To record videos with sound, allow access to Microphone.", comment: "Missing microphone access to record video")
-
+    
+    /// Indicates whether the user has denied location access to the app.
     public static var isLocationDenied: Bool {
         return CLLocationManager.authorizationStatus() == .denied || CLLocationManager.authorizationStatus() == .restricted
     }
 
+    /// Indicates whether the user has denied microphone access to the app.
     public static var isMicrophoneDenied: Bool {
         return AVCaptureDevice.authorizationStatus(for: .audio) == .denied || AVCaptureDevice.authorizationStatus(for: .audio) == .restricted
     }
 
+    /// Indicates whether the user has denied photo library access to the app.
     public static var isPhotoLibraryDenied: Bool {
         return PHPhotoLibrary.authorizationStatus() == .denied || PHPhotoLibrary.authorizationStatus() == .restricted
     }
 
+    /// Indicates whether the user has denied video capture access to the app.
     public static var isVideoCaptureDenied: Bool {
         return AVCaptureDevice.authorizationStatus(for: .video) == .denied || AVCaptureDevice.authorizationStatus(for: .video) == .restricted
     }
 
+    /// Indicates whether the user has denied photo capture access to the app.
     public static var isPhotoCaptureDenied: Bool {
         return isVideoCaptureDenied || isPhotoLibraryDenied
     }
-
-    public static func openLocationAccessDialog(dialogCancelHandler: ((UIAlertAction) -> ())? = nil) {
-        openMissingPermisionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, cancelAction: dialogCancelHandler)
+    
+    /// Show a dialog telling the user that their action requires location access, which has been denied, and allowing them to
+    /// either open the iOS Settings app or cancel.
+    /// - Parameter actionSelected: Callback indicating the user's response.
+    /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
+    public static func openLocationAccessDialog(actionSelected: ((UIAlertAction) -> ())? = nil) {
+        openMissingPermisionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, actionSelected: actionSelected)
     }
 
-    public static func openMicrophoneAccessDialog(dialogCancelHandler: ((UIAlertAction) -> ())? = nil) {
-        openMissingPermisionsDialog(message: noMicrophonePermissionsStr, cancelAction: dialogCancelHandler)
+    /// Show a dialog telling the user that their action requires microphone access, which has been denied, and allowing them to
+    /// either open the iOS Settings app or cancel.
+    /// - Parameter actionSelected: Callback indicating the user's response.
+    /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
+    public static func openMicrophoneAccessDialog(actionSelected: ((UIAlertAction) -> ())? = nil) {
+        openMissingPermisionsDialog(message: noMicrophonePermissionsStr, actionSelected: actionSelected)
     }
 
-    public static func openPhotoGalleryAccessAccessDialog() {
-        openMissingPermisionsDialog(message: noPhotoGalleryPermissionsStr)
+    /// Show a dialog telling the user that their action requires photo gallery access, which has been denied, and allowing them to
+    /// either open the iOS Settings app or cancel.
+    /// - Parameter actionSelected: Callback indicating the user's response.
+    /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
+    public static func openPhotoGalleryAccessAccessDialog(actionSelected: ((UIAlertAction) -> ())? = nil) {
+        openMissingPermisionsDialog(message: noPhotoGalleryPermissionsStr, actionSelected: actionSelected)
     }
 
-    public static func openVideoCaptureAccessAccessDialog() {
-        openMissingPermisionsDialog(message: noVideoCapturePermissionsStr)
+    /// Show a dialog telling the user that their action requires video capture access, which has been denied, and allowing them to
+    /// either open the iOS Settings app or cancel.
+    /// - Parameter actionSelected: Callback indicating the user's response.
+    /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
+    public static func openVideoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> ())? = nil) {
+        openMissingPermisionsDialog(message: noVideoCapturePermissionsStr, actionSelected: actionSelected)
     }
 
-    public static func openPhotoCaptureAccessAccessDialog() {
-        openMissingPermisionsDialog(message: noPhotoCapturePermissionsStr)
+    /// Show a dialog telling the user that their action requires photo capture access, which has been denied, and allowing them to
+    /// either open the iOS Settings app or cancel.
+    /// - Parameter actionSelected: Callback indicating the user's response.
+    /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
+    public static func openPhotoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> ())? = nil) {
+        openMissingPermisionsDialog(message: noPhotoCapturePermissionsStr, actionSelected: actionSelected)
     }
 
-    private static func openMissingPermisionsDialog(message: String, title: String? = nil, cancelAction: ((UIAlertAction) -> ())? = nil) {
+    private static func openMissingPermisionsDialog(message: String, title: String? = nil, actionSelected: ((UIAlertAction) -> ())? = nil) {
         let viewController = ITMAlertController.getAlertVC()
         let alert = UIAlertController(title: title == nil ? accesRequiredStr : title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: cancelStr, style: .cancel) { action in
-            cancelAction?(action)
+            actionSelected?(action)
             ITMAlertController.doneWithAlertWindow()
         })
-        alert.addAction(UIAlertAction(title: settingStr, style: .default) { _ in
+        alert.addAction(UIAlertAction(title: settingStr, style: .default) { action in
             self.openApplicationSettings()
+            actionSelected?(action)
             ITMAlertController.doneWithAlertWindow()
         })
         viewController.present(alert, animated: true)

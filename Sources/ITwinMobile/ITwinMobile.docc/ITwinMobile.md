@@ -23,6 +23,7 @@ Interaction with the API starts with the ``ITMApplication`` class. You use this 
 - ``ITMAlertController``
 - ``ITMAssetHandler``
 - ``ITMAuthorizationClient``
+- ``ITMDevicePermissionsHelper``
 - ``ITMError``
 - ``ITMGeolocationManager``
 - ``ITMLogger``

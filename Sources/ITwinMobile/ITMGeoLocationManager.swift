@@ -12,42 +12,6 @@ import PMKCoreLocation
 #endif
 import WebKit
 
-fileprivate class ITMDevicePermissionsHelper {
-    private static let accesRequiredStr = NSLocalizedString("Access required", comment: "Title for missing permissions dialog")
-    private static let locationDisabledStr = NSLocalizedString("Location services disabled", comment: "Title for missing location permission dialog")
-    private static let settingStr = NSLocalizedString("Settings", comment: "Button label for navigating to app setting page")
-    private static let cancelStr = NSLocalizedString("Cancel", comment: "Button label for cancelling operation")
-    private static let noLocationPermissionsStr = NSLocalizedString("Turn on location services to allow Field to show your location.", comment: "No location access message")
-
-    static var isLocationDenied: Bool {
-        return CLLocationManager.authorizationStatus() == .denied || CLLocationManager.authorizationStatus() == .restricted
-    }
-
-    static func openLocationAccessDialog(dialogCancelHandler: ((UIAlertAction) -> ())? = nil) {
-        openMissingPermisionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, cancelAction: dialogCancelHandler)
-    }
-
-    private static func openMissingPermisionsDialog(message: String, title: String? = nil, cancelAction: ((UIAlertAction) -> ())? = nil) {
-        let viewController = ITMAlertController.getAlertVC()
-        let alert = UIAlertController(title: title == nil ? accesRequiredStr : title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: cancelStr, style: .cancel) { action in
-            cancelAction?(action)
-            ITMAlertController.doneWithAlertWindow()
-        })
-        alert.addAction(UIAlertAction(title: settingStr, style: .default) { _ in
-            self.openApplicationSettings()
-            ITMAlertController.doneWithAlertWindow()
-        })
-        viewController.present(alert, animated: true)
-    }
-
-    private static func openApplicationSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url, options: [:], completionHandler: nil)
-        }
-    }
-}
-
 // Note: The defintion of these structs represent Geolocation related objects available
 // in most browsers. The objective of these structs is to map values between
 // CoreLocation and objects expected by the browser API (window.navigator.geolocation)

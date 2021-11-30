@@ -8,13 +8,14 @@ import UIKit
 import WebKit
 
 // MARK: - Helper classes and extensions for converting the data that comes from WKWebView
-class ITMDictionaryDecoder<T: Decodable> {
-    static func decode(_ d: [String: Any]) throws -> T {
+
+/// Decodes JSON into a compatible struct.
+public class ITMDictionaryDecoder<T: Decodable> {
+    public static func decode(_ d: [String: Any]) throws -> T {
         let jsonData = try JSONSerialization.data(withJSONObject: d, options: .prettyPrinted)
         return try JSONDecoder().decode(T.self, from: jsonData)
     }
 }
-
 
 /// Struct for converting between JSON and Swift representing a rectangle.
 public struct ITMRect: Codable, Equatable {

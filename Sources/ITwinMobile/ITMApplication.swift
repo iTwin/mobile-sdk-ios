@@ -63,6 +63,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
+    /// The `AuthorizationClient` used by the `IModelJsHost`. This must be an ``ITMAuthorizationClient`` in order to
+    /// use the `ITMAuthorizationClient` TypeScript class.
+    public var authorizationClient: AuthorizationClient?
     
     /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
     /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
@@ -88,6 +91,26 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 ITMApplication.preferredColorScheme = ITMPreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
             return Promise.value(())
+        }
+        registerQueryHandler("Bentley_ITM_getAccessToken") { () -> Promise<String> in
+            let (promise, resolver) = Promise<String>.pending()
+            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient {
+                itmAuthClient.getAccessToken() { token, error in
+                    if error != nil {
+                        resolver.fulfill("")
+                    }
+                    guard let jsonString = token,
+                          let tokenObject = JSONSerialization.jsonObject(withString: jsonString) as? [String: Any],
+                          let tokenString = tokenObject["tokenString"] as? String else {
+                        resolver.fulfill("")
+                        return
+                    }
+                    resolver.fulfill("Bearer \(tokenString)")
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
         }
     }
 
@@ -294,9 +317,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         let backendUrl = getBackendUrl()
 
+        authorizationClient = getAuthClient()
         IModelJsHost.sharedInstance().loadBackend(
             backendUrl,
-            withAuthClient: getAuthClient(),
+            withAuthClient: authorizationClient,
             withInspect: allowInspectBackend
         ) { _ in
             // This callback gets called each time the app returns to the foreground. That is

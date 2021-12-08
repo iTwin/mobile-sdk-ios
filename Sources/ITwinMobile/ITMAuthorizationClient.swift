@@ -167,7 +167,13 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// - Parameter completion: Callback to call upon success or error.
     open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
         guard let authState = authState else {
-            completion(error(reason: "ITMAuthorizationClient not signed in"))
+            sign() { error in
+                if let error = error {
+                    completion(error)
+                } else {
+                    self.refreshAccessToken(completion)
+                }
+            }
             return
         }
         authState.performAction() { accessToken, idToken, error in

@@ -94,7 +94,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         registerQueryHandler("Bentley_ITM_getAccessToken") { () -> Promise<String> in
             let (promise, resolver) = Promise<String>.pending()
-            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient {
+            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient, self.itmMessenger.frontendLaunchDone {
                 itmAuthClient.getAccessToken() { token, error in
                     if let error = error {
                         resolver.reject(error)

@@ -190,6 +190,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Whether or not full logging of all messages (with their optional bodies) is enabled.
     /// - warning: You should only enable this in debug builds, since message bodies may contain private information.
     public static var isFullLoggingEnabled = false
+    /// Indicates whether or not the frontend has finished launching. Specfically, if ``frontendLaunchSuceeded()`` has been called.
+    public var frontendLaunchDone = false
     private let queryName = "Bentley_ITMMessenger_Query"
     private let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
     private let handlerNames: [String]
@@ -412,6 +414,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     /// Called after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
     open func frontendLaunchSuceeded() {
+        frontendLaunchDone = true
         frontendLaunchResolver.fulfill(())
     }
 

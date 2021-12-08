@@ -456,24 +456,11 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                     completion(nil, self.error(reason: "No token after refresh"))
                     return
                 }
-                guard let expirationDate = lastTokenResponse.accessTokenExpirationDate,
-                      let tokenString = lastTokenResponse.accessToken,
-                      let userInfo = userInfo else {
+                guard let tokenString = lastTokenResponse.accessToken else {
                     completion(nil, self.error(reason: "Invalid token after refresh"))
                     return
                 }
-                let dict: [String: Any] = [
-                    "tokenString": tokenString,
-                    "expiresAt": expirationDate.timeIntervalSince1970 * 1000,
-                    "startsAt": Date().timeIntervalSince1970 * 1000,
-                    "userInfo": userInfo
-                ];
-                if let jsonString = JSONSerialization.string(withITMJSONObject: dict, prettyPrint: true) {
-                    self.saveState()
-                    completion(jsonString, nil)
-                } else {
-                    completion(nil, self.error(reason: "Error converting information to JSON"))
-                }
+                completion("Bearer \(tokenString)", nil)
             }
         }
     }

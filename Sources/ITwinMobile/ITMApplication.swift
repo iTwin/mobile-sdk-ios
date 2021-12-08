@@ -96,16 +96,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             let (promise, resolver) = Promise<String>.pending()
             if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient {
                 itmAuthClient.getAccessToken() { token, error in
-                    if error != nil {
-                        resolver.fulfill("")
+                    if let error = error {
+                        resolver.reject(error)
                     }
-                    guard let jsonString = token,
-                          let tokenObject = JSONSerialization.jsonObject(withString: jsonString) as? [String: Any],
-                          let tokenString = tokenObject["tokenString"] as? String else {
-                        resolver.fulfill("")
-                        return
+                    if let token = token {
+                        resolver.fulfill(token)
+                    } else {
+                        resolver.reject(ITMError())
                     }
-                    resolver.fulfill("Bearer \(tokenString)")
                 }
             } else {
                 resolver.reject(ITMError())

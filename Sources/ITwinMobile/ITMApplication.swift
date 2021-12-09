@@ -99,10 +99,25 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                     if let error = error {
                         resolver.reject(error)
                     }
-                    if let token = token {
+                    else if let token = token {
                         resolver.fulfill(token)
                     } else {
                         resolver.reject(ITMError())
+                    }
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
+        }
+        registerQueryHandler("Bentley_ITM_signOut") { () -> Promise<()> in
+            let (promise, resolver) = Promise<()>.pending()
+            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient, self.itmMessenger.frontendLaunchDone {
+                itmAuthClient.signOut() { error in
+                    if let error = error {
+                        resolver.reject(error)
+                    } else {
+                        resolver.fulfill(())
                     }
                 }
             } else {

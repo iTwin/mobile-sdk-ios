@@ -9,7 +9,9 @@ import WebKit
 
 // MARK: - Helper classes and extensions for converting the data that comes from WKWebView
 
-/// Decodes JSON into a compatible struct.
+/// Decodes JSON dictionary into a compatible struct.
+///
+/// See ``ITMRect`` for example usage.
 public class ITMDictionaryDecoder<T: Decodable> {
     public static func decode(_ d: [String: Any]) throws -> T {
         let jsonData = try JSONSerialization.data(withJSONObject: d, options: .prettyPrinted)
@@ -17,7 +19,17 @@ public class ITMDictionaryDecoder<T: Decodable> {
     }
 }
 
-/// Struct for converting between JSON and Swift representing a rectangle.
+/// Struct for converting between JSON dictionary and Swift representing a rectangle.
+///
+/// You can use ``ITMDictionaryDecoder`` to decode dictionary data to create an ``ITMRect``, and then
+/// use a custom `init` on `CGRect` to convert that to a CGRect:
+///
+/// ```swift
+/// if let sourceRectDict = params["sourceRect"] as? [String: Any],
+///    let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
+///     alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
+/// }
+/// ```
 public struct ITMRect: Codable, Equatable {
     let x: Double
     let y: Double
@@ -25,6 +37,7 @@ public struct ITMRect: Codable, Equatable {
     let height: Double
 }
 
+/// CGRect extension to initialize a CGRect from an ``ITMRect``.
 public extension CGRect {
     /// Create a CGRect from an ``ITMRect``.
     init(_ alertRect: ITMRect) {

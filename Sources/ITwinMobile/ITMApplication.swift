@@ -92,39 +92,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             }
             return Promise.value(())
         }
-        registerQueryHandler("Bentley_ITM_getAccessToken") { () -> Promise<String> in
-            let (promise, resolver) = Promise<String>.pending()
-            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient, self.itmMessenger.frontendLaunchDone {
-                itmAuthClient.getAccessToken() { token, error in
-                    if let error = error {
-                        resolver.reject(error)
-                    }
-                    else if let token = token {
-                        resolver.fulfill(token)
-                    } else {
-                        resolver.reject(ITMError())
-                    }
-                }
-            } else {
-                resolver.reject(ITMError())
-            }
-            return promise
-        }
-        registerQueryHandler("Bentley_ITM_signOut") { () -> Promise<()> in
-            let (promise, resolver) = Promise<()>.pending()
-            if let itmAuthClient = self.authorizationClient as? ITMAuthorizationClient, self.itmMessenger.frontendLaunchDone {
-                itmAuthClient.signOut() { error in
-                    if let error = error {
-                        resolver.reject(error)
-                    } else {
-                        resolver.fulfill(())
-                    }
-                }
-            } else {
-                resolver.reject(ITMError())
-            }
-            return promise
-        }
     }
 
     deinit {
@@ -282,7 +249,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         guard let viewController = type(of: self).topViewController else {
             return nil
         }
-        return ITMAuthorizationClient(viewController: viewController)
+        return ITMAuthorizationClient(itmApplication: self, viewController: viewController)
     }
 
     /// Loads the app config JSON from the main bundle.

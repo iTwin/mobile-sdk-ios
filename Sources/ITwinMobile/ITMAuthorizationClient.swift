@@ -5,6 +5,7 @@
 
 import UIKit
 import IModelJsNative
+import PromiseKit
 import AppAuth
 #if SWIFT_PACKAGE
 import AppAuthCore
@@ -14,6 +15,7 @@ import AppAuthCore
 open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
     /// The AuthSettings object from imodeljs.
     public var authSettings: AuthSettings?
+    public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
     /// The OIDAuthState from the AppAuth library
@@ -33,11 +35,49 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
-    public init(viewController: UIViewController? = nil) {
+    public init(itmApplication: ITMApplication, viewController: UIViewController? = nil) {
+        self.itmApplication = itmApplication
         self.viewController = viewController
         super.init()
+        registerQueryHandlers()
     }
-    
+
+    private func registerQueryHandlers() {
+        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_getAccessToken") { () -> Promise<String> in
+            let (promise, resolver) = Promise<String>.pending()
+            if self.itmApplication.itmMessenger.frontendLaunchDone {
+                self.getAccessToken() { token, error in
+                    if let error = error {
+                        resolver.reject(error)
+                    }
+                    else if let token = token {
+                        resolver.fulfill(token)
+                    } else {
+                        resolver.reject(ITMError())
+                    }
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
+        }
+        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_signOut") { () -> Promise<()> in
+            let (promise, resolver) = Promise<()>.pending()
+            if self.itmApplication.itmMessenger.frontendLaunchDone {
+                self.signOut() { error in
+                    if let error = error {
+                        resolver.reject(error)
+                    } else {
+                        resolver.fulfill(())
+                    }
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
+        }
+    }
+
     /// Creates and returns an NSError object with the specified settings.
     /// - Parameters:
     ///   - domain: The domain to use for the NSError, default "com.bentley.itwin-mobile-sdk"

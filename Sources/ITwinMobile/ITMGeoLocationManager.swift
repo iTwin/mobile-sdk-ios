@@ -65,6 +65,7 @@ public struct GeolocationPositionError: Codable {
     }
 }
 
+/// Extension to `CLLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
 public extension CLLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object converted to a JSON-compatible dictionary..
     /// - Returns: `Promise` that when resolved contains a ``GeolocationPosition`` object converted to a JSON-compatible dictionary.

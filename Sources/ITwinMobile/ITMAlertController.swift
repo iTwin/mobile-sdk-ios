@@ -18,11 +18,13 @@ class ITMErrorViewController: UIViewController {
     }
 }
 
-/// `UIAlertController` subclass that hides the status bar and presents on top of everything else.
+/// `UIAlertController` subclass that hides the status bar by default and presents on top of everything else.
 open class ITMAlertController: UIAlertController {
     var onClose: (() -> Void)?
     var rootBounds: CGRect?
     var deviceOrientation: UIDeviceOrientation?
+    /// Set this to true to not hide the status bar.
+    var showStatusBar = false
     private static var alertWindow: UIWindow?
 
     /// - Returns: An instance of ``ITMAlertController`` that is properly configured. May return a preexisting instance.
@@ -76,7 +78,7 @@ open class ITMAlertController: UIAlertController {
     }
 
     open override var prefersStatusBarHidden: Bool {
-        return true
+        return !showStatusBar
     }
 
     open override func viewDidAppear(_ animated: Bool) {

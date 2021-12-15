@@ -53,6 +53,7 @@ final public class ITMAlert: ITMNativeUIComponent {
         } else {
             if let actions = params["actions"] as? [[String: Any]] {
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
+                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
                 if actions.isEmpty {
                     presentedResolver.reject(ITMError())
                 } else {

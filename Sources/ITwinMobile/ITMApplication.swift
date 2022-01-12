@@ -372,9 +372,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                                 }
                             }
                         }
-                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil, using: { _ in
-                            self.updateReachability()
-                        })
+                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
+                            self?.updateReachability()
+                        }
                     }
                 }
             }

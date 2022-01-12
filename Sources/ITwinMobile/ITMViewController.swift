@@ -20,6 +20,10 @@ open class ITMViewController: UIViewController {
     private var willEnterForegroundObserver: Any? = nil
 
     deinit {
+        removeWillEnterForegroundObserver()
+    }
+    
+    private func removeWillEnterForegroundObserver() {
         if let willEnterForegroundObserver = willEnterForegroundObserver {
             NotificationCenter.default.removeObserver(willEnterForegroundObserver)
         }
@@ -58,8 +62,9 @@ open class ITMViewController: UIViewController {
     open override func viewDidLoad() {
         if ITMViewController.autoLoadWebApplication {
             if ITMViewController.delayedAutoLoad {
-                willEnterForegroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { _ in
-                    self.loadWebApplication()
+                willEnterForegroundObserver = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: nil) { [weak self] _ in
+                    self?.loadWebApplication()
+                    self?.removeWillEnterForegroundObserver()
                 }
             } else {
                 loadWebApplication()

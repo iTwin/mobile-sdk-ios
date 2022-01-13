@@ -33,25 +33,20 @@ open class ITMAlertController: UIAlertController {
         // Create temporary window to show alert anywhere and anytime and avoid view hiearchy issues.
         if alertWindow == nil {
             alertWindow = UIWindow(frame: UIScreen.main.bounds)
-            if #available(iOS 13.0, *) {
-                alertWindow?.overrideUserInterfaceStyle = .light
-            }
+            alertWindow?.overrideUserInterfaceStyle = .light
             alertWindow!.rootViewController = ITMErrorViewController()
             alertWindow!.windowLevel = UIWindow.Level.alert + 1
             ITMAlertController.alertWindow = alertWindow
         }
-        if #available(iOS 13.0, *) {
-            for scene in UIApplication.shared.connectedScenes {
-                if scene.activationState == .foregroundActive {
-                    alertWindow?.windowScene = (scene as? UIWindowScene)
-                }
+        for scene in UIApplication.shared.connectedScenes {
+            if scene.activationState == .foregroundActive {
+                alertWindow?.windowScene = (scene as? UIWindowScene)
             }
         }
         alertWindow!.makeKeyAndVisible()
         return alertWindow!.rootViewController!
     }
 
-    @available(iOS 13.0, *)
     /// Override to allow for the app to force light or dark mode.
     public override var overrideUserInterfaceStyle: UIUserInterfaceStyle {
         get {
@@ -71,9 +66,7 @@ open class ITMAlertController: UIAlertController {
 
     /// Call this to indicate that you are done using the ``ITMAlertController``, so that it can clean up.
     public static var doneWithAlertWindow: () -> () = {
-        if #available(iOS 13.0, *) {
-            alertWindow?.windowScene = nil
-        }
+        alertWindow?.windowScene = nil
         alertWindow = nil
     }
 

@@ -263,7 +263,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                                               responseType: OIDResponseTypeCode,
                                               additionalParameters: nil)
         DispatchQueue.main.async {
-            if let viewController = self.viewController ?? UIApplication.shared.keyWindow?.rootViewController {
+            if let viewController = ITMApplication.topViewController {
                 // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
                 // However, even though we require iOS 12.2, if we ignore the value, it gets deleted by the system,
                 // which prevents everything from working. So, store the value in our member variable.

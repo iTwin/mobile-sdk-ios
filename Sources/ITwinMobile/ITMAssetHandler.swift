@@ -59,25 +59,7 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
                 return
             }
             let taskResponse: URLResponse
-            if #available(iOS 13, *) {
-                taskResponse = HTTPURLResponse(url: urlSchemeTask.request.url!, mimeType: response?.mimeType, expectedContentLength: Int(response?.expectedContentLength ?? 0), textEncodingName: response?.textEncodingName)
-            } else {
-                // The HTTPURLResponse object created above using the URLResponse constructor crashes when sent to
-                // urlSchemeTask.didReceive below in iOS 12. I have no idea why that is, but it DOESN'T crash if we
-                // instead use the HTTPURLResponse-only constructor. Similarly, it doesn't crash if we create a
-                // URLResponse object instead of an HTTPURLResponse object. So, if we know the mimeType, construct an
-                // HTTPURLResponse using the HTTPURLResponse constructor, and add the appropriate header field for that
-                // mime type. If we don't know the mime type, construct a URLResponse instead.
-                if let mimeType = response?.mimeType {
-                    // The imodeljs code that loads approximateTerrainHeights.json requires the HTTP Content-Type header
-                    // to be present and accurate. URLResponse doesn't have any headers. I have no idea how the
-                    // HTTPURLResponse contstructor could fail, but just in case it does, we fall back to the
-                    // URLResponse object.
-                    taskResponse = HTTPURLResponse(url: urlSchemeTask.request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "\(mimeType); charset=UTF-8"]) ?? URLResponse(url: urlSchemeTask.request.url!, mimeType: response?.mimeType, expectedContentLength: Int(response?.expectedContentLength ?? 0), textEncodingName: response?.textEncodingName)
-                } else {
-                    taskResponse = URLResponse(url: urlSchemeTask.request.url!, mimeType: response?.mimeType, expectedContentLength: Int(response?.expectedContentLength ?? 0), textEncodingName: response?.textEncodingName)
-                }
-            }
+            taskResponse = HTTPURLResponse(url: urlSchemeTask.request.url!, mimeType: response?.mimeType, expectedContentLength: Int(response?.expectedContentLength ?? 0), textEncodingName: response?.textEncodingName)
             urlSchemeTask.didReceive(taskResponse)
             urlSchemeTask.didReceive(data!)
             urlSchemeTask.didFinish()

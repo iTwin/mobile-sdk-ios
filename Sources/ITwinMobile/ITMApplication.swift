@@ -396,7 +396,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view controller.
     public class var topViewController: UIViewController? {
-        if var topController = UIApplication.shared.keyWindow?.rootViewController {
+        let keyWindow = UIApplication
+            .shared
+            .connectedScenes
+            .flatMap { ($0 as? UIWindowScene)?.windows ?? [] }
+            .first { $0.isKeyWindow }
+        if var topController = keyWindow?.rootViewController {
             while let presentedViewController = topController.presentedViewController {
                 topController = presentedViewController
             }

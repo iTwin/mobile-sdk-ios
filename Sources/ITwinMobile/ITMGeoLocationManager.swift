@@ -104,13 +104,54 @@ public extension CLLocation {
     }
 }
 
+/// Methods for getting more information from and exerting more contol over an ``ITMGeolocationManager`` object.
+///  - Warning: Apple's DocC documentation generator is marking all methods as required, even though they are optional.
+@objc public protocol ITMGeolocationManagerDelegate: AnyObject {
+    /// Called to determine whether or not to call `ITMDevicePermissionsHelper.openLocationAccessDialog`.
+    ///
+    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
+    /// 
+    /// Overload this method if you want to prevent `ITMDevicePermissionsHelper.openLocationAccessDialog` from being called for a given action.
+    /// - Note: `action` will never be `clearWatch`.
+    /// - Parameters:
+    ///   - manager: The ``ITMGeolocationManager`` ready to show the dialog.
+    ///   - action: The action that wants to show the dialog.
+    @objc optional func geolocationManager(_ manager: ITMGeolocationManager, shouldShowLocationAccessDialogFor action: ITMGeolocationManager.Action) -> Bool
+    /// Called when ``ITMGeolocationManager`` receives `clearWatch` request from web view.
+    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
+    /// - Parameters:
+    ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
+    ///   - position: The positionId of the request send from the web view.
+    @objc optional func geolocationManager(_ manager: ITMGeolocationManager, willClearWatch position: Int64)
+    /// Called when ``ITMGeolocationManager`` receives `getCurrentPosition` request from web view.
+    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
+    /// - Parameters:
+    ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
+    ///   - position: The positionId of the request send from the web view.
+    @objc optional func geolocationManager(_ manager: ITMGeolocationManager, willGetCurrentPosition position: Int64)
+    /// Called when ``ITMGeolocationManager`` receives `watchPosition` request from a web view.
+    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
+    /// - Parameters:
+    ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
+    ///   - position: The positionId of the request send from the web view.
+    @objc optional func geolocationManager(_ manager: ITMGeolocationManager, willWatchPosition position: Int64)
+}
+
 /// Class for the native-side implementation of a `navigator.geolocation` polyfill.
 public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScriptMessageHandler {
+    /// Actions taken by ``ITMGeolocationManager``.
+    @objc public enum Action: Int {
+        case watchPosition = 0
+        case clearWatch
+        case getCurrentLocation
+    }
+
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
     var itmMessenger: ITMMessenger
     var webView: WKWebView
     private var orientationObserver: Any?
+    public weak var delegate: ITMGeolocationManagerDelegate?
 
     /// - Parameters:
     ///   - itmMessenger: The ``ITMMessenger`` used to communicate with the JavaScript side of this polyfill.
@@ -237,6 +278,12 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func watchPosition(_ message: [String: Any]) {
+        if ITMDevicePermissionsHelper.isLocationDenied {
+            if delegate?.geolocationManager?(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true {
+                ITMDevicePermissionsHelper.openLocationAccessDialog()
+            }
+            return
+        }
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "watchPosition error: no Int64 positionId in request.")
@@ -247,7 +294,16 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             locationManager.startUpdatingLocation()
             locationManager.startUpdatingHeading()
         }
-        checkAuth().catch { _ in
+        delegate?.geolocationManager?(self, willWatchPosition: positionId)
+        firstly {
+            checkAuth()
+        }.done {
+            self.watchIds.insert(positionId)
+            if self.watchIds.count == 1 {
+                self.locationManager.startUpdatingLocation()
+                self.locationManager.startUpdatingHeading()
+            }
+        }.catch { _ in
             self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
         }
     }
@@ -257,6 +313,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             ITMApplication.logger.log(.error, "clearWatch error: no Int64 positionId in request.")
             return
         }
+        delegate?.geolocationManager?(self, willClearWatch: positionId)
         watchIds.remove(positionId)
         if watchIds.isEmpty {
             stopUpdating()
@@ -287,7 +344,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     private func getCurrentPosition(_ message: [String: Any]) {
         if ITMDevicePermissionsHelper.isLocationDenied {
-            ITMDevicePermissionsHelper.openLocationAccessDialog()
+            if delegate?.geolocationManager?(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true {
+                ITMDevicePermissionsHelper.openLocationAccessDialog()
+            }
             return
         }
 
@@ -296,6 +355,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             ITMApplication.logger.log(.error, "getCurrentPosition error: no Int64 positionId in request.")
             return
         }
+        delegate?.geolocationManager?(self, willGetCurrentPosition: positionId)
         firstly {
             CLLocationManager.geolocationPosition()
         }.done { position in

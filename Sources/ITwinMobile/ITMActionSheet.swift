@@ -20,6 +20,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
             if let actions = params["actions"] as? [[String: Any]] {
                 var actionSelected = false
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
+                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
                 alert.onClose = {
                     // When an action is selected, this gets called before the action's handler.
                     // By running async in the main event queue, we delay processing this until

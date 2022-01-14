@@ -153,8 +153,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             promise.done { response in
                 let responseString = self.itmMessenger.jsonString(response)
                 self.itmMessenger.respondToQuery(queryId, responseString)
-            }.catch { _ in
-                self.itmMessenger.respondToQuery(queryId, nil)
+            }.catch { error in
+                self.itmMessenger.respondToQuery(queryId, nil, error)
             }
             return true
         }
@@ -190,6 +190,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Whether or not full logging of all messages (with their optional bodies) is enabled.
     /// - warning: You should only enable this in debug builds, since message bodies may contain private information.
     public static var isFullLoggingEnabled = false
+    /// Indicates whether or not the frontend has finished launching. Specfically, if ``frontendLaunchSuceeded()`` has been called.
+    public var frontendLaunchDone = false
     private let queryName = "Bentley_ITMMessenger_Query"
     private let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
     private let handlerNames: [String]
@@ -356,19 +358,34 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - queryId: The queryId for the query. This must be the queryId passed into `ITMQueryHandler.handleQuery`.
     ///   - responseJson: The JSON-encoded response string. If this is nil, it indicates an error. To indicate "no response" without triggering an
     ///                   error, use an empty string.
-    open func respondToQuery(_ queryId: Int64, _ responseJson: String?) {
+    open func respondToQuery(_ queryId: Int64, _ responseJson: String?, _ error: Error? = nil) {
         logQuery("Response SWIFT -> JS", "WKID\(queryId)", nil, dataString: responseJson)
-        let js: String
-        if responseJson != nil {
-            js = "window.Bentley_ITMMessenger_QueryResponse\(queryId)('\(responseJson!.toBase64())')"
+        let messageJson: String
+        if let responseJson = responseJson {
+            if responseJson.isEmpty {
+                messageJson = "{}"
+            } else {
+                messageJson = "{\"response\":\(responseJson)}"
+            }
         } else {
-            // If we get here, the JS code sent a query that we don't handle. That should never
-            // happen, so assert. Note that if a void response is desired, then responseJson
-            // will be an empty string, not nil.
-            logError("Unhandled query [JS -> Swift]: WKID\(queryId)\n")
-            assert(false)
-            js = "window.Bentley_ITMMessenger_QueryResponse\(queryId)()"
+            if let itmError = error as? ITMError {
+                if itmError.jsonString.isEmpty {
+                    messageJson = "{\"error\":{}}"
+                } else {
+                    messageJson = "{\"error\":\(itmError.jsonString)}"
+                }
+            } else if let error = error {
+                messageJson = "{\"error\":\"\(error)\"}"
+            } else {
+                // If we get here, the JS code sent a query that we don't handle. That should never
+                // happen, so assert. Note that if a void response is desired, then responseJson
+                // will be an empty string, not nil.
+                logError("Unhandled query [JS -> Swift]: WKID\(queryId)\n")
+                assert(false)
+                messageJson = "{\"unhandled\":true}"
+            }
         }
+        let js = "window.Bentley_ITMMessenger_QueryResponse\(queryId)('\(messageJson.toBase64())')"
         evaluateJavaScript(js)
     }
 
@@ -410,6 +427,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     /// Called after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
     open func frontendLaunchSuceeded() {
+        frontendLaunchDone = true
         frontendLaunchResolver.fulfill(())
     }
 

@@ -11,7 +11,7 @@ import PackageDescription
 let package = Package(
     name: "itwin-mobile-sdk",
     platforms: [
-        .iOS("12.2"),
+        .iOS("13"),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
@@ -22,7 +22,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
-        .package(url: "https://github.com/iTwin/mobile-ios-package", .exact("2.19.31")),
+        .package(url: "https://github.com/iTwin/mobile-ios-package", .exact("3.0.31")),
         .package(url: "https://github.com/mxcl/PromiseKit", from: "6.15.3"),
         .package(name: "PMKFoundation", url: "https://github.com/PromiseKit/Foundation.git", from: "3.0.0"),
         // The following is a fork of CoreLocation that changes the iOS platform to v9

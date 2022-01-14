@@ -5,7 +5,6 @@
 
 import SwiftUI
 
-@available(iOS 13.0, *)
 public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
     public var application: ITMApplication
     public func makeUIViewController(context: Context) -> ITMViewController {
@@ -18,7 +17,6 @@ public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
     }
 }
 
-@available(iOS 13.0, *)
 public struct ITMSwiftUIContentView: View {
     public var application: ITMApplication
     

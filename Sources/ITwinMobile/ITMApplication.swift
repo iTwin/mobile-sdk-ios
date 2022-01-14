@@ -32,16 +32,16 @@ extension JSON {
     }
 }
 
-/// The MobileUi.preferredColorScheme value set by the TypeScript code.
-public enum ITMPreferredColorScheme: Int, Codable, Equatable {
-    case automatic = 0
-    case light = 1
-    case dark = 2
-}
-
 /// Main class for interacting with one iTwin Mobile web app.
 /// - Note: Most applications will override this class in order to customize the behavior and register for messages.
 open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
+    /// The `MobileUi.preferredColorScheme` value set by the TypeScript code.
+    public enum PreferredColorScheme: Int, Codable, Equatable {
+        case automatic = 0
+        case light = 1
+        case dark = 2
+    }
+
     /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
@@ -63,6 +63,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
+    /// The `AuthorizationClient` used by the `IModelJsHost`. This must be an ``ITMAuthorizationClient`` in order to
+    /// use the `ITMAuthorizationClient` TypeScript class.
+    public var authorizationClient: AuthorizationClient?
     
     /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
     /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
@@ -71,7 +74,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     private var backendLoaded = false
     private var debugI18n = false
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
-    static public var preferredColorScheme = ITMPreferredColorScheme.automatic
+    static public var preferredColorScheme = PreferredColorScheme.automatic
 
     /// Creates an ``ITMApplication``
     required public override init() {
@@ -85,7 +88,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         backendLoadingDispatchGroup.enter()
         registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> Promise<()> in
             if let preferredColorScheme = params["preferredColorScheme"] as? Int {
-                ITMApplication.preferredColorScheme = ITMPreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
+                ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
             return Promise.value(())
         }
@@ -246,7 +249,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         guard let viewController = type(of: self).topViewController else {
             return nil
         }
-        return ITMAuthorizationClient(viewController: viewController)
+        return ITMAuthorizationClient(itmApplication: self, viewController: viewController)
     }
 
     /// Loads the app config JSON from the main bundle.
@@ -294,9 +297,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         let backendUrl = getBackendUrl()
 
+        authorizationClient = getAuthClient()
         IModelJsHost.sharedInstance().loadBackend(
             backendUrl,
-            withAuthClient: getAuthClient(),
+            withAuthClient: authorizationClient,
             withInspect: allowInspectBackend
         ) { _ in
             // This callback gets called each time the app returns to the foreground. That is
@@ -368,9 +372,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                                 }
                             }
                         }
-                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil, using: { _ in
-                            self.updateReachability()
-                        })
+                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
+                            self?.updateReachability()
+                        }
                     }
                 }
             }
@@ -392,7 +396,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view controller.
     public class var topViewController: UIViewController? {
-        if var topController = UIApplication.shared.keyWindow?.rootViewController {
+        let keyWindow = UIApplication
+            .shared
+            .connectedScenes
+            .flatMap { ($0 as? UIWindowScene)?.windows ?? [] }
+            .first { $0.isKeyWindow }
+        if var topController = keyWindow?.rootViewController {
             while let presentedViewController = topController.presentedViewController {
                 topController = presentedViewController
             }

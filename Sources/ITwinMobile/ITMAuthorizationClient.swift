@@ -5,6 +5,7 @@
 
 import UIKit
 import IModelJsNative
+import PromiseKit
 import AppAuth
 #if SWIFT_PACKAGE
 import AppAuthCore
@@ -14,6 +15,7 @@ import AppAuthCore
 open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
     /// The AuthSettings object from imodeljs.
     public var authSettings: AuthSettings?
+    public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
     /// The OIDAuthState from the AppAuth library
@@ -33,11 +35,49 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
-    public init(viewController: UIViewController? = nil) {
+    public init(itmApplication: ITMApplication, viewController: UIViewController? = nil) {
+        self.itmApplication = itmApplication
         self.viewController = viewController
         super.init()
+        registerQueryHandlers()
     }
-    
+
+    private func registerQueryHandlers() {
+        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_getAccessToken") { () -> Promise<String> in
+            let (promise, resolver) = Promise<String>.pending()
+            if self.itmApplication.itmMessenger.frontendLaunchDone {
+                self.getAccessToken() { token, error in
+                    if let error = error {
+                        resolver.reject(error)
+                    }
+                    else if let token = token {
+                        resolver.fulfill(token)
+                    } else {
+                        resolver.reject(ITMError())
+                    }
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
+        }
+        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_signOut") { () -> Promise<()> in
+            let (promise, resolver) = Promise<()>.pending()
+            if self.itmApplication.itmMessenger.frontendLaunchDone {
+                self.signOut() { error in
+                    if let error = error {
+                        resolver.reject(error)
+                    } else {
+                        resolver.fulfill(())
+                    }
+                }
+            } else {
+                resolver.reject(ITMError())
+            }
+            return promise
+        }
+    }
+
     /// Creates and returns an NSError object with the specified settings.
     /// - Parameters:
     ///   - domain: The domain to use for the NSError, default "com.bentley.itwin-mobile-sdk"
@@ -167,7 +207,13 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// - Parameter completion: Callback to call upon success or error.
     open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
         guard let authState = authState else {
-            completion(error(reason: "ITMAuthorizationClient not signed in"))
+            sign() { error in
+                if let error = error {
+                    completion(error)
+                } else {
+                    self.refreshAccessToken(completion)
+                }
+            }
             return
         }
         authState.performAction() { accessToken, idToken, error in
@@ -217,7 +263,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                                               responseType: OIDResponseTypeCode,
                                               additionalParameters: nil)
         DispatchQueue.main.async {
-            if let viewController = self.viewController ?? UIApplication.shared.keyWindow?.rootViewController {
+            if let viewController = ITMApplication.topViewController {
                 // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
                 // However, even though we require iOS 12.2, if we ignore the value, it gets deleted by the system,
                 // which prevents everything from working. So, store the value in our member variable.
@@ -456,24 +502,11 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                     completion(nil, self.error(reason: "No token after refresh"))
                     return
                 }
-                guard let expirationDate = lastTokenResponse.accessTokenExpirationDate,
-                      let tokenString = lastTokenResponse.accessToken,
-                      let userInfo = userInfo else {
+                guard let tokenString = lastTokenResponse.accessToken else {
                     completion(nil, self.error(reason: "Invalid token after refresh"))
                     return
                 }
-                let dict: [String: Any] = [
-                    "tokenString": tokenString,
-                    "expiresAt": expirationDate.timeIntervalSince1970 * 1000,
-                    "startsAt": Date().timeIntervalSince1970 * 1000,
-                    "userInfo": userInfo
-                ];
-                if let jsonString = JSONSerialization.string(withITMJSONObject: dict, prettyPrint: true) {
-                    self.saveState()
-                    completion(jsonString, nil)
-                } else {
-                    completion(nil, self.error(reason: "Error converting information to JSON"))
-                }
+                completion("Bearer \(tokenString)", nil)
             }
         }
     }

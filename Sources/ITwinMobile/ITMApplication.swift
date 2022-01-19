@@ -76,6 +76,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
     static public var preferredColorScheme = PreferredColorScheme.automatic
 
+    private var keyboardObservers: [Any] = []
+    private var keyboardNotifications = [
+        UIResponder.keyboardWillShowNotification: "Bentley_ITM_keyboardWillShow",
+        UIResponder.keyboardDidShowNotification: "Bentley_ITM_keyboardDidShow",
+        UIResponder.keyboardWillHideNotification: "Bentley_ITM_keyboardWillHide",
+        UIResponder.keyboardDidHideNotification: "Bentley_ITM_keyboardDidHide"
+    ]
+
     /// Creates an ``ITMApplication``
     required public override init() {
         webView = type(of: self).createEmptyWebView()
@@ -105,7 +113,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     open func viewWillAppear(viewController: ITMViewController) {
-        // do nothing, here for sub-classes to add their own components to the native UI
+        for (key, value) in keyboardNotifications {
+            keyboardObservers.append(NotificationCenter.default.addObserver(forName: key, object: nil, queue: nil, using: { [weak self] notification in
+                if let messenger = self?.itmMessenger,
+                   let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
+                   let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
+                    messenger.queryAndShowError(viewController, value, [
+                        "duration": duration,
+                        "height": keyboardSize.size.height
+                    ])
+                }
+            }))
+        }
     }
     
     /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.

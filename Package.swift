@@ -9,7 +9,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "itwin-mobile-sdk",
+    name: "itwin-mobile-sdk-ios",
     platforms: [
         .iOS("13"),
     ],

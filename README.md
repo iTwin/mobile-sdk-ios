@@ -1,4 +1,4 @@
-# iTwin mobile-sdk
+# iTwin mobile-sdk-ios
 
 Copyright © Bentley Systems, Incorporated. All rights reserved. See [LICENSE.md](./LICENSE.md) for license terms and full copyright notice.
 

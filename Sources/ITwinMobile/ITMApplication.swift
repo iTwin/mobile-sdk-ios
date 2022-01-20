@@ -73,6 +73,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let backendLoadingDispatchGroup = DispatchGroup()
     private var backendLoaded = false
     private var debugI18n = false
+    private var lowResolution = false
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
     static public var preferredColorScheme = PreferredColorScheme.automatic
 
@@ -307,6 +308,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         if let configData = loadITMAppConfig() {
             debugI18n = configData["debugI18n"] as? String == "YES"
+            lowResolution = configData["lowResolution"] as? String == "YES"
             extractConfigsToEnv(configData: configData, configs: [
                 ("clientId", "ITMAPPLICATION_CLIENT_ID"),
                 ("scope", "ITMAPPLICATION_SCOPE"),
@@ -350,8 +352,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             var url = self.getBaseUrl()
             url += "#port=\(IModelJsHost.sharedInstance().getPort())"
             url += "&platform=ios"
-            if (self.debugI18n) {
+            if self.debugI18n {
                 url += "&debugI18n=YES"
+            }
+            if self.lowResolution {
+                url += "&lowResolution=YES"
             }
             url += self.getUrlHashParams()
             let request = URLRequest(url: URL(string: url)!)

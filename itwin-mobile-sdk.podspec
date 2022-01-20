@@ -18,5 +18,5 @@ Pod::Spec.new do |spec|
   spec.dependency "PromiseKit/Foundation", "~> 6.0"
   spec.dependency "ReachabilitySwift"
   spec.dependency "AppAuth", "~> 1.4"
-  spec.dependency "itwin-mobile-ios-package", "3.0.31"
+  spec.dependency "itwin-mobile-native-ios", "3.0.31"
 end

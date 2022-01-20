@@ -30,12 +30,12 @@ def modifyPackageJson(args, dir):
 
 def modifyPackageSwift(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
-    replaceAll(fileName, [('(mobile-ios-package", .exact\()"[\.0-9]+', '\\1"' + args.newIos)])
+    replaceAll(fileName, [('(mobile-native-ios", .exact\()"[\.0-9]+', '\\1"' + args.newIos)])
 
 def modifyPodspec(args, fileName):
     print "Processing: " + os.path.realpath(fileName)
     replacements = [('(spec.version.*= )"[\.0-9]+', '\\1"' + args.newVersion)]
-    replacements.append(('(spec.dependency +"itwin-mobile-ios-package", +"~>) [\.0-9]+', '\\1 ' + args.newIos))
+    replacements.append(('(spec.dependency +"itwin-mobile-native-ios", +"~>) [\.0-9]+', '\\1 ' + args.newIos))
     replaceAll(fileName, replacements)
 
 def modifyPackageResolved(args, fileName):
@@ -177,9 +177,9 @@ def getVersions(args):
         addOnVersion = getLatestNativeVersion()
         if addOnVersion:
             foundAll = True
-            print "mobile-ios-package version: " + addOnVersion
-            addOnCommitId = getLastRemoteCommitId('https://github.com/iTwin/mobile-ios-package.git', addOnVersion)
-            print "mobile-ios-package revision: " + addOnCommitId
+            print "mobile-native-ios version: " + addOnVersion
+            addOnCommitId = getLastRemoteCommitId('https://github.com/iTwin/mobile-native-ios.git', addOnVersion)
+            print "mobile-native-ios revision: " + addOnCommitId
 
     if foundAll:
         args.newVersion = newRelease
@@ -231,7 +231,7 @@ if __name__ == '__main__':
     parser_change.set_defaults(func=changeCommand)
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
     parser_change.add_argument('-nb', '--newBentley', dest='newBentley', help='New @bentley package version', required=True)
-    parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-ios-package version', required=True)
+    parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-native-ios version', required=True)
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
     parser_commit.set_defaults(func=commitCommand)

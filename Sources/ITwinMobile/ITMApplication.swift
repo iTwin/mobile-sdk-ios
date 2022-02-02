@@ -72,8 +72,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// may lead to deadlock. This is done automatically in `loadFrontend`.
     public let backendLoadingDispatchGroup = DispatchGroup()
     private var backendLoaded = false
-    private var debugI18n = false
-    private var lowResolution = false
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
     static public var preferredColorScheme = PreferredColorScheme.automatic
 
@@ -244,7 +242,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
         if let configData = loadITMAppConfig(),
-            let baseUrlString = configData["baseUrl"] as? String {
+            let baseUrlString = configData["ITMAPPLICATION_BASE_URL"] as? String {
             usingRemoteServer = true
             return baseUrlString
         }
@@ -283,16 +281,16 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return nil
     }
 
-    /// Extracts the given configs and stores the in the environment so they can be seen by the backend JavaScript code.
+    /// Extracts config values and stores them in the environment so they can be seen by the backend JavaScript code.
+    ///
+    /// All top-level keys in configData that have a string value and a key name with the given prefix will be stored in the environment with the given key name and value.
     /// - Parameters:
     ///   - configData: The JSON dictionary containing the configs (by default from ITMAppConfig.json).
-    ///   - configs: An array of tuples, where the first element of each tuple is the key in `configData` and the second is the name
-    ///              name of the environment variable to store the value in.
-    /// - Note: Configs with keys that do not exist in configData are ignored.
-    public func extractConfigsToEnv(configData: JSON, configs: [(String, String)]) {
-        for config in configs {
-            if let configValue = configData[config.0] as? String {
-                setenv(config.1, configValue, 1)
+    ///   - prefix: The prefix to include values for.
+    public func extractConfigDataToEnv(configData: JSON, _ prefix: String = "ITMAPPLICATION_") {
+        for (key, value) in configData {
+            if key.hasPrefix(prefix), let stringValue = value as? String {
+                setenv(key, stringValue, 1);
             }
         }
     }
@@ -306,14 +304,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             return
         }
         if let configData = loadITMAppConfig() {
-            debugI18n = configData["debugI18n"] as? String == "YES"
-            lowResolution = configData["lowResolution"] as? String == "YES"
-            extractConfigsToEnv(configData: configData, configs: [
-                ("clientId", "ITMAPPLICATION_CLIENT_ID"),
-                ("scope", "ITMAPPLICATION_SCOPE"),
-                ("issuerUrl", "ITMAPPLICATION_ISSUER_URL"),
-                ("redirectUri", "ITMAPPLICATION_REDIRECT_URI")
-            ])
+            extractConfigDataToEnv(configData: configData)
         }
         let backendUrl = getBackendUrl()
 
@@ -351,12 +342,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             var url = self.getBaseUrl()
             url += "#port=\(IModelJsHost.sharedInstance().getPort())"
             url += "&platform=ios"
-            if self.debugI18n {
-                url += "&debugI18n=YES"
-            }
-            if self.lowResolution {
-                url += "&lowResolution=YES"
-            }
             url += self.getUrlHashParams()
             let request = URLRequest(url: URL(string: url)!)
             // The call to evaluateJavaScript must happen in the main thread.

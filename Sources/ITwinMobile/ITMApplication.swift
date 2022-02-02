@@ -179,7 +179,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: An ``ITMWebViewLogger`` object attached to `webView`.
     open class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
         let webViewLogger = ITMWebViewLogger(name: "ITMApplication Logger")
-        webViewLogger.attach(webView)
         return webViewLogger
     }
 
@@ -567,6 +566,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         if fullyLoaded {
             // Reattach our webViewLogger.
             webViewLogger.reattach(webView)
+        } else {
+            // Attach our webViewLogger.
+            webViewLogger.attach(webView)
         }
         fullyLoaded = true
         if !dormant {

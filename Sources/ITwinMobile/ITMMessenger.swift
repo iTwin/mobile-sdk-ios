@@ -187,6 +187,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     // create another.
     private static var queryId: Int64 = 0
     private static var weakWebViews: [WeakWKWebView] = []
+    /// Whether or not to log messages.
+    public static var isLoggingEnabled = false;
     /// Whether or not full logging of all messages (with their optional bodies) is enabled.
     /// - warning: You should only enable this in debug builds, since message bodies may contain private information.
     public static var isFullLoggingEnabled = false
@@ -403,14 +405,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - type: The type of the query.
     ///   - prettyDataString: The pretty-printed JSON representation of the query data.
     open func logQuery(_ title: String, _ queryId: String, _ type: String?, prettyDataString: String?) {
+        guard ITMMessenger.isLoggingEnabled else {return}
         let typeString = type != nil ? "'\(type!)'" : "(Match ID from Request above)"
-        if !ITMMessenger.isFullLoggingEnabled {
-            // In release mode, do not include message data.
-            logInfo("ITMMessenger [\(title)] \(queryId): \(typeString)")
-            return
+        var message = "ITMMessenger [\(title)] \(queryId): \(typeString)"
+        if ITMMessenger.isFullLoggingEnabled, let prettyDataString = prettyDataString {
+            message.append("\n\(prettyDataString)")
         }
-        // In debug mode, include message data.
-        logInfo("ITMMessenger [\(title)] \(queryId): \(typeString)\n\(prettyDataString ?? "null")")
+        logInfo(message)
     }
 
     /// Log an error message using `ITMApplication.logger`.

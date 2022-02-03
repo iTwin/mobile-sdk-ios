@@ -290,8 +290,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Loads the app config JSON from the main bundle.
+    /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The parsed contents of ITMAppConfig.json in the main bundle in the directory returned by `getWebAppDir`.
-    func loadITMAppConfig() -> JSON? {
+    open func loadITMAppConfig() -> JSON? {
         if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: type(of: self).getWebAppDir()),
             let configString = try? String(contentsOf: configUrl),
             let configData = JSON.fromString(configString) {

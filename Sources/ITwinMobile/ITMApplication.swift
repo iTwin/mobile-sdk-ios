@@ -307,7 +307,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameters:
     ///   - configData: The JSON dictionary containing the configs (by default from ITMAppConfig.json).
     ///   - prefix: The prefix to include values for.
-    public func extractConfigDataToEnv(configData: JSON, _ prefix: String = "ITMAPPLICATION_") {
+    public func extractConfigDataToEnv(configData: JSON, prefix: String = "ITMAPPLICATION_") {
         for (key, value) in configData {
             if key.hasPrefix(prefix), let stringValue = value as? String {
                 setenv(key, stringValue, 1);

@@ -12,7 +12,7 @@ import WebKit
 public typealias JSON = [String: Any]
 
 /// Extension to create a dictionary from JSON text.
-extension JSON {
+public extension JSON {
     /// Deserializes passed String and returns Dictionary representing the JSON object encoded in the string
     /// - Parameters:
     ///   - jsonString: string to parse and convert to Dictionary
@@ -29,6 +29,13 @@ extension JSON {
             ITMApplication.logger.log(.error, error.localizedDescription)
         }
         return nil
+    }
+    
+    /// Check if a key's value equals "YES"
+    /// - Parameter key: The key to check.
+    /// - Returns: True if the value of the given key equals "YES".
+    func isYes(_ key: String) -> Bool {
+        return self[key] as? String == "YES"
     }
 }
 
@@ -82,7 +89,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         UIResponder.keyboardWillHideNotification: "Bentley_ITM_keyboardWillHide",
         UIResponder.keyboardDidHideNotification: "Bentley_ITM_keyboardDidHide"
     ]
-
+    /// The app config JSON from the main bundle.
+    public var configData: JSON?
+    
     /// Creates an ``ITMApplication``
     required public override init() {
         webView = type(of: self).createEmptyWebView()
@@ -98,6 +107,17 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
             return Promise.value(())
+        }
+        configData = loadITMAppConfig()
+        if let configData = configData {
+            extractConfigDataToEnv(configData: configData)
+            if configData.isYes("ITMAPPLICATION_MESSAGE_LOGGING") {
+                ITMMessenger.isLoggingEnabled = true
+            }
+            if configData.isYes("ITMAPPLICATION_FULL_MESSAGE_LOGGING") {
+                ITMMessenger.isLoggingEnabled = true
+                ITMMessenger.isFullLoggingEnabled = true
+            }
         }
     }
 
@@ -241,7 +261,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
-        if let configData = loadITMAppConfig(),
+        if let configData = configData,
             let baseUrlString = configData["ITMAPPLICATION_BASE_URL"] as? String {
             usingRemoteServer = true
             return baseUrlString
@@ -302,9 +322,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     open func loadBackend(_ allowInspectBackend: Bool) {
         if backendLoaded {
             return
-        }
-        if let configData = loadITMAppConfig() {
-            extractConfigDataToEnv(configData: configData)
         }
         let backendUrl = getBackendUrl()
 

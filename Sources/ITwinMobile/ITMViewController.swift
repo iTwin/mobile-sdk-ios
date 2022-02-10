@@ -18,6 +18,7 @@ open class ITMViewController: UIViewController {
     public private(set) var itmNativeUI: ITMNativeUI?
     private var loadedOnce = false
     private var willEnterForegroundObserver: Any? = nil
+    private static var activeVC: ITMViewController?
 
     deinit {
         removeWillEnterForegroundObserver()
@@ -45,6 +46,10 @@ open class ITMViewController: UIViewController {
 
     /// Attaches the `application`'s webView as this view controller's view.
     open override func loadView() {
+        if let activeVC = ITMViewController.activeVC {
+            activeVC.view = UIView()
+        }
+        ITMViewController.activeVC = self
         let webView = ITMViewController.application.webView
         view = webView
     }

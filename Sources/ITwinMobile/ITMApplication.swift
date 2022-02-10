@@ -75,7 +75,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Type used to store an array of hash parameters.
     public typealias HashParams = [HashParam]
-
+    
     /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
@@ -296,31 +296,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         usingRemoteServer = false
         return "imodeljs://app/index.html"
     }
-    
-    /// Converts the given hash parameters into a URL hash string, encoding values so that they are valid for use in a URL.
-    /// - Parameter hashParams: The hash parameters to convert.
-    /// - Returns: The hash parameters converted to a URL hash string.
-    public func stringifyHashParams(_ hashParams: HashParams) -> String {
-        var result = ""
-        // Note: URL strings probably allow other characters, but we know for sure that these all work.
-        // Also, we can use `CharacterSet.alphanumerics` as a base, because that include all Unicode
-        // upper case and lower case letters, and we only want ASCII upper case and lower case letters.
-        // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
-        // which contains 660 characters.
-        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
-        for i in (0..<hashParams.count) {
-            let hashParam = hashParams[i]
-            if i == 0 {
-                result += "#"
-            } else {
-                result += "&"
-            }
-            if let encodedValue = hashParam.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters) {
-                result += "\(hashParam.name)=\(encodedValue)"
-            }
-        }
-        return result;
-    }
 
     /// Gets custom URL hash parameters to be passed when loading the frontend.
     /// Override this function in a subclass in order to add custom behavior.
@@ -421,7 +396,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // The wait has to happen without blocking the main thread.
             self.backendLoadingDispatchGroup.wait()
             var url = self.getBaseUrl()
-            url += self.stringifyHashParams(self.getUrlHashParams())
+            url += self.getUrlHashParams().toString()
             let request = URLRequest(url: URL(string: url)!)
             // The call to evaluateJavaScript must happen in the main thread.
             DispatchQueue.main.async {
@@ -640,5 +615,21 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         updateReachability()
         itmMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")
+    }
+}
+
+/// Extension allowing a ``ITMApplication.HashParams`` to be converted into a string.
+public extension ITMApplication.HashParams {
+    /// Converts the receiver into a URL hash string, encoding values so that they are valid for use in a URL.
+    /// - Returns: The hash parameters converted to a URL hash string.
+    func toString() -> String {
+        // Note: URL strings probably allow other characters, but we know for sure that these all work.
+        // Also, we can't use `CharacterSet.alphanumerics` as a base, because that include all Unicode
+        // upper case and lower case letters, and we only want ASCII upper case and lower case letters.
+        // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
+        // which contains 660 characters.
+        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
+        let encoded = self.map { "\($0.name)=\($0.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters)!)" }
+        return "#" + encoded.joined(separator: "&")
     }
 }

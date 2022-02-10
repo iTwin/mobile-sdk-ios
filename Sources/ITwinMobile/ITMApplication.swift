@@ -49,6 +49,33 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         case dark = 2
     }
 
+    /// Struct used to store a hash parameter.
+    public struct HashParam {
+        /// The name of the hash parameter.
+        public let name: String
+        /// The value of the hash parameter.
+        public let value: String
+        /// Creates a hash parameter with the given name and value
+        /// - Parameters:
+        ///   - name: The name of the hash parameter.
+        ///   - value: The value of the hash parameter.
+        public init(name: String, value: String) {
+            self.name = name
+            self.value = value
+        }
+        /// Creates a hash parameter with the given name and boolean value.
+        /// - Parameters:
+        ///   - name: The name of the hash parameter.
+        ///   - value: The boolean value of the hash parameter: true converts to "YES" and false converts to "NO"
+        public init(name: String, value: Bool) {
+            self.name = name
+            self.value = value ? "YES" : "NO"
+        }
+    }
+
+    /// Type used to store an array of hash parameters.
+    public typealias HashParams = [HashParam]
+
     /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
@@ -269,12 +296,43 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         usingRemoteServer = false
         return "imodeljs://app/index.html"
     }
+    
+    /// Converts the given hash parameters into a URL hash string, encoding values so that they are valid for use in a URL.
+    /// - Parameter hashParams: The hash parameters to convert.
+    /// - Returns: The hash parameters converted to a URL hash string.
+    public func stringifyHashParams(_ hashParams: HashParams) -> String {
+        var result = ""
+        // Note: URL strings probably allow other characters, but we know for sure that these all work.
+        // Also, we can use `CharacterSet.alphanumerics` as a base, because that include all Unicode
+        // upper case and lower case letters, and we only want ASCII upper case and lower case letters.
+        // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
+        // which contains 660 characters.
+        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
+        for i in (0..<hashParams.count) {
+            let hashParam = hashParams[i]
+            if i == 0 {
+                result += "#"
+            } else {
+                result += "&"
+            }
+            if let encodedValue = hashParam.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters) {
+                result += "\(hashParam.name)=\(encodedValue)"
+            }
+        }
+        return result;
+    }
 
     /// Gets custom URL hash parameters to be passed when loading the frontend.
     /// Override this function in a subclass in order to add custom behavior.
+    ///
+    /// - Note: The default implementation returns hash parameters that are required in order for the TypeScript
+    /// code to work. You must include those values if you override this function to return other values.
     /// - Returns: Empty string.
-    open func getUrlHashParams() -> String {
-        return ""
+    open func getUrlHashParams() -> HashParams {
+        return [
+            HashParam(name: "port", value: "\(IModelJsHost.sharedInstance().getPort())"),
+            HashParam(name: "platform", value: "ios")
+        ]
     }
 
     /// Gets the `AuthorizationClient` to be used for this iTwin Mobile web app.
@@ -357,9 +415,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // The wait has to happen without blocking the main thread.
             self.backendLoadingDispatchGroup.wait()
             var url = self.getBaseUrl()
-            url += "#port=\(IModelJsHost.sharedInstance().getPort())"
-            url += "&platform=ios"
-            url += self.getUrlHashParams()
+            url += self.stringifyHashParams(self.getUrlHashParams())
             let request = URLRequest(url: URL(string: url)!)
             // The call to evaluateJavaScript must happen in the main thread.
             DispatchQueue.main.async {

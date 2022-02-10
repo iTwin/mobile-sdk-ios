@@ -623,8 +623,11 @@ public extension ITMApplication.HashParams {
     /// Converts the receiver into a URL hash string, encoding values so that they are valid for use in a URL.
     /// - Returns: The hash parameters converted to a URL hash string.
     func toString() -> String {
+        if self.count == 0 {
+            return ""
+        }
         // Note: URL strings probably allow other characters, but we know for sure that these all work.
-        // Also, we can't use `CharacterSet.alphanumerics` as a base, because that include all Unicode
+        // Also, we can't use `CharacterSet.alphanumerics` as a base, because that includes all Unicode
         // upper case and lower case letters, and we only want ASCII upper case and lower case letters.
         // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
         // which contains 660 characters.

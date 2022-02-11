@@ -395,8 +395,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // We must wait for the backend to finish loading before loading the frontend.
             // The wait has to happen without blocking the main thread.
             self.backendLoadingDispatchGroup.wait()
-            var url = self.getBaseUrl()
-            url += self.getUrlHashParams().toString()
+            let url = self.getBaseUrl() + self.getUrlHashParams().toString()
             let request = URLRequest(url: URL(string: url)!)
             // The call to evaluateJavaScript must happen in the main thread.
             DispatchQueue.main.async {

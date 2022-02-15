@@ -18,6 +18,7 @@ open class ITMViewController: UIViewController {
     public private(set) var itmNativeUI: ITMNativeUI?
     private var loadedOnce = false
     private var willEnterForegroundObserver: Any? = nil
+    private static var activeVC: ITMViewController?
 
     deinit {
         removeWillEnterForegroundObserver()
@@ -45,6 +46,16 @@ open class ITMViewController: UIViewController {
 
     /// Attaches the `application`'s webView as this view controller's view.
     open override func loadView() {
+        // If you close an ITMViewController and then later create a new one, the old one continues
+        // to reference ITMViewController.application.webView. This throws an exception, which normally
+        // crashes the app. Each time an ITMViewController is connected to
+        // ITMViewController.application.webView, store that view controller in the activeVC static
+        // member variable. Then, before attaching a webView to this view controller, make sure that
+        // it's not attached to the old one.
+        if let activeVC = ITMViewController.activeVC {
+            activeVC.view = UIView()
+        }
+        ITMViewController.activeVC = self
         let webView = ITMViewController.application.webView
         view = webView
     }

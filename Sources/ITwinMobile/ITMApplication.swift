@@ -49,6 +49,33 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         case dark = 2
     }
 
+    /// Struct used to store a hash parameter.
+    public struct HashParam {
+        /// The name of the hash parameter.
+        public let name: String
+        /// The value of the hash parameter.
+        public let value: String
+        /// Creates a hash parameter with the given name and value
+        /// - Parameters:
+        ///   - name: The name of the hash parameter.
+        ///   - value: The value of the hash parameter.
+        public init(name: String, value: String) {
+            self.name = name
+            self.value = value
+        }
+        /// Creates a hash parameter with the given name and boolean value.
+        /// - Parameters:
+        ///   - name: The name of the hash parameter.
+        ///   - value: The boolean value of the hash parameter: true converts to "YES" and false converts to "NO"
+        public init(name: String, value: Bool) {
+            self.name = name
+            self.value = value ? "YES" : "NO"
+        }
+    }
+
+    /// Type used to store an array of hash parameters.
+    public typealias HashParams = [HashParam]
+    
     /// The `WKWebView` that the web app runs in.
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
@@ -272,9 +299,15 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Gets custom URL hash parameters to be passed when loading the frontend.
     /// Override this function in a subclass in order to add custom behavior.
+    ///
+    /// - Note: The default implementation returns hash parameters that are required in order for the TypeScript
+    /// code to work. You must include those values if you override this function to return other values.
     /// - Returns: Empty string.
-    open func getUrlHashParams() -> String {
-        return ""
+    open func getUrlHashParams() -> HashParams {
+        return [
+            HashParam(name: "port", value: "\(IModelJsHost.sharedInstance().getPort())"),
+            HashParam(name: "platform", value: "ios")
+        ]
     }
 
     /// Gets the `AuthorizationClient` to be used for this iTwin Mobile web app.
@@ -325,6 +358,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         let backendUrl = getBackendUrl()
 
+        // Allow backend loader to know the full path to the directory containing
+        // main.js. Put that into the ITMAPPLICATION_BACKEND_ROOT environment variable so
+        // that it is available there.
+        let backendDir = backendUrl.deletingLastPathComponent().path
+        setenv("ITMAPPLICATION_BACKEND_ROOT", backendDir, 1)
+
         authorizationClient = getAuthClient()
         IModelJsHost.sharedInstance().loadBackend(
             backendUrl,
@@ -356,10 +395,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // We must wait for the backend to finish loading before loading the frontend.
             // The wait has to happen without blocking the main thread.
             self.backendLoadingDispatchGroup.wait()
-            var url = self.getBaseUrl()
-            url += "#port=\(IModelJsHost.sharedInstance().getPort())"
-            url += "&platform=ios"
-            url += self.getUrlHashParams()
+            let url = self.getBaseUrl() + self.getUrlHashParams().toString()
             let request = URLRequest(url: URL(string: url)!)
             // The call to evaluateJavaScript must happen in the main thread.
             DispatchQueue.main.async {
@@ -578,5 +614,24 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         updateReachability()
         itmMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")
+    }
+}
+
+/// Extension allowing a ``ITMApplication.HashParams`` to be converted into a string.
+public extension ITMApplication.HashParams {
+    /// Converts the receiver into a URL hash string, encoding values so that they are valid for use in a URL.
+    /// - Returns: The hash parameters converted to a URL hash string.
+    func toString() -> String {
+        if self.count == 0 {
+            return ""
+        }
+        // Note: URL strings probably allow other characters, but we know for sure that these all work.
+        // Also, we can't use `CharacterSet.alphanumerics` as a base, because that includes all Unicode
+        // upper case and lower case letters, and we only want ASCII upper case and lower case letters.
+        // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
+        // which contains 660 characters.
+        let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
+        let encoded = self.map { "\($0.name)=\($0.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters)!)" }
+        return "#" + encoded.joined(separator: "&")
     }
 }

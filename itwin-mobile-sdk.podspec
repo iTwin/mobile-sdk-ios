@@ -1,5 +1,5 @@
 Pod::Spec.new do |spec|
-  spec.name         = "itwin-mobile-sdk-ios"
+  spec.name         = "itwin-mobile-sdk"
   spec.version      = "0.9.10"
   spec.summary      = "iTwin Mobile SDK"
   spec.homepage     = "https://github.com/iTwin/mobile-sdk-ios"
@@ -8,6 +8,7 @@ Pod::Spec.new do |spec|
   spec.platform     = :ios
   spec.source       = { :git => "#{spec.homepage}.git", :tag => "#{spec.version}"}
   spec.source_files = "Sources/**/*"
+  spec.exclude_files = "Sources/ITwinMobile/ITwinMobile.docc/**/*"
   spec.swift_versions = "5.3"
   spec.ios.deployment_target = "12.2"
   spec.pod_target_xcconfig = { 'ENABLE_BITCODE' => 'NO' }

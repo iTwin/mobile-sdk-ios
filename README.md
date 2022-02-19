@@ -10,6 +10,60 @@ This is pre-release software and provided as-is.
 
 This repository contains the Swift code used to build [iTwin.js](http://www.itwinjs.org) applications on iOS devices.
 
-__Note 1:__ This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 3.0.0__, and your app must use that same version of iModel.js. If you are using this package via CocoaPods, make sure to update the version of itwin-mobile-native-ios in your Podfile to version __3.0.31__.
+## Setup
 
-__Note 2:__ You will get two warnings relating to `IPHONEOS_DEPLOYMENT_TARGET` when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable those warnings. They can be ignored, though.
+This package is delivered as source-only and supports two options for dependency management.
+
+### Swift Package Manager
+
+With [Swift Package Manager](https://swift.org/package-manager), add `https://github.com/iTwin/mobile-sdk-ios` to your project's
+Package Dependencies settings in Xcode.
+
+Or add the following package to your `Package.swift` dependencies:
+
+```swift
+dependencies: [
+    .package(name: "itwin-mobile-sdk", url: "https://github.com/iTwin/mobile-sdk-ios", .exact("0.10.2"))
+]
+```
+
+### CocoaPods
+
+With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native-ios` and `itwin-mobile-sdk` to your `Podfile`. 
+__Note:__ these are not hosted on the CocoaPods CDN so the correct URL's must be specified.
+
+It is also necessary to disable bitcode for the itwin projects, which can be done via a `post_install` function.
+
+```ruby
+project 'MyMobileApp.xcodeproj/'
+
+# Uncomment the next line to define a global platform for your project
+# platform :ios, '9.0'
+
+target 'MyMobileApp' do
+  # Comment the next line if you don't want to use dynamic frameworks
+  use_frameworks!
+
+  # Pods for MyMobileApp
+  pod 'itwin-mobile-native-ios', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/3.0.31/itwin-mobile-native-ios.podspec'
+  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.10.2/itwin-mobile-sdk.podspec'    
+end
+
+post_install do |installer|
+  installer.generated_projects.each do |project|
+    project.targets.each do |target|
+      target.build_configurations.each do |config|
+        # Disables bitcode for the itwin pods
+        if target.name.start_with?("itwin-mobile-")
+          config.build_settings['ENABLE_BITCODE'] = 'NO'
+        end
+      end
+    end
+  end
+end
+```
+
+## Notes
+- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 3.0.0__, and your app must use that same version of iTwin.js. 
+
+- You will get two warnings relating to `IPHONEOS_DEPLOYMENT_TARGET` when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable those warnings. They can be ignored, though.

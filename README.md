@@ -16,8 +16,7 @@ This package is delivered as source-only and supports two options for dependency
 
 ### Swift Package Manager
 
-With [Swift Package Manager](https://swift.org/package-manager), add `https://github.com/iTwin/mobile-sdk-ios` to your project's
-Package Dependencies settings in Xcode.
+With [Swift Package Manager](https://swift.org/package-manager), add `https://github.com/iTwin/mobile-sdk-ios` to your project's Package Dependencies settings in Xcode, making sure to set the "Dependency Rule" to "Exact Version" and the version to "0.10.2".
 
 Or add the following package to your `Package.swift` dependencies:
 
@@ -29,8 +28,7 @@ dependencies: [
 
 ### CocoaPods
 
-With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native-ios` and `itwin-mobile-sdk` to your `Podfile`. 
-__Note:__ these are not hosted on the CocoaPods CDN so the correct URL's must be specified.
+With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native-ios` and `itwin-mobile-sdk` to your `Podfile`. __Note:__ these are not hosted on the CocoaPods CDN so the correct URLs must be specified.
 
 It is also necessary to disable bitcode for the itwin projects, which can be done via a `post_install` function.
 

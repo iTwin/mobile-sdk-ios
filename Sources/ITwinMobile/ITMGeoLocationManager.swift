@@ -122,8 +122,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         // NOTE: kCLLocationAccuracyBest is actually not as good as
         // kCLLocationAccuracyBestForNavigation, so "best" is a misnomer
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        orientationObserver = NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: nil) { _ in
-            self.updateHeadingOrientation()
+        orientationObserver = NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
+            self?.updateHeadingOrientation()
         }
         updateHeadingOrientation()
         webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: "Bentley_ITMGeolocation")

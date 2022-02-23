@@ -33,7 +33,6 @@ open class ITMAlertController: UIAlertController {
         // Create temporary window to show alert anywhere and anytime and avoid view hiearchy issues.
         if alertWindow == nil {
             alertWindow = UIWindow(frame: UIScreen.main.bounds)
-            alertWindow?.overrideUserInterfaceStyle = .light
             alertWindow!.rootViewController = ITMErrorViewController()
             alertWindow!.windowLevel = UIWindow.Level.alert + 1
             ITMAlertController.alertWindow = alertWindow
@@ -44,6 +43,11 @@ open class ITMAlertController: UIAlertController {
             }
         }
         alertWindow!.makeKeyAndVisible()
+        // Even though we initialized the UIWindow with the proper frame, makeKeyAndVisible sometimes
+        // corrupts the frame, changing the orientation and moving it completely off-screen. I think
+        // this is a bug in iOS, and I am not sure why it happens sometimes and not other times.
+        // However, resetting the frame after the makeKeyAndVisible call fixes the problem.
+        alertWindow!.frame = UIScreen.main.bounds
         return alertWindow!.rootViewController!
     }
 

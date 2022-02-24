@@ -176,6 +176,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     var itmMessenger: ITMMessenger
     var webView: WKWebView
     private var orientationObserver: Any?
+    private var isUpdatingPosition = false
     /// The delegate for ITMGeolocationManager.
     public weak var delegate: ITMGeolocationManagerDelegate?
 
@@ -319,19 +320,13 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             }
             return
         }
-        watchIds.insert(positionId)
-        if watchIds.count == 1 {
-            locationManager.startUpdatingLocation()
-            locationManager.startUpdatingHeading()
-        }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
         firstly {
             checkAuth()
         }.done {
             self.watchIds.insert(positionId)
             if self.watchIds.count == 1 {
-                self.locationManager.startUpdatingLocation()
-                self.locationManager.startUpdatingHeading()
+                self.startUpdatingPosition()
             }
         }.catch { _ in
             self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
@@ -346,11 +341,25 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         delegate?.geolocationManager(self, willClearWatch: positionId)
         watchIds.remove(positionId)
         if watchIds.isEmpty {
-            stopUpdating()
+            stopUpdatingPosition()
         }
     }
 
-    private func stopUpdating() {
+    /// Starts location tracking if there are any registered position watches.
+    /// - Note: This happens automatically when the "watchPosition" message is received from TypeScript.
+    ///         Only call this after a corresponding call to ``stopUpdatingPosition()``.
+    public func startUpdatingPosition() {
+        if !watchIds.isEmpty, !isUpdatingPosition {
+            isUpdatingPosition = true
+            locationManager.startUpdatingLocation()
+            locationManager.startUpdatingHeading()
+        }
+    }
+
+    /// Stops tracking location without clearing registered position watches.
+    /// - Note: Tracking can be resumed with ``startUpdatingPosition()``.
+    public func stopUpdatingPosition() {
+        isUpdatingPosition = false
         locationManager.stopUpdatingLocation()
         locationManager.stopUpdatingHeading()
     }
@@ -402,7 +411,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             self.itmMessenger.evaluateJavaScript(js)
         }.catch { error in
             var errorJson: [String: Any]
-            self.stopUpdating()
+            self.stopUpdatingPosition()
             // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
             // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
             // to POSITION_UNAVAILABLE.
@@ -412,6 +421,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func sendLocationUpdates() {
+        if !isUpdatingPosition {
+            return
+        }
         firstly {
             checkAuth()
         }.done {
@@ -464,7 +476,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             // Apple docs say you should just ignore this error
         } else {
             let errorJson: [String: Any]
-            stopUpdating()
+            stopUpdatingPosition()
             if code == CLError.denied.rawValue, domain == kCLErrorDomain {
                 errorJson = notAuthorizedError
             } else {

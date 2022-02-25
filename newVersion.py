@@ -267,5 +267,8 @@ if __name__ == '__main__':
     parser_samples.add_argument('-n', '--new', dest='newVersion', help='New release version')
 
     args = parser.parse_args()
-    args.func(args, dirs)
+    if hasattr(args, 'func'):
+        args.func(args, dirs)
+    else:
+        parser.print_help()
     

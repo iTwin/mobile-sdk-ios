@@ -66,6 +66,8 @@ def modifyPackageResolved(args, fileName):
         sys.stdout.write(line)
 
 def changeCommand(args, dirs):
+    if not args.force and not ensureNoDirsHaveDiffs(dirs):
+        return False
     dir = executingDir
     parentDir = os.path.realpath(os.path.join(dir, '..'))
     modifyPackageSwift(args, os.path.join(dir, 'Package.swift'))
@@ -75,11 +77,12 @@ def changeCommand(args, dirs):
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-sdk-core'))
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-ui-react'))
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-samples/cross-platform/react-app'))
+    return True
 
 def dirHasDiff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
 
-def allDirsHaveDiffs(dirs):
+def ensureAllDirsHaveDiffs(dirs):
     allDirsHaveDiffsResult = True
     for dir in dirs:
         if not dirHasDiff(dir):
@@ -87,13 +90,13 @@ def allDirsHaveDiffs(dirs):
             allDirsHaveDiffsResult = False
     return allDirsHaveDiffsResult
 
-def someDirsHaveDiffs(dirs):
-    someDirsHaveDiffsResult = False
+def ensureNoDirsHaveDiffs(dirs):
+    ensureNoHaveDiffsResult = True
     for dir in dirs:
         if dirHasDiff(dir):
             print("Error: Diffs in dir: " + dir)
-            someDirsHaveDiffsResult = True
-    return someDirsHaveDiffsResult
+            ensureNoHaveDiffsResult = False
+    return ensureNoHaveDiffsResult
 
 def branchDir(args, dir):
     print("Branching in dir: " + dir)
@@ -119,31 +122,37 @@ def modifySamplesPackageResolved(args, dir):
     modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
 def branchCommand(args, dirs):
-    if not allDirsHaveDiffs(dirs):
-        return
+    if not ensureAllDirsHaveDiffs(dirs):
+        return False
     if not args.newVersion:
         args.newVersion = getNextRelease()
 
-    print("Branching version: " + args.newVersion)
     if args.newVersion:
+        print("Branching version: " + args.newVersion)
         for dir in dirs:
             branchDir(args, dir)
+        return True
+    else:
+        return False
 
 
 def commitCommand(args, dirs):
-    if not allDirsHaveDiffs(dirs):
-        return
+    if not ensureAllDirsHaveDiffs(dirs):
+        return False
     if not args.newVersion:
         args.newVersion = getNextRelease()
 
-    print("Committing version: " + args.newVersion)
     if args.newVersion:
+        print("Committing version: " + args.newVersion)
         for dir in dirs:
             # The Package.resolved files in the sample projects need to be updated with the latest info. 
             # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
             if dir.endswith('mobile-samples'):
                 modifySamplesPackageResolved(args, dir)
             commitDir(args, dir)
+        return True
+    else:
+        return False
 
 def pushDir(args, dir):
     dir = os.path.realpath(dir)
@@ -238,13 +247,14 @@ def getVersions(args):
     return foundAll
 
 def bumpCommand(args, dirs):
-    if not args.force and someDirsHaveDiffs(dirs):
-        return
+    if not args.force and not ensureNoDirsHaveDiffs(dirs):
+        return False
     foundAll = getVersions(args)
     if foundAll:
-        changeCommand(args, dirs)
+        return changeCommand(args, dirs)
     else:
         print("Unable to determine all versions.")
+        return False
 
 def doCommand(args, dirs):
     if args.strings:
@@ -254,11 +264,15 @@ def doCommand(args, dirs):
             subprocess.call(args, cwd=dir)
 
 def allCommand(args, dirs):
-    bumpCommand(args, dirs)
-    branchCommand(args, dirs)
-    commitCommand(args, dirs)
+    if not bumpCommand(args, dirs):
+        return False
+    if not branchCommand(args, dirs):
+        return False
+    if not commitCommand(args, dirs):
+        return False
     pushCommand(args, dirs)
     releaseCommand(args, dirs)
+    return True
 
 def samplesCommand(args, dirs):
     foundAll = getVersions(args)
@@ -278,13 +292,13 @@ if __name__ == '__main__':
     parser_bump.set_defaults(func=bumpCommand)
     parser_bump.add_argument('-n', '--new', dest='newVersion', help='New release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
-    # parser_bump.add_argument('-si', '--skipInstall', dest='skipInstall', help='Skip npm install', action='store_true')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
     parser_change.set_defaults(func=changeCommand)
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
     parser_change.add_argument('-nb', '--newITwin', dest='newITwin', help='New @itwin package version', required=True)
     parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-native-ios version', required=True)
+    parser_change.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     parser_commit = sub_parsers.add_parser('branch', help='Branch changes')
     parser_commit.set_defaults(func=branchCommand)

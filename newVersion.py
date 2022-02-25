@@ -6,330 +6,317 @@ import subprocess
 import sys
 import os
 
-def getExecutingDirectory():
+def get_executing_directory():
     return os.path.dirname(os.path.realpath(__file__))
 
-def replaceAll(fileName, replacements):
-    numLinesReplaced = 0
-    for line in fileinput.input(fileName, inplace=1):
+def replace_all(filename, replacements):
+    num_replaced = 0
+    for line in fileinput.input(filename, inplace=1):
         newline = line
-        for (searchExp, replaceExp) in replacements:
-            newline = re.sub(searchExp, replaceExp, newline)
+        for (search_exp, replace_exp) in replacements:
+            newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
         if newline != line:
-            numLinesReplaced += 1
-    return numLinesReplaced
+            num_replaced += 1
+    return num_replaced
 
-def modifyPackageJson(args, dir):
-    fileName = os.path.join(dir, 'package.json')
-    if os.path.exists(fileName):
-        print("Processing: " + fileName)
+def modify_package_json(args, dir):
+    filename = os.path.join(dir, 'package.json')
+    if os.path.exists(filename):
+        print("Processing: " + filename)
         # IMPORTANT: The @itwin/mobile-sdk-core and @itwin/mobile-ui-react replacements must
         # come last.
-        if replaceAll(fileName, [
-            ('("version": )"[\.0-9]+', '\\1"' + args.newVersion),
-            ('("@itwin/[a-z-0-9]*"): "[\.0-9]+', '\\1: "' + args.newITwin),
-            ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.newVersion),
-            ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.newVersion),
+        if replace_all(filename, [
+            ('("version": )"[\.0-9]+', '\\1"' + args.new_version),
+            ('("@itwin/[a-z-0-9]*"): "[\.0-9]+', '\\1: "' + args.new_itwin),
+            ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.new_version),
+            ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.new_version),
         ]) < 2:
             print("Not enough replacements")
-        # if not args.skipInstall:
+        # if not args.skip_install:
         #     result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
 
-def modifyPackageSwift(args, fileName):
-    print("Processing: " + os.path.realpath(fileName))
-    if replaceAll(fileName, [('(mobile-native-ios", .exact\()"[\.0-9]+', '\\1"' + args.newIos)]) != 1:
+def modify_package_swift(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    if replace_all(filename, [('(mobile-native-ios", .exact\()"[\.0-9]+', '\\1"' + args.new_ios)]) != 1:
         print("Not enough replacements")
 
-def modifyPodspec(args, fileName):
-    print("Processing: " + os.path.realpath(fileName))
-    replacements = [('(spec\.version\s+=\s+")[\.0-9]+', '\\g<1>' + args.newVersion)]
-    replacements.append(('(spec\.dependency +"itwin-mobile-native-ios", +")[\.0-9]+', '\\g<1>' + args.newIos))
-    if replaceAll(fileName, replacements) != 2:
+def modify_podspec(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    replacements = [('(spec\.version\s+=\s+")[\.0-9]+', '\\g<1>' + args.new_version)]
+    replacements.append(('(spec\.dependency +"itwin-mobile-native-ios", +")[\.0-9]+', '\\g<1>' + args.new_ios))
+    if replace_all(filename, replacements) != 2:
         print("Not enough replacements")
 
-def modifyPackageResolved(args, fileName):
-    print("Processing: " + os.path.realpath(fileName))
+def modify_package_resolved(args, filename):
+    print("Processing: " + os.path.realpath(filename))
     package = None
-    for line in fileinput.input(fileName, inplace=1):
+    for line in fileinput.input(filename, inplace=1):
         match = re.search('"package": "(.*)"', line)
         if match and len(match.groups()) == 1:
             package = match.group(1)
         if package == 'itwin-mobile-ios':
-            line = re.sub('("version": )".*"', '\\1"' + args.newIos + '"', line)
-            if (args.newIosCommitId):
-                line = re.sub('("revision": )".*"', '\\1"' + args.newIosCommitId + '"', line)
+            line = re.sub('("version": )".*"', '\\1"' + args.new_ios + '"', line)
+            if (args.new_ios_commit_id):
+                line = re.sub('("revision": )".*"', '\\1"' + args.new_ios_commit_id + '"', line)
         elif package == 'itwin-mobile-sdk':
-            line = re.sub('("version": )".*"', '\\1"' + args.newVersion + '"', line)
-            if (args.newCommitId):
-                line = re.sub('("revision": )".*"', '\\1"' + args.newCommitId + '"', line)
+            line = re.sub('("version": )".*"', '\\1"' + args.new_version + '"', line)
+            if (args.new_commit_id):
+                line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
-def changeCommand(args, dirs):
-    if not args.force and not ensureNoDirsHaveDiffs(dirs):
-        return False
-    dir = executingDir
-    parentDir = os.path.realpath(os.path.join(dir, '..'))
-    modifyPackageSwift(args, os.path.join(dir, 'Package.swift'))
-    modifyPackageSwift(args, os.path.join(dir, 'Package@swift-5.5.swift'))
-    modifyPackageResolved(args, os.path.join(dir, 'Package.resolved'))
-    modifyPodspec(args, os.path.join(dir, 'itwin-mobile-sdk.podspec'))
-    modifyPackageJson(args, os.path.join(parentDir, 'mobile-sdk-core'))
-    modifyPackageJson(args, os.path.join(parentDir, 'mobile-ui-react'))
-    modifyPackageJson(args, os.path.join(parentDir, 'mobile-samples/cross-platform/react-app'))
-    return True
+def change_command(args, dirs):
+    if not args.force:
+        ensure_no_dirs_have_diffs(dirs)
+    dir = executing_dir
+    parent_dir = os.path.realpath(os.path.join(dir, '..'))
+    modify_package_swift(args, os.path.join(dir, 'Package.swift'))
+    modify_package_swift(args, os.path.join(dir, 'Package@swift-5.5.swift'))
+    modify_package_resolved(args, os.path.join(dir, 'Package.resolved'))
+    modify_podspec(args, os.path.join(dir, 'itwin-mobile-sdk.podspec'))
+    modify_package_json(args, os.path.join(parent_dir, 'mobile-sdk-core'))
+    modify_package_json(args, os.path.join(parent_dir, 'mobile-ui-react'))
+    modify_package_json(args, os.path.join(parent_dir, 'mobile-samples/cross-platform/react-app'))
 
-def dirHasDiff(dir):
+def dir_has_diff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
 
-def ensureAllDirsHaveDiffs(dirs):
-    allDirsHaveDiffsResult = True
+def ensure_all_dirs_have_diffs(dirs):
+    should_throw = False
     for dir in dirs:
-        if not dirHasDiff(dir):
-            print("Error: No diffs in dir: " + dir)
-            allDirsHaveDiffsResult = False
-    return allDirsHaveDiffsResult
+        if not dir_has_diff(dir):
+            print("No diffs in dir: " + dir)
+            should_throw = True
+    if should_throw:
+        raise Exception("Error: Diffs are required")
 
-def ensureNoDirsHaveDiffs(dirs):
-    ensureNoHaveDiffsResult = True
+def ensure_no_dirs_have_diffs(dirs):
+    should_throw = False
     for dir in dirs:
-        if dirHasDiff(dir):
-            print("Error: Diffs in dir: " + dir)
-            ensureNoHaveDiffsResult = False
-    return ensureNoHaveDiffsResult
+        if dir_has_diff(dir):
+            print("Diffs in dir: " + dir)
+            should_throw = True
+    if should_throw:
+        raise Exception("Error: Diffs are not allowed")
 
-def branchDir(args, dir):
+def branch_dir(args, dir):
     print("Branching in dir: " + dir)
-    if dirHasDiff(dir):
-        subprocess.check_call(['git', 'checkout', '-b', 'stage-release/' + args.newVersion], cwd=dir)
+    if dir_has_diff(dir):
+        subprocess.check_call(['git', 'checkout', '-b', 'stage-release/' + args.new_version], cwd=dir)
     else:
         print("Branch unnecessary: nothing to commit.")
 
-def commitDir(args, dir):
+def commit_dir(args, dir):
     print("Committing in dir: " + dir)
-    if dirHasDiff(dir):
+    if dir_has_diff(dir):
         subprocess.check_call(['git', 'add', '.'], cwd=dir)
-        subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.newVersion], cwd=dir)
+        subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.new_version], cwd=dir)
     else:
         print("Nothing to commit.")
 
-def modifySamplesPackageResolved(args, dir):
-    if not hasattr(args, 'newCommitId'):
-        args.newCommitId = getLastCommitId(executingDir, args.newVersion)
-    modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modifyPackageResolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+def modify_samples_package_resolved(args, dir):
+    if not hasattr(args, 'new_commit_id'):
+        args.new_commit_id = get_last_commit_id(executing_dir, args.new_version)
+    modify_package_resolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modify_package_resolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modify_package_resolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    modify_package_resolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
-def branchCommand(args, dirs):
-    if not ensureAllDirsHaveDiffs(dirs):
-        return False
-    if not args.newVersion:
-        args.newVersion = getNextRelease()
+def branch_command(args, dirs):
+    ensure_all_dirs_have_diffs(dirs)
+    if not args.new_version:
+        args.new_version = get_next_release()
 
-    if args.newVersion:
-        print("Branching version: " + args.newVersion)
-        for dir in dirs:
-            branchDir(args, dir)
-        return True
-    else:
-        return False
+    print("Branching version: " + args.new_version)
+    for dir in dirs:
+        branch_dir(args, dir)
 
 
-def commitCommand(args, dirs):
-    if not ensureAllDirsHaveDiffs(dirs):
-        return False
-    if not args.newVersion:
-        args.newVersion = getNextRelease()
+def commit_command(args, dirs):
+    ensure_all_dirs_have_diffs(dirs)
+    if not args.new_version:
+        args.new_version = get_next_release()
 
-    if args.newVersion:
-        print("Committing version: " + args.newVersion)
-        for dir in dirs:
-            # The Package.resolved files in the sample projects need to be updated with the latest info. 
-            # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
-            if dir.endswith('mobile-samples'):
-                modifySamplesPackageResolved(args, dir)
-            commitDir(args, dir)
-        return True
-    else:
-        return False
+    print("Committing version: " + args.new_version)
+    for dir in dirs:
+        # The Package.resolved files in the sample projects need to be updated with the latest info. 
+        # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
+        if dir.endswith('mobile-samples'):
+            modify_samples_package_resolved(args, dir)
+        commit_dir(args, dir)
 
-def pushDir(args, dir):
+def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
     subprocess.check_call(['git', 'push'], cwd=dir)
 
-def pushCommand(args, dirs):
+def push_command(args, dirs):
     for dir in dirs:
-        pushDir(args, dir)
+        push_dir(args, dir)
 
-def releaseDir(args, dir):
+def release_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Releasing in dir: " + dir)
-    title = args.title if hasattr(args, 'title') else 'v' + args.newVersion
-    subprocess.check_call(['gh', 'release', 'create', '-t', title, args.newVersion], cwd=dir)
+    title = args.title if hasattr(args, 'title') else 'v' + args.new_version
+    subprocess.check_call(['gh', 'release', 'create', '-t', title, args.new_version], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
-def releaseUpload(args, dir, fileName):
+def release_upload(args, dir, filename):
     dir = os.path.realpath(dir)
-    print("Uploading in dir: {} file: {}".format(dir, fileName))
-    subprocess.check_call(['gh', 'release', 'upload', args.newVersion, fileName], cwd=dir)
+    print("Uploading in dir: {} file: {}".format(dir, filename))
+    subprocess.check_call(['gh', 'release', 'upload', args.new_version, filename], cwd=dir)
 
-def releaseCommand(args, dirs):
-    if not args.newVersion:
-        args.newVersion = getNextRelease()
-    print("Releasing version: " + args.newVersion)
+def release_command(args, dirs):
+    if not args.new_version:
+        args.new_version = get_next_release()
+    print("Releasing version: " + args.new_version)
+    for dir in dirs:
+        release_dir(args, dir)
+    release_upload(args, '.', 'itwin-mobile-sdk.podspec')
 
-    if args.newVersion:
-        for dir in dirs:
-            releaseDir(args, dir)
-        releaseUpload(args, '.', 'itwin-mobile-sdk.podspec')
-
-def getLastRelease():
-    result = subprocess.check_output(['git', 'tag'], cwd=executingDir, encoding='UTF-8')
+def get_last_release():
+    result = subprocess.check_output(['git', 'tag'], cwd=executing_dir, encoding='UTF-8')
     tags = result.splitlines()
     if isinstance(tags, list):
         return tags[len(tags)-1]
+    raise Exception("Error: could not determine last release.")
 
-def getNextRelease():
-    lastRelease = getLastRelease()
-    if lastRelease:
-        parts = lastRelease.split('.')
-        if len(parts) == 3:
-            parts[2] = str(int(parts[2]) + 1)
-            newRelease = '.'.join(parts)
-            return newRelease
+def get_next_release():
+    last_release = get_last_release()
+    parts = last_release.split('.')
+    if len(parts) == 3:
+        parts[2] = str(int(parts[2]) + 1)
+        new_release = '.'.join(parts)
+        return new_release
+    raise Exception("Error: Could not parse last release: " + last_release)
 
-def getLatestITwinVersion():
+def get_latest_itwin_version():
     return subprocess.check_output(['npm', 'show', '@itwin/core-common', 'version'], encoding='UTF-8').strip()
 
-def getLatestNativeVersion():
+def get_latest_native_version():
     deps = subprocess.check_output(['npm', 'show', '@itwin/core-backend', 'dependencies'], encoding='UTF-8')
     match = re.search("'@bentley/imodeljs-native': '([0-9\.]+)'", deps)
     if match and len(match.groups()) == 1:
         return match.group(1)
 
-def getFirstEntryOfLastLine(results):
+def get_first_entry_of_last_line(results):
     if results:
         lines = results.splitlines()
         last = lines[len(lines)-1]
         entries = last.split()
         return entries[0]
 
-def getLastCommitId(dir, tagFilter):
-    results = subprocess.check_output(['git', 'show-ref', '--tags', tagFilter], cwd=dir, encoding='UTF-8')
-    return getFirstEntryOfLastLine(results)
+def get_last_commit_id(dir, tag_filter):
+    results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
+    return get_first_entry_of_last_line(results)
 
-def getLastRemoteCommitId(repo, tagFilter):
-    results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tagFilter], encoding='UTF-8')
-    return getFirstEntryOfLastLine(results)
+def get_last_remote_commit_id(repo, tag_filter):
+    results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tag_filter], encoding='UTF-8')
+    return get_first_entry_of_last_line(results)
 
-def getVersions(args):
-    foundAll = False
-    newRelease = args.newVersion if hasattr(args, 'newVersion') else getNextRelease()
+def get_versions(args):
+    found_all = False
+    if not args.new_version:
+        args.new_version = get_next_release()
 
-    if newRelease:
-        print("New release: " + newRelease)
-        itwinVersion = getLatestITwinVersion()
-        print("iTwin version: " + itwinVersion)
-        addOnVersion = getLatestNativeVersion()
-        if addOnVersion:
-            foundAll = True
-            print("mobile-native-ios version: " + addOnVersion)
-            addOnCommitId = getLastRemoteCommitId('https://github.com/iTwin/mobile-native-ios.git', addOnVersion)
-            print("mobile-native-ios revision: " + addOnCommitId)
+    print("New release: " + args.new_version)
+    itwin_version = get_latest_itwin_version()
+    print("iTwin version: " + itwin_version)
+    add_on_version = get_latest_native_version()
+    if add_on_version:
+        found_all = True
+        print("mobile-native-ios version: " + add_on_version)
+        add_on_commit_id = get_last_remote_commit_id('https://github.com/iTwin/mobile-native-ios.git', add_on_version)
+        print("mobile-native-ios revision: " + add_on_commit_id)
 
-    if foundAll:
-        args.newVersion = newRelease
-        args.newITwin = itwinVersion
-        args.newIos = addOnVersion
-        args.newIosCommitId = addOnCommitId
-    return foundAll
+    if found_all:
+        args.new_version = args.new_version
+        args.new_itwin = itwin_version
+        args.new_ios = add_on_version
+        args.new_ios_commit_id = add_on_commit_id
+    return found_all
 
-def bumpCommand(args, dirs):
-    if not args.force and not ensureNoDirsHaveDiffs(dirs):
-        return False
-    foundAll = getVersions(args)
-    if foundAll:
-        return changeCommand(args, dirs)
+def bump_command(args, dirs):
+    if not args.force:
+        ensure_no_dirs_have_diffs(dirs)
+    found_all = get_versions(args)
+    if found_all:
+        change_command(args, dirs)
     else:
-        print("Unable to determine all versions.")
-        return False
+        raise Exception("Error: Unable to determine all versions.")
 
-def doCommand(args, dirs):
+def do_command(args, dirs):
     if args.strings:
-        allArgs = ' '.join(args.strings)
-        args = allArgs.split()
+        all_args = ' '.join(args.strings)
+        args = all_args.split()
         for dir in dirs:
             subprocess.call(args, cwd=dir)
 
-def allCommand(args, dirs):
-    if not bumpCommand(args, dirs):
-        return False
-    if not branchCommand(args, dirs):
-        return False
-    if not commitCommand(args, dirs):
-        return False
-    pushCommand(args, dirs)
-    releaseCommand(args, dirs)
-    return True
+def all_command(args, dirs):
+    bump_command(args, dirs)
+    branch_command(args, dirs)
+    commit_command(args, dirs)
+    push_command(args, dirs)
+    release_command(args, dirs)
 
-def samplesCommand(args, dirs):
-    foundAll = getVersions(args)
-    if foundAll:
-        modifySamplesPackageResolved(args, os.path.realpath(executingDir + '/' + '../mobile-samples'))
+def samples_command(args, dirs):
+    found_all = get_versions(args)
+    if found_all:
+        modify_samples_package_resolved(args, os.path.realpath(executing_dir + '/' + '../mobile-samples'))
 
 if __name__ == '__main__':
-    executingDir = getExecutingDirectory()
+    executing_dir = get_executing_directory()
     dirs = []
     for dir in ['.', '../mobile-sdk-core', '../mobile-ui-react', '../mobile-samples']:
-        dirs.append(os.path.realpath(executingDir + '/' + dir))
+        dirs.append(os.path.realpath(executing_dir + '/' + dir))
 
     parser = argparse.ArgumentParser(description='Script for helping with creating a new Mobile SDK version.')
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
     
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
-    parser_bump.set_defaults(func=bumpCommand)
-    parser_bump.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_bump.set_defaults(func=bump_command)
+    parser_bump.add_argument('-n', '--new', dest='new_version', help='New release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
-    parser_change.set_defaults(func=changeCommand)
-    parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
-    parser_change.add_argument('-nb', '--newITwin', dest='newITwin', help='New @itwin package version', required=True)
-    parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-native-ios version', required=True)
+    parser_change.set_defaults(func=change_command)
+    parser_change.add_argument('-n', '--new', dest='new_version', help='New release version', required=True)
+    parser_change.add_argument('-nb', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
+    parser_change.add_argument('-ni', '--newIos', dest='new_ios', help='New itwin-mobile-native-ios version', required=True)
     parser_change.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     parser_commit = sub_parsers.add_parser('branch', help='Branch changes')
-    parser_commit.set_defaults(func=branchCommand)
-    parser_commit.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_commit.set_defaults(func=branch_command)
+    parser_commit.add_argument('-n', '--new', dest='new_version', help='New release version')
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
-    parser_commit.set_defaults(func=commitCommand)
-    parser_commit.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_commit.set_defaults(func=commit_command)
+    parser_commit.add_argument('-n', '--new', dest='new_version', help='New release version')
 
     parser_push = sub_parsers.add_parser('push', help='Push changes')
-    parser_push.set_defaults(func=pushCommand)
+    parser_push.set_defaults(func=push_command)
 
     parser_release = sub_parsers.add_parser('release', help='Create releases')
-    parser_release.set_defaults(func=releaseCommand)
-    parser_release.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_release.set_defaults(func=release_command)
+    parser_release.add_argument('-n', '--new', dest='new_version', help='New release version')
     parser_release.add_argument('-t', '--title', dest='title', help='Release title')
 
     parser_all = sub_parsers.add_parser('all', help='Create a new point release and do everything (bump, commit, push, release)')    
-    parser_all.set_defaults(func=allCommand)
+    parser_all.set_defaults(func=all_command)
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')    
-    parser_do.set_defaults(func=doCommand)
+    parser_do.set_defaults(func=do_command)
     parser_do.add_argument('strings', metavar='arg', nargs='+')
 
     parser_samples = sub_parsers.add_parser('samples', help='Modify samples')    
-    parser_samples.set_defaults(func=samplesCommand)
-    parser_samples.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_samples.set_defaults(func=samples_command)
+    parser_samples.add_argument('-n', '--new', dest='new_version', help='New release version')
 
     args = parser.parse_args()
-    if hasattr(args, 'func'):
-        args.func(args, dirs)
-    else:
-        parser.print_help()
-    
+    try:
+        if hasattr(args, 'func'):
+            args.func(args, dirs)
+        else:
+            parser.print_help()
+    except Exception as error:
+        print(error)

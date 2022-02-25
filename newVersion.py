@@ -76,10 +76,35 @@ def changeCommand(args, dirs):
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-ui-react'))
     modifyPackageJson(args, os.path.join(parentDir, 'mobile-samples/cross-platform/react-app'))
 
+def dirHasDiff(dir):
+    return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
+
+def allDirsHaveDiffs(dirs):
+    allDirsHaveDiffsResult = True
+    for dir in dirs:
+        if not dirHasDiff(dir):
+            print("Error: No diffs in dir: " + dir)
+            allDirsHaveDiffsResult = False
+    return allDirsHaveDiffsResult
+
+def someDirsHaveDiffs(dirs):
+    someDirsHaveDiffsResult = False
+    for dir in dirs:
+        if dirHasDiff(dir):
+            print("Error: Diffs in dir: " + dir)
+            someDirsHaveDiffsResult = True
+    return someDirsHaveDiffsResult
+
+def branchDir(args, dir):
+    print("Branching in dir: " + dir)
+    if dirHasDiff(dir):
+        subprocess.check_call(['git', 'checkout', '-b', 'stage-release/' + args.newVersion], cwd=dir)
+    else:
+        print("Branch unnecessary: nothing to commit.")
+
 def commitDir(args, dir):
     print("Committing in dir: " + dir)
-    rc = subprocess.call(['git', 'diff', '--quiet'], cwd=dir)
-    if rc:
+    if dirHasDiff(dir):
         subprocess.check_call(['git', 'add', '.'], cwd=dir)
         subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.newVersion], cwd=dir)
     else:
@@ -93,7 +118,21 @@ def modifySamplesPackageResolved(args, dir):
     modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
     modifyPackageResolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
+def branchCommand(args, dirs):
+    if not allDirsHaveDiffs(dirs):
+        return
+    if not args.newVersion:
+        args.newVersion = getNextRelease()
+
+    print("Branching version: " + args.newVersion)
+    if args.newVersion:
+        for dir in dirs:
+            branchDir(args, dir)
+
+
 def commitCommand(args, dirs):
+    if not allDirsHaveDiffs(dirs):
+        return
     if not args.newVersion:
         args.newVersion = getNextRelease()
 
@@ -102,7 +141,7 @@ def commitCommand(args, dirs):
         for dir in dirs:
             # The Package.resolved files in the sample projects need to be updated with the latest info. 
             # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
-            if dir.endswith('mobile-sdk-samples'):
+            if dir.endswith('mobile-samples'):
                 modifySamplesPackageResolved(args, dir)
             commitDir(args, dir)
 
@@ -199,6 +238,8 @@ def getVersions(args):
     return foundAll
 
 def bumpCommand(args, dirs):
+    if not args.force and someDirsHaveDiffs(dirs):
+        return
     foundAll = getVersions(args)
     if foundAll:
         changeCommand(args, dirs)
@@ -214,6 +255,7 @@ def doCommand(args, dirs):
 
 def allCommand(args, dirs):
     bumpCommand(args, dirs)
+    branchCommand(args, dirs)
     commitCommand(args, dirs)
     pushCommand(args, dirs)
     releaseCommand(args, dirs)
@@ -221,12 +263,12 @@ def allCommand(args, dirs):
 def samplesCommand(args, dirs):
     foundAll = getVersions(args)
     if foundAll:
-        modifySamplesPackageResolved(args, os.path.realpath(executingDir + '/' + '../mobile-sdk-samples'))
+        modifySamplesPackageResolved(args, os.path.realpath(executingDir + '/' + '../mobile-samples'))
 
 if __name__ == '__main__':
     executingDir = getExecutingDirectory()
     dirs = []
-    for dir in ['.', '../mobile-sdk-core', '../mobile-ui-react', '../mobile-sdk-samples']:
+    for dir in ['.', '../mobile-sdk-core', '../mobile-ui-react', '../mobile-samples']:
         dirs.append(os.path.realpath(executingDir + '/' + dir))
 
     parser = argparse.ArgumentParser(description='Script for helping with creating a new Mobile SDK version.')
@@ -235,6 +277,7 @@ if __name__ == '__main__':
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bumpCommand)
     parser_bump.add_argument('-n', '--new', dest='newVersion', help='New release version')
+    parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
     # parser_bump.add_argument('-si', '--skipInstall', dest='skipInstall', help='Skip npm install', action='store_true')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
@@ -242,6 +285,10 @@ if __name__ == '__main__':
     parser_change.add_argument('-n', '--new', dest='newVersion', help='New release version', required=True)
     parser_change.add_argument('-nb', '--newITwin', dest='newITwin', help='New @itwin package version', required=True)
     parser_change.add_argument('-ni', '--newIos', dest='newIos', help='New itwin-mobile-native-ios version', required=True)
+
+    parser_commit = sub_parsers.add_parser('branch', help='Branch changes')
+    parser_commit.set_defaults(func=branchCommand)
+    parser_commit.add_argument('-n', '--new', dest='newVersion', help='New release version')
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
     parser_commit.set_defaults(func=commitCommand)

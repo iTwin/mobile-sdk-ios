@@ -49,6 +49,19 @@ def modify_podspec(args, filename):
     if replace_all(filename, replacements) != 2:
         print("Not enough replacements")
 
+def modify_project_pbxproj(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    repository = None
+    for line in fileinput.input(filename, inplace=1):
+        match = re.search('repositoryURL = "https://github.com/iTwin/(mobile-sdk-ios).git"', line)
+        if match and len(match.groups()) == 1:
+            repository = match.group(1)
+        if repository == 'mobile-sdk-ios':
+            if re.search('version = [0-9.]+;', line):
+                line = re.sub('(version = )[0-9.A-Za-z"]+;', '\\g<1>' + args.new_version + ';', line)
+                repository = None
+        sys.stdout.write(line)
+
 def modify_package_resolved(args, filename):
     print("Processing: " + os.path.realpath(filename))
     package = None
@@ -114,6 +127,14 @@ def commit_dir(args, dir):
         subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.new_version], cwd=dir)
     else:
         print("Nothing to commit.")
+
+def modify_samples_project_pbxproj(args, dir):
+    if not hasattr(args, 'new_commit_id'):
+        args.new_commit_id = get_last_commit_id(executing_dir, args.new_version)
+    modify_project_pbxproj(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.pbxproj'))
+    modify_project_pbxproj(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.pbxproj'))
+    modify_project_pbxproj(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.pbxproj'))
+    modify_project_pbxproj(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.pbxproj'))
 
 def modify_samples_package_resolved(args, dir):
     if not hasattr(args, 'new_commit_id'):
@@ -276,7 +297,9 @@ def all_command(args, dirs):
 def samples_command(args, dirs):
     if not get_versions(args, True):
         raise("Error: Unable to determine all versions.")
-    modify_samples_package_resolved(args, os.path.realpath(executing_dir + '/' + '../mobile-samples'))
+    samples_dir = os.path.realpath(executing_dir + '/' + '../mobile-samples')
+    modify_samples_package_resolved(args, samples_dir)
+    modify_samples_project_pbxproj(args, samples_dir)
 
 if __name__ == '__main__':
     executing_dir = get_executing_directory()

@@ -132,7 +132,6 @@ def branch_command(args, dirs):
     for dir in dirs:
         branch_dir(args, dir)
 
-
 def commit_command(args, dirs):
     ensure_all_dirs_have_diffs(dirs)
     if not args.new_version:
@@ -226,10 +225,13 @@ def get_last_remote_commit_id(repo, tag_filter):
     results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tag_filter], encoding='UTF-8')
     return get_first_entry_of_last_line(results)
 
-def get_versions(args):
+def get_versions(args, current = False):
     found_all = False
     if not args.new_version:
-        args.new_version = get_next_release()
+        if current:
+            args.new_version = get_last_release()
+        else:
+            args.new_version = get_next_release()
 
     print("New release: " + args.new_version)
     imodeljs_version = get_latest_imodeljs_version()
@@ -272,9 +274,9 @@ def all_command(args, dirs):
     release_command(args, dirs)
 
 def samples_command(args, dirs):
-    found_all = get_versions(args)
-    if found_all:
-        modify_samples_package_resolved(args, os.path.realpath(executing_dir + '/' + '../mobile-samples'))
+    if not get_versions(args, True):
+        raise("Error: Unable to determine all versions.")
+    modify_samples_package_resolved(args, os.path.realpath(executing_dir + '/' + '../mobile-samples'))
 
 if __name__ == '__main__':
     executing_dir = get_executing_directory()
@@ -284,7 +286,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Script for helping with creating a new Mobile SDK version.')
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
-    
+
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bump_command)
     parser_bump.add_argument('-n', '--new', dest='new_version', help='New release version')

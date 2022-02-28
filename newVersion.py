@@ -30,8 +30,8 @@ def modify_package_json(args, dir):
         if replace_all(filename, [
             ('("version": )"[\.0-9]+', '\\1"' + args.new_version),
             ('("@bentley/[a-z-0-9]*"): "2\.19\.[0-9]+', '\\1: "' + args.new_imodeljs),
-            ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.new_version),
-            ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.new_version),
+            # ('("@itwin/mobile-sdk-core"): "[\.0-9]+', '\\1: "' + args.new_version),
+            # ('("@itwin/mobile-ui-react"): "[\.0-9]+', '\\1: "' + args.new_version),
         ]) < 2:
             print("Not enough replacements")
         # if not args.skip_install:

@@ -56,11 +56,11 @@ def modify_package_resolved(args, filename):
         match = re.search('"package": "(.*)"', line)
         if match and len(match.groups()) == 1:
             package = match.group(1)
-        if package == 'itwin-mobile-ios':
+        if package == 'itwin-mobile-native-ios':
             line = re.sub('("version": )".*"', '\\1"' + args.new_ios + '"', line)
             if (args.new_ios_commit_id):
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_ios_commit_id + '"', line)
-        elif package == 'itwin-mobile-sdk':
+        elif package == 'itwin-mobile-sdk-ios':
             line = re.sub('("version": )".*"', '\\1"' + args.new_version + '"', line)
             if (args.new_commit_id):
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)

@@ -13,12 +13,20 @@
       "args": ["bump"]
     },
     {
-      "name": "Python: newVersion.py samples",
+      "name": "Python: newVersion.py bumpui",
       "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
-      "args": ["samples"]
+      "args": ["bumpui"]
+    },
+    {
+      "name": "Python: newVersion.py bumpsamples",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "args": ["bumpsamples"]
     }
   ]
 }

@@ -21,9 +21,9 @@ def replace_all(filename, replacements):
         newline = line
         found_on_line = False
         for (search_exp, replace_exp) in replacements:
-            newline = re.sub(search_exp, replace_exp, newline)
-            if re.search(search_exp, line):
+            if re.search(search_exp, newline):
                 found_on_line = True
+                newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
         if found_on_line:
             num_found += 1
@@ -372,7 +372,7 @@ if __name__ == '__main__':
     parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
-    parser_bump = sub_parsers.add_parser('bb', help='Execute bump then branch')
+    parser_bump = sub_parsers.add_parser('bumpbranch', help='Execute bump then branch')
     parser_bump.set_defaults(func=bb_command)
     parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')

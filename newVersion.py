@@ -215,15 +215,21 @@ def commit_command(args, dirs):
             modify_samples_package_resolved(args, dir)
         commit_dir(args, dir)
 
+def pr_dir(args, dir):
+    # Use draft PR until we trust that everything is working correctly.
+    print("Creating GitHub PR in dir: " + dir)
+    subprocess.check_call(['gh', 'pr', 'create', '--fill', '--draft'], cwd=dir)
+
 def pr_command(args, dir):
     if not dir_has_diff(dir):
         raise Exception("Error: Diffs are required")
     if not args.new_mobile:
         args.new_mobile = get_next_release()
 
-    print("Creating PR version: " + args.new_mobile + "\nin directory: " + dir)
+    print("PR processing for version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
     push_dir(args, dir)
+    pr_dir(args, dir)
 
 def pr1_command(args, dirs):
     pr_command(args, dirs[0])

@@ -220,7 +220,7 @@ def pr_dir(args, dir):
     print("Creating GitHub PR in dir: " + dir)
     subprocess.check_call(['gh', 'pr', 'create', '--fill', '--draft'], cwd=dir)
 
-def pr_command(args, dir):
+def create_pr(args, dir):
     if not dir_has_diff(dir):
         raise Exception("Error: Diffs are required")
     if not args.new_mobile:
@@ -232,7 +232,8 @@ def pr_command(args, dir):
     pr_dir(args, dir)
 
 def pr1_command(args, dirs):
-    pr_command(args, dirs[0])
+    create_pr(args, dirs[0])
+    create_pr(args, dirs[1])
 
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -366,11 +367,14 @@ if __name__ == '__main__':
         epilog=textwrap.dedent('''\
             Order of operations
             -------------------
-            1. newVersion.py bb
-            2. Release iTwin/mobile-sdk-ios and npm publish @itwin/mobile-core
-            3. newVersion.py bumpui
-            4. npm publish @itwin/mobile-ui-react
-            5. newVersion.py bumpsamples
+            1. newVersion.py bumpbranch
+            2. newVersion.py pr1
+            3. Get iTwin/mobile-sdk-ios PR approved
+            4. Get iTwin/mobile-sdk-core PR approved
+            5. newVersion.py release1
+            6. newVersion.py bumpui
+            7. npm publish @itwin/mobile-ui-react
+            8. newVersion.py bumpsamples
             '''))
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
 
@@ -423,7 +427,7 @@ if __name__ == '__main__':
     parser_push = sub_parsers.add_parser('push', help='Push changes')
     parser_push.set_defaults(func=push_command)
 
-    parser_pr1 = sub_parsers.add_parser('pr1', help='Create PR for mobile-sdk-ios')
+    parser_pr1 = sub_parsers.add_parser('pr1', help='Create PRs for mobile-sdk-ios and mobile-sdk-core')
     parser_pr1.set_defaults(func=pr1_command)
     parser_pr1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 

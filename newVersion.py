@@ -110,7 +110,7 @@ def bump_command(args, dirs):
     get_versions(args)
     change_command(args, dirs)
 
-def bb_command(args, dirs):
+def bumpbranch_command(args, dirs):
     bump_command(args, dirs)
     branch_command(args, dirs)
 
@@ -215,10 +215,29 @@ def commit_command(args, dirs):
             modify_samples_package_resolved(args, dir)
         commit_dir(args, dir)
 
+def pr_dir(args, dir):
+    # Use draft PR until we trust that everything is working correctly.
+    print("Creating GitHub PR in dir: " + dir)
+    subprocess.check_call(['gh', 'pr', 'create', '--fill', '--draft'], cwd=dir)
+
+def pr_command(args, dir):
+    if not dir_has_diff(dir):
+        raise Exception("Error: Diffs are required")
+    if not args.new_mobile:
+        args.new_mobile = get_next_release()
+
+    print("PR processing for version: " + args.new_mobile + "\nin dir: " + dir)
+    commit_dir(args, dir)
+    push_dir(args, dir)
+    pr_dir(args, dir)
+
+def pr1_command(args, dirs):
+    pr_command(args, dirs[0])
+
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
-    subprocess.check_call(['git', 'push'], cwd=dir)
+    subprocess.check_call(['git', 'push', '--set-upstream', 'origin', 'stage-release/' + args.new_mobile], cwd=dir)
 
 def push_command(args, dirs):
     for dir in dirs:
@@ -373,7 +392,7 @@ if __name__ == '__main__':
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     parser_bump = sub_parsers.add_parser('bumpbranch', help='Execute bump then branch')
-    parser_bump.set_defaults(func=bb_command)
+    parser_bump.set_defaults(func=bumpbranch_command)
     parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
@@ -403,6 +422,10 @@ if __name__ == '__main__':
 
     parser_push = sub_parsers.add_parser('push', help='Push changes')
     parser_push.set_defaults(func=push_command)
+
+    parser_pr1 = sub_parsers.add_parser('pr1', help='Create PR for mobile-sdk-ios')
+    parser_pr1.set_defaults(func=pr1_command)
+    parser_pr1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
     parser_release = sub_parsers.add_parser('release', help='Create releases')
     parser_release.set_defaults(func=release_command)

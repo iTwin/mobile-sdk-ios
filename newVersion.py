@@ -7,33 +7,55 @@ import sys
 import os
 import textwrap
 
+# ===================================================================================
+# Begin editable globals.
+# This section contains global variables with values that might change in the future.
+# ===================================================================================
+
 # iTwin base version to search for. 3.0.x for now.
 itwin_base_version = "3\\.0\\."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
 mobile_base_version = "0\\.10\\."
 # Subdirectory under mobile-samples of react-app.
 react_app_subdir = 'cross-platform/react-app'
-# The relative paths to the elements in the dirs array
-relative_dirs = [
-    '.',
-    '../mobile-sdk-core',
-    '../mobile-ui-react',
-    '../mobile-samples',
-]
 # The names of the sample apps
 sample_names = [
     'MobileStarter',
     'SwiftUIStarter',
     'ThirdPartyAuth',
 ]
-# Indices of the elements of the dirs array
-mobile_sdk_ios_dir_index = 0
-mobile_sdk_core_dir_index = 1
-mobile_ui_react_dir_index = 2
-mobile_samples_dir_index = 3
 
-def get_executing_directory():
-    return os.path.dirname(os.path.realpath(__file__))
+# ===================================================================================
+# End editable globals.
+# ===================================================================================
+
+class MobileSdkDirs:
+    def __init__(self):
+        executing_dir = os.path.dirname(os.path.realpath(__file__))
+        # The relative paths to the iTwin Mobile SDK repository directories.
+        # Since these are directly tied to member properties on this class, they cannot
+        # be in the editable globals section above.
+        relative_dirs = [
+            '.',
+            '../mobile-sdk-core',
+            '../mobile-ui-react',
+            '../mobile-samples',
+        ]
+        def build_dir(dir_name):
+            return os.path.realpath(os.path.join(executing_dir, dir_name))
+        self.dirs = []
+        for relative_dir in relative_dirs:
+            self.dirs.append(build_dir(relative_dir))
+        self.sdk_ios = self.dirs[0]
+        self.sdk_core = self.dirs[1]
+        self.ui_react = self.dirs[2]
+        self.samples = self.dirs[3]
+
+    def __iter__(self):
+        for dir in self.dirs:
+            yield dir
+
+sdk_dirs = MobileSdkDirs()
 
 def replace_all(filename, replacements):
     num_found = 0
@@ -109,69 +131,67 @@ def modify_package_resolved(args, filename):
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
-def change_command(args, dirs):
+def change_command(args):
     if not args.force:
-        ensure_no_dirs_have_diffs(dirs)
-    mobile_core_ios_dir = executing_dir
+        ensure_no_dirs_have_diffs()
     if not args.current_mobile:
         args.current_mobile = get_last_release()
-    modify_package_swift(args, os.path.join(mobile_core_ios_dir, 'Package.swift'))
-    modify_package_swift(args, os.path.join(mobile_core_ios_dir, 'Package@swift-5.5.swift'))
-    modify_package_resolved(args, os.path.join(mobile_core_ios_dir, 'Package.resolved'))
-    modify_podspec(args, os.path.join(mobile_core_ios_dir, 'itwin-mobile-sdk.podspec'))
-    modify_package_json(args, dirs[mobile_sdk_core_dir_index])
-    modify_package_json(args, dirs[mobile_ui_react_dir_index])
-    modify_package_json(args, os.path.join(dirs[mobile_samples_dir_index], react_app_subdir))
+    modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package.swift'))
+    modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package@swift-5.5.swift'))
+    modify_package_resolved(args, os.path.join(sdk_dirs.sdk_ios, 'Package.resolved'))
+    modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
+    modify_package_json(args, sdk_dirs.sdk_core)
+    modify_package_json(args, sdk_dirs.ui_react)
+    modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
 
-def bump_command(args, dirs):
+def bump_command(args):
     if not args.force:
-        ensure_no_dirs_have_diffs(dirs)
+        ensure_no_dirs_have_diffs()
     get_versions(args)
-    change_command(args, dirs)
+    change_command(args)
 
-def bumpbranch_command(args, dirs):
-    bump_command(args, dirs)
-    branch_command(args, dirs)
+def bumpbranch_command(args):
+    bump_command(args)
+    branch_command(args)
 
-def changeui_command(args, dirs):
+def changeui_command(args):
     args.current_mobile = args.new_mobile
-    modify_package_json(args, dirs[mobile_ui_react_dir_index])
+    modify_package_json(args, sdk_dirs.ui_react)
 
 def npm_install_dir(args, dir):
     subprocess.check_call(['npm', 'install'], cwd=dir)
 
-def bumpui_command(args, dirs):
+def bumpui_command(args):
     get_versions(args, True)
-    changeui_command(args, dirs)
-    npm_install_dir(args, dirs[mobile_ui_react_dir_index])
+    changeui_command(args)
+    npm_install_dir(args, sdk_dirs.ui_react)
 
-def changesamples_command(args, dirs):
-    samples_dir = dirs[mobile_samples_dir_index]
+def changesamples_command(args):
     args.current_mobile = args.new_mobile
-    modify_package_json(args, os.path.join(samples_dir, react_app_subdir))
-    modify_samples_package_resolved(args, samples_dir)
-    modify_samples_project_pbxproj(args, samples_dir)
+    modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
+    modify_samples_package_resolved(args)
+    modify_samples_project_pbxproj(args)
 
-def bumpsamples_command(args, dirs):
+def bumpsamples_command(args):
     get_versions(args, True)
-    changesamples_command(args, dirs)
-    npm_install_dir(args, os.path.join(dirs[mobile_samples_dir_index], react_app_subdir))
+    changesamples_command(args)
+    npm_install_dir(args, os.path.join(sdk_dirs.samples, react_app_subdir))
 
 def dir_has_diff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
 
-def ensure_all_dirs_have_diffs(dirs):
+def ensure_all_dirs_have_diffs():
     should_throw = False
-    for dir in dirs:
+    for dir in sdk_dirs:
         if not dir_has_diff(dir):
             print("No diffs in dir: " + dir)
             should_throw = True
     if should_throw:
         raise Exception("Error: Diffs are required")
 
-def ensure_no_dirs_have_diffs(dirs):
+def ensure_no_dirs_have_diffs():
     should_throw = False
-    for dir in dirs:
+    for dir in sdk_dirs:
         if dir_has_diff(dir):
             print("Diffs in dir: " + dir)
             should_throw = True
@@ -193,44 +213,44 @@ def commit_dir(args, dir):
     else:
         print("Nothing to commit.")
 
-def get_xcodeproj_dirs(samples_dir):
-    dirs = []
+def get_xcodeproj_dirs():
+    xcodeproj_dirs = []
     for sample_name in sample_names:
-        dirs.append(os.path.join(samples_dir, 'iOS', sample_name, sample_name + '.xcodeproj'))
-        dirs.append(os.path.join(samples_dir, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
-    return dirs
+        xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, sample_name + '.xcodeproj'))
+        xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
+    return xcodeproj_dirs
 
-def modify_samples_project_pbxproj(args, samples_dir):
+def modify_samples_project_pbxproj(args):
     if not hasattr(args, 'new_commit_id'):
-        args.new_commit_id = get_last_commit_id(executing_dir, args.new_mobile)
-    for dir in get_xcodeproj_dirs(samples_dir):
+        args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
+    for dir in get_xcodeproj_dirs():
         modify_project_pbxproj(args, os.path.join(dir, 'project.pbxproj'))
 
-def modify_samples_package_resolved(args, samples_dir):
+def modify_samples_package_resolved(args):
     if not hasattr(args, 'new_commit_id'):
-        args.new_commit_id = get_last_commit_id(executing_dir, args.new_mobile)
-    for dir in get_xcodeproj_dirs(samples_dir):
+        args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
+    for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
-def branch_command(args, dirs):
+def branch_command(args):
     if not args.force:
-        ensure_all_dirs_have_diffs(dirs)
+        ensure_all_dirs_have_diffs()
     populate_mobile_versions(args)
 
     print("Branching version: " + args.new_mobile)
-    for dir in dirs:
+    for dir in sdk_dirs:
         branch_dir(args, dir)
 
-def commit_command(args, dirs):
-    ensure_all_dirs_have_diffs(dirs)
+def commit_command(args):
+    ensure_all_dirs_have_diffs()
     populate_mobile_versions(args)
 
     print("Committing version: " + args.new_mobile)
-    for dir in dirs:
+    for dir in sdk_dirs:
         # The Package.resolved files in the sample projects need to be updated with the latest info.
         # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
         if dir.endswith('mobile-samples'):
-            modify_samples_package_resolved(args, dir)
+            modify_samples_package_resolved(args)
         commit_dir(args, dir)
 
 def pr_dir(args, dir):
@@ -255,23 +275,23 @@ def create_pr(args, dir, current = False):
     push_dir(args, dir)
     pr_dir(args, dir)
 
-def pr1_command(args, dirs):
-    create_pr(args, dirs[mobile_sdk_ios_dir_index])
-    create_pr(args, dirs[mobile_sdk_core_dir_index])
+def pr1_command(args):
+    create_pr(args, sdk_dirs.sdk_ios)
+    create_pr(args, sdk_dirs.sdk_core)
 
-def pr2_command(args, dirs):
-    create_pr(args, dirs[mobile_ui_react_dir_index], True)
+def pr2_command(args):
+    create_pr(args, sdk_dirs.ui_react, True)
 
-def pr3_command(args, dirs):
-    create_pr(args, dirs[mobile_samples_dir_index], True)
+def pr3_command(args):
+    create_pr(args, sdk_dirs.samples, True)
 
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
     subprocess.check_call(['git', 'push', '--set-upstream', 'origin', 'stage-release/' + args.new_mobile], cwd=dir)
 
-def push_command(args, dirs):
-    for dir in dirs:
+def push_command(args):
+    for dir in sdk_dirs:
         push_dir(args, dir)
 
 def release_dir(args, dir):
@@ -300,18 +320,18 @@ def create_release(args, dir, current = False):
     if dir.endswith('mobile-sdk-ios'):
         release_upload(args, dir, 'itwin-mobile-sdk.podspec')
 
-def release1_command(args, dirs):
-    create_release(args, dirs[mobile_sdk_ios_dir_index])
-    create_release(args, dirs[mobile_sdk_core_dir_index])
+def release1_command(args):
+    create_release(args, sdk_dirs.sdk_ios)
+    create_release(args, sdk_dirs.sdk_core)
 
-def release2_command(args, dirs):
-    create_release(args, dirs[mobile_ui_react_dir_index], True)
+def release2_command(args):
+    create_release(args, sdk_dirs.ui_react, True)
 
-def release3_command(args, dirs):
-    create_release(args, dirs[mobile_samples_dir_index], True)
+def release3_command(args):
+    create_release(args, sdk_dirs.samples, True)
 
 def get_last_release():
-    result = subprocess.check_output(['git', 'tag'], cwd=executing_dir, encoding='UTF-8')
+    result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
     tags = result.splitlines()
     last_patch = 0
     if isinstance(tags, list):
@@ -381,19 +401,14 @@ def get_versions(args, current = False):
     args.new_add_on = add_on_version
     args.new_add_on_commit_id = add_on_commit_id
 
-def do_command(args, dirs):
+def do_command(args):
     if args.strings:
         all_args = ' '.join(args.strings)
         args = all_args.split()
-        for dir in dirs:
+        for dir in sdk_dirs:
             subprocess.call(args, cwd=dir)
 
 if __name__ == '__main__':
-    executing_dir = get_executing_directory()
-    dirs = []
-    for dir in relative_dirs:
-        dirs.append(os.path.realpath(os.path.join(executing_dir, dir)))
-
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -502,9 +517,10 @@ if __name__ == '__main__':
     parser_do.add_argument('strings', metavar='arg', nargs='+')
 
     args = parser.parse_args()
+
     try:
         if hasattr(args, 'func'):
-            args.func(args, dirs)
+            args.func(args)
         else:
             parser.print_help()
     except Exception as error:

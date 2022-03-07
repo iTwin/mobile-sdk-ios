@@ -392,7 +392,7 @@ if __name__ == '__main__':
     executing_dir = get_executing_directory()
     dirs = []
     for dir in relative_dirs:
-        dirs.append(os.path.realpath(executing_dir + '/' + dir))
+        dirs.append(os.path.realpath(os.path.join(executing_dir, dir)))
 
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',

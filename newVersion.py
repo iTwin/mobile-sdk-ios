@@ -390,7 +390,6 @@ def do_command(args, dirs):
 
 if __name__ == '__main__':
     executing_dir = get_executing_directory()
-    parent_dir = os.path.realpath(os.path.join(executing_dir, '..'))
     dirs = []
     for dir in relative_dirs:
         dirs.append(os.path.realpath(executing_dir + '/' + dir))

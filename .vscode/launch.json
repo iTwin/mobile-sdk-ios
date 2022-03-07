@@ -27,6 +27,14 @@
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
       "args": ["bumpsamples"]
+    },
+    {
+      "name": "Python: newVersion.py release1",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "args": ["release1"]
     }
   ]
 }

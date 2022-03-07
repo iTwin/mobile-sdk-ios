@@ -11,6 +11,26 @@ import textwrap
 itwin_base_version = "3\\.0\\."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
 mobile_base_version = "0\\.10\\."
+# Subdirectory under mobile-samples of react-app.
+react_app_subdir = 'cross-platform/react-app'
+# The relative paths to the elements in the dirs array
+relative_dirs = [
+    '.',
+    '../mobile-sdk-core',
+    '../mobile-ui-react',
+    '../mobile-samples',
+]
+# The names of the sample apps
+sample_names = [
+    'MobileStarter',
+    'SwiftUIStarter',
+    'ThirdPartyAuth',
+]
+# Indices of the elements of the dirs array
+mobile_sdk_ios_dir_index = 0
+mobile_sdk_core_dir_index = 1
+mobile_ui_react_dir_index = 2
+mobile_samples_dir_index = 3
 
 def get_executing_directory():
     return os.path.dirname(os.path.realpath(__file__))
@@ -92,17 +112,16 @@ def modify_package_resolved(args, filename):
 def change_command(args, dirs):
     if not args.force:
         ensure_no_dirs_have_diffs(dirs)
-    dir = executing_dir
-    parent_dir = os.path.realpath(os.path.join(dir, '..'))
+    mobile_core_ios_dir = executing_dir
     if not args.current_mobile:
         args.current_mobile = get_last_release()
-    modify_package_swift(args, os.path.join(dir, 'Package.swift'))
-    modify_package_swift(args, os.path.join(dir, 'Package@swift-5.5.swift'))
-    modify_package_resolved(args, os.path.join(dir, 'Package.resolved'))
-    modify_podspec(args, os.path.join(dir, 'itwin-mobile-sdk.podspec'))
-    modify_package_json(args, os.path.join(parent_dir, 'mobile-sdk-core'))
-    modify_package_json(args, os.path.join(parent_dir, 'mobile-ui-react'))
-    modify_package_json(args, os.path.join(parent_dir, 'mobile-samples/cross-platform/react-app'))
+    modify_package_swift(args, os.path.join(mobile_core_ios_dir, 'Package.swift'))
+    modify_package_swift(args, os.path.join(mobile_core_ios_dir, 'Package@swift-5.5.swift'))
+    modify_package_resolved(args, os.path.join(mobile_core_ios_dir, 'Package.resolved'))
+    modify_podspec(args, os.path.join(mobile_core_ios_dir, 'itwin-mobile-sdk.podspec'))
+    modify_package_json(args, dirs[mobile_sdk_core_dir_index])
+    modify_package_json(args, dirs[mobile_ui_react_dir_index])
+    modify_package_json(args, os.path.join(dirs[mobile_samples_dir_index], react_app_subdir))
 
 def bump_command(args, dirs):
     if not args.force:
@@ -114,27 +133,29 @@ def bumpbranch_command(args, dirs):
     bump_command(args, dirs)
     branch_command(args, dirs)
 
-def change_ui_command(args, dirs):
-    dir = executing_dir
-    parent_dir = os.path.realpath(os.path.join(dir, '..'))
+def changeui_command(args, dirs):
     args.current_mobile = args.new_mobile
-    modify_package_json(args, os.path.join(parent_dir, 'mobile-ui-react'))
+    modify_package_json(args, dirs[mobile_ui_react_dir_index])
 
-def bump_ui_command(args, dirs):
-    get_versions(args)
-    change_ui_command(args, dirs)
+def npm_install_dir(args, dir):
+    subprocess.check_call(['npm', 'install'], cwd=dir)
 
-def change_samples_command(args, dirs):
-    dir = executing_dir
-    samples_dir = os.path.realpath(executing_dir + '/' + '../mobile-samples')
+def bumpui_command(args, dirs):
+    get_versions(args, True)
+    changeui_command(args, dirs)
+    npm_install_dir(args, dirs[mobile_ui_react_dir_index])
+
+def changesamples_command(args, dirs):
+    samples_dir = dirs[mobile_samples_dir_index]
     args.current_mobile = args.new_mobile
-    modify_package_json(args, os.path.join(samples_dir, 'cross-platform/react-app'))
+    modify_package_json(args, os.path.join(samples_dir, react_app_subdir))
     modify_samples_package_resolved(args, samples_dir)
     modify_samples_project_pbxproj(args, samples_dir)
 
-def bump_samples_command(args, dirs):
+def bumpsamples_command(args, dirs):
     get_versions(args, True)
-    change_samples_command(args, dirs)
+    changesamples_command(args, dirs)
+    npm_install_dir(args, os.path.join(dirs[mobile_samples_dir_index], react_app_subdir))
 
 def dir_has_diff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
@@ -172,31 +193,29 @@ def commit_dir(args, dir):
     else:
         print("Nothing to commit.")
 
-def modify_samples_project_pbxproj(args, dir):
-    if not hasattr(args, 'new_commit_id'):
-        args.new_commit_id = get_last_commit_id(executing_dir, args.new_mobile)
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.pbxproj'))
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.pbxproj'))
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.pbxproj'))
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.pbxproj'))
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/ThirdPartyAuth/LocalSDK_ThirdPartyAuth.xcodeproj/project.pbxproj'))
-    modify_project_pbxproj(args, os.path.join(dir, 'iOS/ThirdPartyAuth/ThirdPartyAuth.xcodeproj/project.pbxproj'))
+def get_xcodeproj_dirs(samples_dir):
+    dirs = []
+    for sample_name in sample_names:
+        dirs.append(os.path.join(samples_dir, 'iOS', sample_name, sample_name + '.xcodeproj'))
+        dirs.append(os.path.join(samples_dir, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
+    return dirs
 
-def modify_samples_package_resolved(args, dir):
+def modify_samples_project_pbxproj(args, samples_dir):
     if not hasattr(args, 'new_commit_id'):
         args.new_commit_id = get_last_commit_id(executing_dir, args.new_mobile)
-    modify_package_resolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modify_package_resolved(args, os.path.join(dir, 'iOS/SwiftUIStarter/LocalSDK_SwiftUIStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modify_package_resolved(args, os.path.join(dir, 'iOS/MobileStarter/LocalSDK_MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modify_package_resolved(args, os.path.join(dir, 'iOS/MobileStarter/MobileStarter.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modify_package_resolved(args, os.path.join(dir, 'iOS/ThirdPartyAuth/LocalSDK_ThirdPartyAuth.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
-    modify_package_resolved(args, os.path.join(dir, 'iOS/ThirdPartyAuth/ThirdPartyAuth.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+    for dir in get_xcodeproj_dirs(samples_dir):
+        modify_project_pbxproj(args, os.path.join(dir, 'project.pbxproj'))
+
+def modify_samples_package_resolved(args, samples_dir):
+    if not hasattr(args, 'new_commit_id'):
+        args.new_commit_id = get_last_commit_id(executing_dir, args.new_mobile)
+    for dir in get_xcodeproj_dirs(samples_dir):
+        modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
 def branch_command(args, dirs):
     if not args.force:
         ensure_all_dirs_have_diffs(dirs)
-    if not args.new_mobile:
-        args.new_mobile = get_next_release()
+    populate_mobile_versions(args)
 
     print("Branching version: " + args.new_mobile)
     for dir in dirs:
@@ -204,8 +223,7 @@ def branch_command(args, dirs):
 
 def commit_command(args, dirs):
     ensure_all_dirs_have_diffs(dirs)
-    if not args.new_mobile:
-        args.new_mobile = get_next_release()
+    populate_mobile_versions(args)
 
     print("Committing version: " + args.new_mobile)
     for dir in dirs:
@@ -216,15 +234,21 @@ def commit_command(args, dirs):
         commit_dir(args, dir)
 
 def pr_dir(args, dir):
-    # Use draft PR until we trust that everything is working correctly.
     print("Creating GitHub PR in dir: " + dir)
-    subprocess.check_call(['gh', 'pr', 'create', '--fill', '--draft'], cwd=dir)
+    subprocess.check_call(['gh', 'pr', 'create', '--fill'], cwd=dir)
 
-def create_pr(args, dir):
+def populate_mobile_versions(args, current = False):
+    args.current_mobile = get_last_release()
+    if not args.new_mobile:
+        if current:
+            args.new_mobile = args.current_mobile
+        else:
+            args.new_mobile = get_next_release(args.current_mobile)
+
+def create_pr(args, dir, current = False):
     if not dir_has_diff(dir):
         raise Exception("Error: Diffs are required")
-    if not args.new_mobile:
-        args.new_mobile = get_next_release()
+    populate_mobile_versions(args, current)
 
     print("PR processing for version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
@@ -232,8 +256,14 @@ def create_pr(args, dir):
     pr_dir(args, dir)
 
 def pr1_command(args, dirs):
-    create_pr(args, dirs[0])
-    create_pr(args, dirs[1])
+    create_pr(args, dirs[mobile_sdk_ios_dir_index])
+    create_pr(args, dirs[mobile_sdk_core_dir_index])
+
+def pr2_command(args, dirs):
+    create_pr(args, dirs[mobile_ui_react_dir_index], True)
+
+def pr3_command(args, dirs):
+    create_pr(args, dirs[mobile_samples_dir_index], True)
 
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -247,22 +277,38 @@ def push_command(args, dirs):
 def release_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Releasing in dir: " + dir)
-    title = args.title if hasattr(args, 'title') else 'v' + args.new_mobile
-    subprocess.check_call(['gh', 'release', 'create', '-t', title, args.new_mobile], cwd=dir)
+    if not args.title:
+        args.title = 'Release ' + args.new_mobile
+    if not args.notes:
+        itwin_version = get_latest_itwin_version()
+        args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
+    subprocess.check_call(['git', 'checkout', 'main'], cwd=dir)
+    subprocess.check_call(['git', 'pull'], cwd=dir)
+    subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
+    subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)
+    subprocess.check_call(['gh', 'release', 'create', args.new_mobile, '--title', args.title, '--notes', args.notes], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
 def release_upload(args, dir, filename):
-    dir = os.path.realpath(dir)
     print("Uploading in dir: {} file: {}".format(dir, filename))
     subprocess.check_call(['gh', 'release', 'upload', args.new_mobile, filename], cwd=dir)
 
-def release_command(args, dirs):
-    if not args.new_mobile:
-        args.new_mobile = get_next_release()
-    print("Releasing version: " + args.new_mobile)
-    for dir in dirs:
-        release_dir(args, dir)
-    release_upload(args, '.', 'itwin-mobile-sdk.podspec')
+def create_release(args, dir, current = False):
+    populate_mobile_versions(args, current)
+    print("Releasing version: " + args.new_mobile + "\nin dir: " + dir)
+    release_dir(args, dir)
+    if dir.endswith('mobile-sdk-ios'):
+        release_upload(args, dir, 'itwin-mobile-sdk.podspec')
+
+def release1_command(args, dirs):
+    create_release(args, dirs[mobile_sdk_ios_dir_index])
+    create_release(args, dirs[mobile_sdk_core_dir_index])
+
+def release2_command(args, dirs):
+    create_release(args, dirs[mobile_ui_react_dir_index], True)
+
+def release3_command(args, dirs):
+    create_release(args, dirs[mobile_samples_dir_index], True)
 
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=executing_dir, encoding='UTF-8')
@@ -279,8 +325,7 @@ def get_last_release():
         return '0.10.' + str(last_patch)
     raise Exception("Error: could not determine last release.")
 
-def get_next_release():
-    last_release = get_last_release()
+def get_next_release(last_release):
     parts = last_release.split('.')
     if len(parts) == 3:
         parts[2] = str(int(parts[2]) + 1)
@@ -317,12 +362,7 @@ def get_last_remote_commit_id(repo, tag_filter):
 
 def get_versions(args, current = False):
     found_all = False
-    args.current_mobile = get_last_release()
-    if not args.new_mobile:
-        if current:
-            args.new_mobile = args.current_mobile
-        else:
-            args.new_mobile = get_next_release()
+    populate_mobile_versions(args, current)
 
     print("New release: " + args.new_mobile)
     itwin_version = get_latest_itwin_version()
@@ -348,18 +388,11 @@ def do_command(args, dirs):
         for dir in dirs:
             subprocess.call(args, cwd=dir)
 
-def all_command(args, dirs):
-    bump_command(args, dirs)
-    branch_command(args, dirs)
-    commit_command(args, dirs)
-    push_command(args, dirs)
-    release_command(args, dirs)
-
 if __name__ == '__main__':
     executing_dir = get_executing_directory()
     dirs = []
-    for dir in ['.', '../mobile-sdk-core', '../mobile-ui-react', '../mobile-samples']:
-        dirs.append(os.path.realpath(executing_dir + '/' + dir))
+    for dir in relative_dirs:
+        dirs.append(os.path.realpath(os.path.join(executing_dir, dir)))
 
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
@@ -372,9 +405,16 @@ if __name__ == '__main__':
             3. Get iTwin/mobile-sdk-ios PR approved
             4. Get iTwin/mobile-sdk-core PR approved
             5. newVersion.py release1
-            6. newVersion.py bumpui
-            7. npm publish @itwin/mobile-ui-react
-            8. newVersion.py bumpsamples
+            6. Wait for @itwin/mobile-sdk-core to be npm published
+            7. newVersion.py bumpui
+            8. newVersion.py pr2
+            9. Get iTwin/mobile-ui-react PR approved
+            10. newVersion.py release2
+            11. Wait for @itwin/mobile-ui-react to be npm published
+            12. newVersion.py bumpsamples
+            13. newVersion.py pr3
+            14. Get iTwin/mobile-samples PR approved
+            15. newVersion.py release3
             '''))
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
 
@@ -401,23 +441,23 @@ if __name__ == '__main__':
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     parser_change_ui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
-    parser_change_ui.set_defaults(func=change_ui_command)
+    parser_change_ui.set_defaults(func=changeui_command)
     parser_change_ui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
     parser_change_ui.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
     parser_change_ui.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
 
     parser_bump_ui = sub_parsers.add_parser('bumpui', help='Update mobile-ui-react to reflect published mobile-core')
-    parser_bump_ui.set_defaults(func=bump_ui_command)
+    parser_bump_ui.set_defaults(func=bumpui_command)
     parser_bump_ui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
     parser_change_samples = sub_parsers.add_parser('changesamples', help='Alternative to bumpsamples: must specify versions')
-    parser_change_samples.set_defaults(func=change_samples_command)
+    parser_change_samples.set_defaults(func=changesamples_command)
     parser_change_samples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
     parser_change_samples.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
     parser_change_samples.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
 
     parser_bump_samples = sub_parsers.add_parser('bumpsamples', help='Update mobile-samples to reflect published mobile-core')
-    parser_bump_samples.set_defaults(func=bump_samples_command)
+    parser_bump_samples.set_defaults(func=bumpsamples_command)
     parser_bump_samples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
     parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
@@ -431,13 +471,31 @@ if __name__ == '__main__':
     parser_pr1.set_defaults(func=pr1_command)
     parser_pr1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
-    parser_release = sub_parsers.add_parser('release', help='Create releases')
-    parser_release.set_defaults(func=release_command)
-    parser_release.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_release.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_pr2 = sub_parsers.add_parser('pr2', help='Create PR for mobile-ui-react')
+    parser_pr2.set_defaults(func=pr2_command)
+    parser_pr2.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
-    parser_all = sub_parsers.add_parser('all', help='Create a new point release and do everything (bump, commit, push, release)')
-    parser_all.set_defaults(func=all_command)
+    parser_pr3 = sub_parsers.add_parser('pr3', help='Create PR for mobile-samples')
+    parser_pr3.set_defaults(func=pr3_command)
+    parser_pr3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+
+    parser_release1 = sub_parsers.add_parser('release1', help='Create releases for mobile-sdk-ios and mobile-sdk-core')
+    parser_release1.set_defaults(func=release1_command)
+    parser_release1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_release1.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_release1.add_argument('--notes', dest='notes', help='Release notes')
+
+    parser_release2 = sub_parsers.add_parser('release2', help='Create release for mobile-ui-react')
+    parser_release2.set_defaults(func=release2_command)
+    parser_release2.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_release2.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_release2.add_argument('--notes', dest='notes', help='Release notes')
+
+    parser_release3 = sub_parsers.add_parser('release3', help='Create release for mobile-ui-samples')
+    parser_release3.set_defaults(func=release3_command)
+    parser_release3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_release3.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_release3.add_argument('--notes', dest='notes', help='Release notes')
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')
     parser_do.set_defaults(func=do_command)

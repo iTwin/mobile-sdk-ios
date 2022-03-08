@@ -52,8 +52,7 @@ class MobileSdkDirs:
         self.samples = self.dirs[3]
 
     def __iter__(self):
-        for dir in self.dirs:
-            yield dir
+        return iter(self.dirs)
 
 sdk_dirs = MobileSdkDirs()
 

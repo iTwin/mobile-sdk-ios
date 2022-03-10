@@ -304,7 +304,14 @@ def release_dir(args, dir):
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)
-    subprocess.check_call(['gh', 'release', 'create', args.new_mobile, '--title', args.title, '--notes', args.notes], cwd=dir)
+    subprocess.check_call([
+        'gh', 'release',
+        'create', args.new_mobile,
+        '--prerelease',
+        '--target', 'release/imodeljs-2.19.x',
+        '--title', args.title,
+        '--notes', args.notes,
+        ], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
 def release_upload(args, dir, filename):

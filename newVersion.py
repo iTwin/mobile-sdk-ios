@@ -143,6 +143,7 @@ def bump_command(args):
         ensure_no_dirs_have_diffs()
     get_versions(args)
     change_command(args)
+    npm_install_dir(args, sdk_dirs.sdk_core)
 
 def bumpbranch_command(args):
     bump_command(args)
@@ -296,7 +297,7 @@ def release_dir(args, dir):
     if not args.notes:
         imodeljs_version = get_latest_imodeljs_version()
         args.notes = 'Release ' + args.new_mobile + ' on imodeljs ' + imodeljs_version + ''
-    subprocess.check_call(['git', 'checkout', 'main'], cwd=dir)
+    subprocess.check_call(['git', 'checkout', 'release/imodeljs-2.19.x'], cwd=dir)
     subprocess.check_call(['git', 'branch', '-D', 'stage-release/' + args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)

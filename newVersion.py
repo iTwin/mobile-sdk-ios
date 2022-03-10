@@ -78,6 +78,8 @@ def modify_package_json(args, dir):
         if replace_all(filename, [
             ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
             ('("@bentley/[0-9a-z-]+"): "' + imodeljs_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_imodeljs),
+            ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
+            ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
         ]) < 2:
             print("Not enough replacements")
 

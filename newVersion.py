@@ -249,7 +249,7 @@ def commit_command(args):
 
 def pr_dir(args, dir):
     print("Creating GitHub PR in dir: " + dir)
-    subprocess.check_call(['gh', 'pr', 'create', '--fill'], cwd=dir)
+    subprocess.check_call(['gh', 'pr', 'create', '--base', 'release/imodeljs-2.19.x', '--fill'], cwd=dir)
 
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()

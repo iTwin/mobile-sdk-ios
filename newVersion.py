@@ -148,6 +148,7 @@ def bump_command(args):
         ensure_no_dirs_have_diffs()
     get_versions(args)
     change_command(args)
+    npm_install_dir(args, sdk_dirs.sdk_core)
 
 def bumpbranch_command(args):
     bump_command(args)
@@ -302,6 +303,7 @@ def release_dir(args, dir):
         itwin_version = get_latest_itwin_version()
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
     subprocess.check_call(['git', 'checkout', 'main'], cwd=dir)
+    subprocess.check_call(['git', 'branch', '-D', 'stage-release/' + args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)

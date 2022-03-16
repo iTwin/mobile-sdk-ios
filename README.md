@@ -43,7 +43,7 @@ target 'MyMobileApp' do
   use_frameworks!
 
   # Pods for MyMobileApp
-  pod 'itwin-mobile-native-ios', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/3.0.31/itwin-mobile-native-ios.podspec'
+  pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/3.0.31/itwin-mobile-native-ios.podspec'
   pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.10.2/itwin-mobile-sdk.podspec'    
 end
 

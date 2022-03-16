@@ -16,6 +16,10 @@ import textwrap
 itwin_base_version = "3\\.0\\."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
 mobile_base_version = "0\\.10\\."
+# The search string for Bentley's JS package (iTwin.js or imodeljs).
+js_package_search = "__iTwin\\.js "
+# The search string for itwin-mobile-native
+native_package_search = "`itwin-mobile-native` CocoaPod to version "
 # Subdirectory under mobile-samples of react-app.
 react_app_subdir = 'cross-platform/react-app'
 # The names of the sample apps
@@ -83,21 +87,34 @@ def modify_package_json(args, dir):
             ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
         ]) < 2:
-            print("Not enough replacements")
-        # if not args.skip_install:
-        #     result = subprocess.check_output(['npm', 'install', '--no-progress', '--loglevel=error', '--audit=false', '--fund=false'], cwd=dir)
+            raise Exception("Not enough replacements")
+
+def modify_readme_md(args):
+    filename = os.path.join(sdk_dirs.sdk_ios, 'README.md')
+    if not os.path.exists(filename):
+        raise Exception("Error: Cannot find mobile-sdk-ios/README.md")
+    print("Processing: " + filename)
+    if replace_all(filename, [
+        ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(' + js_package_search + ')' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
+        ('(' + native_package_search + ')' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+    ]) < 6:
+            raise Exception("Not enough replacements")
 
 def modify_package_swift(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [('(mobile-native-ios", .exact\\()"[.0-9a-z-]+', '\\1"' + args.new_add_on)]) != 1:
-        print("Not enough replacements")
+        raise Exception("Not enough replacements")
 
 def modify_podspec(args, filename):
     print("Processing: " + os.path.realpath(filename))
     replacements = [('(spec\\.version\\s+=\\s+")[.0-9a-z-]+"', '\\g<1>' + args.new_mobile + '"')]
     replacements.append(('(spec\\.dependency\\s+"itwin-mobile-native",\\s+")[.0-9a-z-]+"', '\\g<1>' + args.new_add_on + '"'))
     if replace_all(filename, replacements) != 2:
-        print("Not enough replacements")
+        raise Exception("Not enough replacements")
 
 def modify_project_pbxproj(args, filename):
     print("Processing: " + os.path.realpath(filename))
@@ -143,6 +160,7 @@ def change_command(args):
     modify_package_json(args, sdk_dirs.sdk_core)
     modify_package_json(args, sdk_dirs.ui_react)
     modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
+    modify_readme_md(args)
 
 def bump_command(args):
     if not args.force:

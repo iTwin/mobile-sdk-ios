@@ -28,7 +28,7 @@ dependencies: [
 
 ### CocoaPods
 
-With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native-ios` and `itwin-mobile-sdk` to your `Podfile`. __Note:__ these are not hosted on the CocoaPods CDN so the correct URLs must be specified.
+With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native` and `itwin-mobile-sdk` to your `Podfile`. __Note:__ these are not hosted on the CocoaPods CDN so the correct URLs must be specified.
 
 It is also necessary to disable bitcode for the itwin projects, which can be done via a `post_install` function.
 
@@ -62,6 +62,8 @@ end
 ```
 
 ## Notes
-- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 3.0.0__, and your app must use that same version of iTwin.js. 
+- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 3.0.0__, and your app must use that same version of iTwin.js.
+
+- If you are using this package via CocoaPods, make sure to set the `itwin-mobile-native` CocoaPod to version 3.0.31.
 
 - You will get two warnings relating to `IPHONEOS_DEPLOYMENT_TARGET` when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable those warnings. They can be ignored, though.

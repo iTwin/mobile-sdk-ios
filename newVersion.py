@@ -13,13 +13,23 @@ import textwrap
 # ===================================================================================
 
 # iModelJS base version to search for. 3.0.x for now.
-imodeljs_base_version_search = "2\\.19\\."
+itwin_base_version_search = "2\\.19\\."
 # iTwin Mobile SDK base version. 0.9.x for now.
 mobile_base_version = "0.9."
 # iTwin Mobile SDK base version to search for. 0.9.x for now.
 mobile_base_version_search = "0\\.9\\."
+# The search string for Bentley's JS package (iTwin.js or imodeljs).
+js_package_search = "__iModel\\.js "
+# The search string for itwin-mobile-native
+native_package_search = "`itwin-mobile-native` CocoaPod to version __"
 # Subdirectory under mobile-samples of react-app.
 react_app_subdir = 'iOS/MobileStarter/react-app'
+# The scope for iModelJS npm packages.
+itwin_scope = '@bentley'
+# The package used to determine the current version of iModelJS
+itwin_version_package = '@bentley/imodeljs-backend'
+# The package whose dependencies determine the current add-on version.
+native_version_package = '@bentley/imodeljs-backend'
 # The names of the sample apps
 sample_names = [
     'MobileStarter',
@@ -31,19 +41,22 @@ sample_names = [
 # ===================================================================================
 
 class MobileSdkDirs:
-    def __init__(self):
-        executing_dir = os.path.dirname(os.path.realpath(__file__))
+    def __init__(self, args):
+        if args.parent_dir:
+            parent_dir = os.path.realpath(args.parent_dir)
+        else:
+            parent_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
         # The relative paths to the iTwin Mobile SDK repository directories.
         # Since these are directly tied to member properties on this class, they cannot
         # be in the editable globals section above.
         relative_dirs = [
-            '.',
-            '../mobile-sdk-core',
-            '../mobile-ui-react',
-            '../mobile-samples',
+            'mobile-sdk-ios',
+            'mobile-sdk-core',
+            'mobile-ui-react',
+            'mobile-samples',
         ]
         def build_dir(dir_name):
-            return os.path.realpath(os.path.join(executing_dir, dir_name))
+            return os.path.realpath(os.path.join(parent_dir, dir_name))
         self.dirs = []
         for relative_dir in relative_dirs:
             self.dirs.append(build_dir(relative_dir))
@@ -55,45 +68,57 @@ class MobileSdkDirs:
     def __iter__(self):
         return iter(self.dirs)
 
-sdk_dirs = MobileSdkDirs()
-
 def replace_all(filename, replacements):
     num_found = 0
     for line in fileinput.input(filename, inplace=1):
         newline = line
-        found_on_line = False
         for (search_exp, replace_exp) in replacements:
             if re.search(search_exp, newline):
-                found_on_line = True
+                num_found += 1
                 newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
-        if found_on_line:
-            num_found += 1
     return num_found
 
 def modify_package_json(args, dir):
     filename = os.path.join(dir, 'package.json')
     if os.path.exists(filename):
         print("Processing: " + filename)
+        # IMPORTANT: The @itwin/mobile-sdk-core and @itwin/mobile-ui-react replacements must
+        # come last.
         if replace_all(filename, [
             ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
-            ('("@bentley/[0-9a-z-]+"): "' + imodeljs_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_imodeljs),
+            ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
             ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
         ]) < 2:
-            print("Not enough replacements")
+            raise Exception("Not enough replacements")
+
+def modify_readme_md(args):
+    filename = os.path.join(sdk_dirs.sdk_ios, 'README.md')
+    if not os.path.exists(filename):
+        raise Exception("Error: Cannot find mobile-sdk-ios/README.md")
+    print("Processing: " + filename)
+    if replace_all(filename, [
+        ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(' + js_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
+        ('(' + native_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+    ]) < 2:
+            raise Exception("Not enough replacements")
 
 def modify_package_swift(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [('(mobile-native-ios", .exact\\()"[.0-9a-z-]+', '\\1"' + args.new_add_on)]) != 1:
-        print("Not enough replacements")
+        raise Exception("Not enough replacements")
 
 def modify_podspec(args, filename):
     print("Processing: " + os.path.realpath(filename))
     replacements = [('(spec\\.version\\s+=\\s+")[.0-9a-z-]+"', '\\g<1>' + args.new_mobile + '"')]
     replacements.append(('(spec\\.dependency\\s+"itwin-mobile-native",\\s+")[.0-9a-z-]+"', '\\g<1>' + args.new_add_on + '"'))
     if replace_all(filename, replacements) != 2:
-        print("Not enough replacements")
+        raise Exception("Not enough replacements")
 
 def modify_project_pbxproj(args, filename):
     print("Processing: " + os.path.realpath(filename))
@@ -139,6 +164,7 @@ def change_command(args):
     modify_package_json(args, sdk_dirs.sdk_core)
     modify_package_json(args, sdk_dirs.ui_react)
     modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
+    modify_readme_md(args)
 
 def bump_command(args):
     if not args.force:
@@ -146,10 +172,6 @@ def bump_command(args):
     get_versions(args)
     change_command(args)
     npm_install_dir(args, sdk_dirs.sdk_core)
-
-def bumpbranch_command(args):
-    bump_command(args)
-    branch_command(args)
 
 def changeui_command(args):
     args.current_mobile = args.new_mobile
@@ -195,13 +217,6 @@ def ensure_no_dirs_have_diffs():
     if should_throw:
         raise Exception("Error: Diffs are not allowed")
 
-def branch_dir(args, dir):
-    print("Branching in dir: " + dir)
-    if dir_has_diff(dir):
-        subprocess.check_call(['git', 'checkout', '-b', 'stage-release/' + args.new_mobile], cwd=dir)
-    else:
-        print("Branch unnecessary: nothing to commit.")
-
 def commit_dir(args, dir):
     print("Committing in dir: " + dir)
     if dir_has_diff(dir):
@@ -229,31 +244,6 @@ def modify_samples_package_resolved(args):
     for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
-def branch_command(args):
-    if not args.force:
-        ensure_all_dirs_have_diffs()
-    populate_mobile_versions(args)
-
-    print("Branching version: " + args.new_mobile)
-    for dir in sdk_dirs:
-        branch_dir(args, dir)
-
-def commit_command(args):
-    ensure_all_dirs_have_diffs()
-    populate_mobile_versions(args)
-
-    print("Committing version: " + args.new_mobile)
-    for dir in sdk_dirs:
-        # The Package.resolved files in the sample projects need to be updated with the latest info.
-        # This assumes we've already committed in the mobile-sdk dir so we'll have  a commit id that we can write to the files.
-        if dir.endswith('mobile-samples'):
-            modify_samples_package_resolved(args)
-        commit_dir(args, dir)
-
-def pr_dir(args, dir):
-    print("Creating GitHub PR in dir: " + dir)
-    subprocess.check_call(['gh', 'pr', 'create', '--base', 'release/imodeljs-2.19.x', '--fill'], cwd=dir)
-
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
     if not args.new_mobile:
@@ -262,34 +252,10 @@ def populate_mobile_versions(args, current = False):
         else:
             args.new_mobile = get_next_release(args.current_mobile)
 
-def create_pr(args, dir, current = False):
-    if not dir_has_diff(dir):
-        raise Exception("Error: Diffs are required")
-    populate_mobile_versions(args, current)
-
-    print("PR processing for version: " + args.new_mobile + "\nin dir: " + dir)
-    commit_dir(args, dir)
-    push_dir(args, dir)
-    pr_dir(args, dir)
-
-def pr1_command(args):
-    create_pr(args, sdk_dirs.sdk_ios)
-    create_pr(args, sdk_dirs.sdk_core)
-
-def pr2_command(args):
-    create_pr(args, sdk_dirs.ui_react, True)
-
-def pr3_command(args):
-    create_pr(args, sdk_dirs.samples, True)
-
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
-    subprocess.check_call(['git', 'push', '--set-upstream', 'origin', 'stage-release/' + args.new_mobile], cwd=dir)
-
-def push_command(args):
-    for dir in sdk_dirs:
-        push_dir(args, dir)
+    subprocess.check_call(['git', 'push'], cwd=dir)
 
 def release_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -297,10 +263,8 @@ def release_dir(args, dir):
     if not args.title:
         args.title = 'Release ' + args.new_mobile
     if not args.notes:
-        imodeljs_version = get_latest_imodeljs_version()
-        args.notes = 'Release ' + args.new_mobile + ' on imodeljs ' + imodeljs_version + ''
-    subprocess.check_call(['git', 'checkout', 'release/imodeljs-2.19.x'], cwd=dir)
-    subprocess.check_call(['git', 'branch', '-D', 'stage-release/' + args.new_mobile], cwd=dir)
+        itwin_version = get_latest_itwin_version()
+        args.notes = 'Release ' + args.new_mobile + ' on imodeljs ' + itwin_version + ''
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)
@@ -321,6 +285,8 @@ def release_upload(args, dir, filename):
 def create_release(args, dir, current = False):
     populate_mobile_versions(args, current)
     print("Releasing version: " + args.new_mobile + "\nin dir: " + dir)
+    commit_dir(args, dir)
+    push_dir(args, dir)
     release_dir(args, dir)
     if dir.endswith('mobile-sdk-ios'):
         release_upload(args, dir, 'itwin-mobile-sdk.podspec')
@@ -334,6 +300,18 @@ def release2_command(args):
 
 def release3_command(args):
     create_release(args, sdk_dirs.samples, True)
+
+def stage1_command(args):
+    bump_command(args)
+    release1_command(args)
+
+def stage2_command(args):
+    bumpui_command(args)
+    release2_command(args)
+
+def stage3_command(args):
+    bumpsamples_command(args)
+    release3_command(args)
 
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
@@ -358,14 +336,14 @@ def get_next_release(last_release):
         return new_release
     raise Exception("Error: Could not parse last release: " + last_release)
 
-def get_latest_imodeljs_version():
-    dist_tags = subprocess.check_output(['npm', 'dist-tag', '@bentley/imodeljs-backend'], encoding='UTF-8')
+def get_latest_itwin_version():
+    dist_tags = subprocess.check_output(['npm', 'dist-tag', itwin_version_package], encoding='UTF-8')
     match = re.search('previous: ([.0-9]+)', dist_tags)
     if match and len(match.groups()) == 1:
         return match.group(1)
 
-def get_latest_native_version(imodeljs_version):
-    deps = subprocess.check_output(['npm', 'show', '@bentley/imodeljs-backend@' + imodeljs_version, 'dependencies'], encoding='UTF-8')
+def get_latest_native_version(itwin_version):
+    deps = subprocess.check_output(['npm', 'show', native_version_package + '@' + itwin_version, 'dependencies'], encoding='UTF-8')
     match = re.search("'@bentley/imodeljs-native': '([.0-9]+)'", deps)
     if match and len(match.groups()) == 1:
         return match.group(1)
@@ -390,9 +368,9 @@ def get_versions(args, current = False):
     populate_mobile_versions(args, current)
 
     print("New release: " + args.new_mobile)
-    imodeljs_version = get_latest_imodeljs_version()
-    print("iModelJS version: " + imodeljs_version)
-    add_on_version = get_latest_native_version(imodeljs_version)
+    itwin_version = get_latest_itwin_version()
+    print("iModelJS version: " + itwin_version)
+    add_on_version = get_latest_native_version(itwin_version)
     if add_on_version:
         found_all = True
         print("mobile-native-ios version: " + add_on_version)
@@ -402,7 +380,7 @@ def get_versions(args, current = False):
     if not found_all:
         raise Exception("Error: Unable to determine all versions.")
     args.new_mobile = args.new_mobile
-    args.new_imodeljs = imodeljs_version
+    args.new_itwin = itwin_version
     args.new_add_on = add_on_version
     args.new_add_on_commit_id = add_on_commit_id
 
@@ -420,33 +398,19 @@ if __name__ == '__main__':
         epilog=textwrap.dedent('''\
             Order of operations
             -------------------
-            1. newVersion.py bumpbranch
-            2. newVersion.py pr1
-            3. Get iTwin/mobile-sdk-ios PR approved
-            4. Get iTwin/mobile-sdk-core PR approved
-            5. newVersion.py release1
-            6. Wait for @itwin/mobile-sdk-core to be npm published
-            7. newVersion.py bumpui
-            8. newVersion.py pr2
-            9. Get iTwin/mobile-ui-react PR approved
-            10. newVersion.py release2
-            11. Wait for @itwin/mobile-ui-react to be npm published
-            12. newVersion.py bumpsamples
-            13. newVersion.py pr3
-            14. Get iTwin/mobile-samples PR approved
-            15. newVersion.py release3
+            1. newVersion.py stage1
+            2. Wait for @itwin/mobile-sdk-core to be npm published
+            3. newVersion.py stage2
+            4. Wait for @itwin/mobile-ui-react to be npm published
+            5. newVersion.py stage3
             '''))
+    parser.add_argument('-d', '--parentDir', dest='parent_dir', help='The parent directory of the iTwin Mobile SDK GitHub repositories')
     sub_parsers = parser.add_subparsers(title='Commands', metavar='')
-
-    parser_commit = sub_parsers.add_parser('branch', help='Branch changes')
-    parser_commit.set_defaults(func=branch_command)
-    parser_commit.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_commit.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes don\'t exist in all directories')
 
     parser_change = sub_parsers.add_parser('change', help='Change version (alternative to bump, specify versions)')
     parser_change.set_defaults(func=change_command)
     parser_change.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
-    parser_change.add_argument('-ni', '--newIModelJS', dest='new_imodeljs', help='New @bentley package version', required=True)
+    parser_change.add_argument('-ni', '--newIModelJS', dest='new_itwin', help='New @bentley package version', required=True)
     parser_change.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
     parser_change.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
@@ -455,49 +419,25 @@ if __name__ == '__main__':
     parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
-    parser_bump = sub_parsers.add_parser('bumpbranch', help='Execute bump then branch')
-    parser_bump.set_defaults(func=bumpbranch_command)
-    parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
+    parser_changeui.set_defaults(func=changeui_command)
+    parser_changeui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
+    parser_changeui.add_argument('-ni', '--newIModelJS', dest='new_itwin', help='New @bentley package version', required=True)
+    parser_changeui.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
 
-    parser_change_ui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
-    parser_change_ui.set_defaults(func=changeui_command)
-    parser_change_ui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
-    parser_change_ui.add_argument('-ni', '--newIModelJS', dest='new_imodeljs', help='New @bentley package version', required=True)
-    parser_change_ui.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
+    parser_bumpui = sub_parsers.add_parser('bumpui', help='Update mobile-ui-react to reflect published mobile-core')
+    parser_bumpui.set_defaults(func=bumpui_command)
+    parser_bumpui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
-    parser_bump_ui = sub_parsers.add_parser('bumpui', help='Update mobile-ui-react to reflect published mobile-core')
-    parser_bump_ui.set_defaults(func=bumpui_command)
-    parser_bump_ui.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_changesamples = sub_parsers.add_parser('changesamples', help='Alternative to bumpsamples: must specify versions')
+    parser_changesamples.set_defaults(func=changesamples_command)
+    parser_changesamples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
+    parser_changesamples.add_argument('-ni', '--newIModelJS', dest='new_itwin', help='New @bentley package version', required=True)
+    parser_changesamples.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
 
-    parser_change_samples = sub_parsers.add_parser('changesamples', help='Alternative to bumpsamples: must specify versions')
-    parser_change_samples.set_defaults(func=changesamples_command)
-    parser_change_samples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
-    parser_change_samples.add_argument('-ni', '--newIModelJS', dest='new_imodeljs', help='New @bentley package version', required=True)
-    parser_change_samples.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
-
-    parser_bump_samples = sub_parsers.add_parser('bumpsamples', help='Update mobile-samples to reflect published mobile-core')
-    parser_bump_samples.set_defaults(func=bumpsamples_command)
-    parser_bump_samples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-
-    parser_commit = sub_parsers.add_parser('commit', help='Commit changes')
-    parser_commit.set_defaults(func=commit_command)
-    parser_commit.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-
-    parser_push = sub_parsers.add_parser('push', help='Push changes')
-    parser_push.set_defaults(func=push_command)
-
-    parser_pr1 = sub_parsers.add_parser('pr1', help='Create PRs for mobile-sdk-ios and mobile-sdk-core')
-    parser_pr1.set_defaults(func=pr1_command)
-    parser_pr1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-
-    parser_pr2 = sub_parsers.add_parser('pr2', help='Create PR for mobile-ui-react')
-    parser_pr2.set_defaults(func=pr2_command)
-    parser_pr2.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-
-    parser_pr3 = sub_parsers.add_parser('pr3', help='Create PR for mobile-samples')
-    parser_pr3.set_defaults(func=pr3_command)
-    parser_pr3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_bumpsamples = sub_parsers.add_parser('bumpsamples', help='Update mobile-samples to reflect published mobile-core')
+    parser_bumpsamples.set_defaults(func=bumpsamples_command)
+    parser_bumpsamples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
     parser_release1 = sub_parsers.add_parser('release1', help='Create releases for mobile-sdk-ios and mobile-sdk-core')
     parser_release1.set_defaults(func=release1_command)
@@ -517,11 +457,31 @@ if __name__ == '__main__':
     parser_release3.add_argument('-t', '--title', dest='title', help='Release title')
     parser_release3.add_argument('--notes', dest='notes', help='Release notes')
 
+    parser_stage1 = sub_parsers.add_parser('stage1', help='Execute bump then release1')
+    parser_stage1.set_defaults(func=stage1_command)
+    parser_stage1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_stage1.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_stage1.add_argument('--notes', dest='notes', help='Release notes')
+    parser_stage1.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+
+    parser_stage2 = sub_parsers.add_parser('stage2', help='Execute bumpui then release2')
+    parser_stage2.set_defaults(func=stage2_command)
+    parser_stage2.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_stage2.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_stage2.add_argument('--notes', dest='notes', help='Release notes')
+
+    parser_stage3 = sub_parsers.add_parser('stage3', help='Execute bumpsamples then release3')
+    parser_stage3.set_defaults(func=stage3_command)
+    parser_stage3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_stage3.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_stage3.add_argument('--notes', dest='notes', help='Release notes')
+
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')
     parser_do.set_defaults(func=do_command)
     parser_do.add_argument('strings', metavar='arg', nargs='+')
 
     args = parser.parse_args()
+    sdk_dirs = MobileSdkDirs(args)
 
     try:
         if hasattr(args, 'func'):

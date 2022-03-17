@@ -13,15 +13,23 @@ import textwrap
 # ===================================================================================
 
 # iTwin base version to search for. 3.0.x for now.
-itwin_base_version = "3\\.0\\."
+itwin_base_version_search = "3\\.0\\."
+# iTwin Mobile SDK base version. 0.10.x for now.
+mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
-mobile_base_version = "0\\.10\\."
+mobile_base_version_search = "0\\.10\\."
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
 # The search string for itwin-mobile-native
 native_package_search = "`itwin-mobile-native` CocoaPod to version "
 # Subdirectory under mobile-samples of react-app.
 react_app_subdir = 'cross-platform/react-app'
+# The scope for iTwin npm packages.
+itwin_scope = '@itwin'
+# The package used to determine the current version of iTwin
+itwin_version_package = '@itwin/core-common'
+# The package whose dependencies determine the current add-on version.
+native_version_package = '@itwin/core-backend'
 # The names of the sample apps
 sample_names = [
     'MobileStarter',
@@ -65,14 +73,11 @@ def replace_all(filename, replacements):
     num_found = 0
     for line in fileinput.input(filename, inplace=1):
         newline = line
-        found_on_line = False
         for (search_exp, replace_exp) in replacements:
             if re.search(search_exp, newline):
-                found_on_line = True
+                num_found += 1
                 newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
-        if found_on_line:
-            num_found += 1
     return num_found
 
 def modify_package_json(args, dir):
@@ -83,7 +88,7 @@ def modify_package_json(args, dir):
         # come last.
         if replace_all(filename, [
             ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
-            ('("@itwin/[0-9a-z-]+"): "' + itwin_base_version + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
+            ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
             ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
         ]) < 2:
@@ -95,12 +100,12 @@ def modify_readme_md(args):
         raise Exception("Error: Cannot find mobile-sdk-ios/README.md")
     print("Processing: " + filename)
     if replace_all(filename, [
-        ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-        ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('(' + js_package_search + ')' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
-        ('(' + native_package_search + ')' + itwin_base_version + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ('(' + js_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
+        ('(' + native_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
     ]) < 6:
             raise Exception("Not enough replacements")
 
@@ -264,7 +269,13 @@ def release_dir(args, dir):
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)
-    subprocess.check_call(['gh', 'release', 'create', args.new_mobile, '--title', args.title, '--notes', args.notes], cwd=dir)
+    subprocess.check_call([
+        'gh', 'release',
+        'create', args.new_mobile,
+        '--target', 'main',
+        '--title', args.title,
+        '--notes', args.notes,
+        ], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
 
 def release_upload(args, dir, filename):
@@ -308,13 +319,13 @@ def get_last_release():
     last_patch = 0
     if isinstance(tags, list):
         for tag in tags:
-            match = re.search('^' + mobile_base_version + '([0-9]+)$', tag)
+            match = re.search('^' + mobile_base_version_search + '([0-9]+)$', tag)
             if match and len(match.groups()) == 1:
                 this_patch = int(match.group(1))
                 if this_patch > last_patch:
                     last_patch = this_patch
     if last_patch > 0:
-        return '0.10.' + str(last_patch)
+        return mobile_base_version + str(last_patch)
     raise Exception("Error: could not determine last release.")
 
 def get_next_release(last_release):
@@ -326,13 +337,13 @@ def get_next_release(last_release):
     raise Exception("Error: Could not parse last release: " + last_release)
 
 def get_latest_itwin_version():
-    dist_tags = subprocess.check_output(['npm', 'dist-tag', '@itwin/core-common'], encoding='UTF-8')
+    dist_tags = subprocess.check_output(['npm', 'dist-tag', itwin_version_package], encoding='UTF-8')
     match = re.search('latest: ([.0-9]+)', dist_tags)
     if match and len(match.groups()) == 1:
         return match.group(1)
 
 def get_latest_native_version(itwin_version):
-    deps = subprocess.check_output(['npm', 'show', '@itwin/core-backend@' + itwin_version, 'dependencies'], encoding='UTF-8')
+    deps = subprocess.check_output(['npm', 'show', native_version_package + '@' + itwin_version, 'dependencies'], encoding='UTF-8')
     match = re.search("'@bentley/imodeljs-native': '([.0-9]+)'", deps)
     if match and len(match.groups()) == 1:
         return match.group(1)

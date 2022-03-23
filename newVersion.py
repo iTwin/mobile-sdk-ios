@@ -163,8 +163,6 @@ def change_command(args):
     modify_package_resolved(args, os.path.join(sdk_dirs.sdk_ios, 'Package.resolved'))
     modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
     modify_package_json(args, sdk_dirs.sdk_core)
-    modify_package_json(args, sdk_dirs.ui_react)
-    modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
     modify_readme_md(args)
 
 def bump_command(args):

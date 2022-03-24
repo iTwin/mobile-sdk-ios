@@ -109,7 +109,7 @@ def modify_readme_md(args):
         ('(' + js_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
         ('(' + native_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
     ]) < 6:
-            raise Exception("Not enough replacements")
+        raise Exception("Not enough replacements")
 
 def modify_package_swift(args, filename):
     print("Processing: " + os.path.realpath(filename))

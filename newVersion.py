@@ -275,41 +275,47 @@ def release_dir(args, dir):
         '--notes', args.notes,
         ], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
+    if dir.endswith('mobile-sdk-ios'):
+        release_upload(args, dir, 'itwin-mobile-sdk.podspec')
 
 def release_upload(args, dir, filename):
     print("Uploading in dir: {} file: {}".format(dir, filename))
     subprocess.check_call(['gh', 'release', 'upload', args.new_mobile, filename], cwd=dir)
 
-def create_release(args, dir, current = False):
+def push_command(args, dir, current = False):
     populate_mobile_versions(args, current)
-    print("Releasing version: " + args.new_mobile + "\nin dir: " + dir)
+    print("Pushing version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
     push_dir(args, dir)
-    release_dir(args, dir)
-    if dir.endswith('mobile-sdk-ios'):
-        release_upload(args, dir, 'itwin-mobile-sdk.podspec')
 
-def release1_command(args):
-    create_release(args, sdk_dirs.sdk_ios)
-    create_release(args, sdk_dirs.sdk_core)
+def release_command(args):
+    populate_mobile_versions(args, True)
+    print("Releasing version: " + args.new_mobile + "\nin dir: " + dir)
+    for dir in sdk_dirs:
+        release_dir(args, dir)
 
-def release2_command(args):
-    create_release(args, sdk_dirs.ui_react, True)
+def push1_command(args):
+    push_command(args, sdk_dirs.sdk_ios)
+    push_command(args, sdk_dirs.sdk_core)
 
-def release3_command(args):
-    create_release(args, sdk_dirs.samples, True)
+def push2_command(args):
+    push_command(args, sdk_dirs.ui_react, True)
+
+def push3_command(args):
+    push_command(args, sdk_dirs.samples, True)
 
 def stage1_command(args):
     bump_command(args)
-    release1_command(args)
+    push1_command(args)
 
 def stage2_command(args):
     bumpui_command(args)
-    release2_command(args)
+    push2_command(args)
 
 def stage3_command(args):
     bumpsamples_command(args)
-    release3_command(args)
+    push3_command(args)
+    release_command(args)
 
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
@@ -437,23 +443,10 @@ if __name__ == '__main__':
     parser_bumpsamples.set_defaults(func=bumpsamples_command)
     parser_bumpsamples.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
 
-    parser_release1 = sub_parsers.add_parser('release1', help='Create releases for mobile-sdk-ios and mobile-sdk-core')
-    parser_release1.set_defaults(func=release1_command)
-    parser_release1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_release1.add_argument('-t', '--title', dest='title', help='Release title')
-    parser_release1.add_argument('--notes', dest='notes', help='Release notes')
-
-    parser_release2 = sub_parsers.add_parser('release2', help='Create release for mobile-ui-react')
-    parser_release2.set_defaults(func=release2_command)
-    parser_release2.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_release2.add_argument('-t', '--title', dest='title', help='Release title')
-    parser_release2.add_argument('--notes', dest='notes', help='Release notes')
-
-    parser_release3 = sub_parsers.add_parser('release3', help='Create release for mobile-ui-samples')
-    parser_release3.set_defaults(func=release3_command)
-    parser_release3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_release3.add_argument('-t', '--title', dest='title', help='Release title')
-    parser_release3.add_argument('--notes', dest='notes', help='Release notes')
+    parser_release = sub_parsers.add_parser('release', help='Create GitHub releases for all repositories')
+    parser_release.set_defaults(func=release_command)
+    parser_release.add_argument('-t', '--title', dest='title', help='Release title')
+    parser_release.add_argument('--notes', dest='notes', help='Release notes')
 
     parser_stage1 = sub_parsers.add_parser('stage1', help='Execute bump then release1')
     parser_stage1.set_defaults(func=stage1_command)
@@ -470,7 +463,6 @@ if __name__ == '__main__':
 
     parser_stage3 = sub_parsers.add_parser('stage3', help='Execute bumpsamples then release3')
     parser_stage3.set_defaults(func=stage3_command)
-    parser_stage3.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_stage3.add_argument('-t', '--title', dest='title', help='Release title')
     parser_stage3.add_argument('--notes', dest='notes', help='Release notes')
 

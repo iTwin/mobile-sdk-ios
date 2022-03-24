@@ -287,7 +287,6 @@ def push_command(args, dir, current = False):
     print("Pushing version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
     push_dir(args, dir)
-    release_dir(args, dir)
 
 def release_command(args):
     populate_mobile_versions(args, True)

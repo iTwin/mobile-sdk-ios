@@ -245,7 +245,7 @@ def modify_samples_package_resolved(args):
 
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
-    if not hasattr(args, 'new_mobile'):
+    if not hasattr(args, 'new_mobile') or not args.new_mobile:
         if current:
             args.new_mobile = args.current_mobile
         else:

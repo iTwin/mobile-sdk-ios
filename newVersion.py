@@ -24,6 +24,8 @@ js_package_search = "__iTwin\\.js "
 native_package_search = "`itwin-mobile-native` CocoaPod to version "
 # Subdirectory under mobile-samples of react-app.
 react_app_subdir = 'cross-platform/react-app'
+# Subdirectory under mobile-samples of token-server.
+token_server_subdir = 'cross-platform/token-server'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The package used to determine the current version of iTwin
@@ -187,6 +189,7 @@ def bumpui_command(args):
 def changesamples_command(args):
     args.current_mobile = args.new_mobile
     modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
+    modify_package_json(args, os.path.join(sdk_dirs.samples, token_server_subdir))
     modify_samples_package_resolved(args)
     modify_samples_project_pbxproj(args)
 
@@ -194,6 +197,7 @@ def bumpsamples_command(args):
     get_versions(args)
     changesamples_command(args)
     npm_install_dir(args, os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_install_dir(args, os.path.join(sdk_dirs.samples, token_server_subdir))
 
 def dir_has_diff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0

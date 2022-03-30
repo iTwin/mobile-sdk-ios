@@ -262,7 +262,7 @@ def populate_mobile_versions(args, current = False):
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
-    subprocess.check_call(['git', 'push'], cwd=dir)
+    subprocess.check_call(['git', 'push', 'https://' + os.getenv('GH_TOKEN') + '@github.com/iTwin/' + dir], cwd=dir)
 
 def release_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -274,7 +274,8 @@ def release_dir(args, dir):
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
-    subprocess.check_call(['git', 'push', 'origin', args.new_mobile], cwd=dir)
+    repo = 'https://' + os.getenv('GH_TOKEN') + '@github.com/iTwin/' + dir
+    subprocess.check_call(['git', 'push', '--repo', repo, 'origin', args.new_mobile], cwd=dir)
     subprocess.check_call([
         'gh', 'release',
         'create', args.new_mobile,

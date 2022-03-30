@@ -33,6 +33,8 @@ itwin_scope = '@itwin'
 itwin_version_package = '@itwin/core-common'
 # The package whose dependencies determine the current add-on version.
 native_version_package = '@itwin/core-backend'
+# The branch this script is running in
+git_branch = 'main'
 # The names of the sample apps
 sample_names = [
     'MobileStarter',
@@ -169,7 +171,6 @@ def change_command(args):
     modify_readme_md(args)
 
 def bump_command(args):
-    subprocess.check_call(['git', 'status'], cwd=sdk_dirs.sdk_ios)
     if not args.force:
         ensure_no_dirs_have_diffs()
     get_versions(args)
@@ -225,6 +226,7 @@ def ensure_no_dirs_have_diffs():
 def commit_dir(args, dir):
     print("Committing in dir: " + dir)
     if dir_has_diff(dir):
+        subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
         subprocess.check_call(['git', 'add', '.'], cwd=dir)
         subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.new_mobile], cwd=dir)
     else:

@@ -169,6 +169,7 @@ def change_command(args):
     modify_readme_md(args)
 
 def bump_command(args):
+    subprocess.check_call(['git', 'status'], cwd=sdk_dirs.sdk_ios)
     if not args.force:
         ensure_no_dirs_have_diffs()
     get_versions(args)

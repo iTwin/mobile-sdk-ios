@@ -13,8 +13,9 @@ import textwrap
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base version to search for. 3.0.x for now.
-itwin_base_version_search = "3\\.0\\."
+# iTwin base version to search for. 3.1.x for now.
+itwin_base_version_search = "3\\.1\\."
+itwin_base_version_search2 = "3\\.0\\."
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
@@ -94,6 +95,7 @@ def modify_package_json(args, dir):
         if replace_all(filename, [
             ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
             ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
+            ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
             ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
         ]) < 2:
@@ -108,9 +110,12 @@ def modify_readme_md(args):
         ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
         ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
         ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
         ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
         ('(' + js_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
+        ('(' + js_package_search + ')' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
         ('(' + native_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ('(' + native_package_search + ')' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
     ]) < 6:
         raise Exception("Not enough replacements")
 

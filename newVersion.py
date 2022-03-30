@@ -265,7 +265,7 @@ def get_repo(dir):
 def push_dir(args, dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
-    subprocess.check_call(['git', 'push', get_repo()], cwd=dir)
+    subprocess.check_call(['git', 'push', get_repo(dir)], cwd=dir)
 
 def release_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -277,7 +277,7 @@ def release_dir(args, dir):
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
-    subprocess.check_call(['git', 'push', '--repo', get_repo(), 'origin', args.new_mobile], cwd=dir)
+    subprocess.check_call(['git', 'push', '--repo', get_repo(dir), 'origin', args.new_mobile], cwd=dir)
     subprocess.check_call([
         'gh', 'release',
         'create', args.new_mobile,

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from concurrent.futures import process
 import fileinput
 import re
 import subprocess
@@ -479,3 +480,4 @@ if __name__ == '__main__':
             parser.print_help()
     except Exception as error:
         print(error)
+        exit(1)

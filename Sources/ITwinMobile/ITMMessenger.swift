@@ -21,6 +21,19 @@ internal extension JSONSerialization {
         return string(withITMJSONObject: object, prettyPrint: false)
     }
 
+    /// Determines if value is a serializable type, i.e., one that can be passed into JSONSerialization.data(withJSONObject:)
+    /// - Parameter value: value to check
+    /// - Returns: true if value is a Dictionary or Array, false otherwise.
+    static func isSerializableType(_ value: Any) -> Bool {
+        if let _ = value as? Dictionary<AnyHashable, Any> {
+            return true
+        }
+        if let _ = value as? Array<Any> {
+            return true
+        }
+        return false
+    }
+
     static func string(withITMJSONObject object: Any?, prettyPrint: Bool) -> String? {
         guard let object = object else {
             return ""
@@ -29,11 +42,29 @@ internal extension JSONSerialization {
             // Return empty JSON string for void.
             return ""
         }
+        let wrapped: Bool
+        let serializableObject: Any
+        if self.isSerializableType(object) {
+            wrapped = false
+            serializableObject = object
+        } else {
+            wrapped = true
+            // Wrap object in an array
+            serializableObject = [object]
+        }
         let options: JSONSerialization.WritingOptions = prettyPrint ? [.prettyPrinted, .sortedKeys, .fragmentsAllowed] : [.fragmentsAllowed]
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: options) else {
+        guard let data = try? JSONSerialization.data(withJSONObject: serializableObject, options: options) else {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        if wrapped {
+            // Remove the array delimiters ("[" and "]") from the beginning and end of the string.
+            return String(String(jsonString.dropFirst()).dropLast())
+        } else {
+            return jsonString
+        }
     }
 
     static func jsonObject(withString string: String) -> Any? {
@@ -377,7 +408,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                     messageJson = "{\"error\":\(itmError.jsonString)}"
                 }
             } else if let error = error {
-                messageJson = "{\"error\":\"\(error)\"}"
+                let errorString = self.jsonString("\(error)")
+                messageJson = "{\"error\":\(errorString)}"
             } else {
                 // If we get here, the JS code sent a query that we don't handle. That should never
                 // happen, so assert. Note that if a void response is desired, then responseJson

@@ -21,19 +21,6 @@ internal extension JSONSerialization {
         return string(withITMJSONObject: object, prettyPrint: false)
     }
 
-    /// Determines if value is a serializable type, i.e., one that can be passed into JSONSerialization.data(withJSONObject:)
-    /// - Parameter value: value to check
-    /// - Returns: true if value is a Dictionary or Array, false otherwise.
-    static func isSerializableType(_ value: Any) -> Bool {
-        if let _ = value as? Dictionary<AnyHashable, Any> {
-            return true
-        }
-        if let _ = value as? Array<Any> {
-            return true
-        }
-        return false
-    }
-
     static func string(withITMJSONObject object: Any?, prettyPrint: Bool) -> String? {
         guard let object = object else {
             return ""
@@ -43,17 +30,17 @@ internal extension JSONSerialization {
             return ""
         }
         let wrapped: Bool
-        let serializableObject: Any
-        if self.isSerializableType(object) {
+        let validJSONObject: Any
+        if JSONSerialization.isValidJSONObject(object) {
             wrapped = false
-            serializableObject = object
+            validJSONObject = object
         } else {
             wrapped = true
             // Wrap object in an array
-            serializableObject = [object]
+            validJSONObject = [object]
         }
         let options: JSONSerialization.WritingOptions = prettyPrint ? [.prettyPrinted, .sortedKeys, .fragmentsAllowed] : [.fragmentsAllowed]
-        guard let data = try? JSONSerialization.data(withJSONObject: serializableObject, options: options) else {
+        guard let data = try? JSONSerialization.data(withJSONObject: validJSONObject, options: options) else {
             return nil
         }
         guard let jsonString = String(data: data, encoding: .utf8) else {

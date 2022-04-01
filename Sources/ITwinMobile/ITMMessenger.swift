@@ -29,11 +29,29 @@ internal extension JSONSerialization {
             // Return empty JSON string for void.
             return ""
         }
+        let wrapped: Bool
+        let validJSONObject: Any
+        if JSONSerialization.isValidJSONObject(object) {
+            wrapped = false
+            validJSONObject = object
+        } else {
+            wrapped = true
+            // Wrap object in an array
+            validJSONObject = [object]
+        }
         let options: JSONSerialization.WritingOptions = prettyPrint ? [.prettyPrinted, .sortedKeys, .fragmentsAllowed] : [.fragmentsAllowed]
-        guard let data = try? JSONSerialization.data(withJSONObject: object, options: options) else {
+        guard let data = try? JSONSerialization.data(withJSONObject: validJSONObject, options: options) else {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        if wrapped {
+            // Remove the array delimiters ("[" and "]") from the beginning and end of the string.
+            return String(String(jsonString.dropFirst()).dropLast())
+        } else {
+            return jsonString
+        }
     }
 
     static func jsonObject(withString string: String) -> Any? {
@@ -377,7 +395,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                     messageJson = "{\"error\":\(itmError.jsonString)}"
                 }
             } else if let error = error {
-                messageJson = "{\"error\":\"\(error)\"}"
+                let errorString = self.jsonString("\(error)")
+                messageJson = "{\"error\":\(errorString)}"
             } else {
                 // If we get here, the JS code sent a query that we don't handle. That should never
                 // happen, so assert. Note that if a void response is desired, then responseJson

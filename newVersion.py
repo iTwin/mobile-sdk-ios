@@ -58,6 +58,7 @@ class MobileSdkDirs:
         # be in the editable globals section above.
         relative_dirs = [
             'mobile-sdk-ios',
+            'mobile-sdk-android',
             'mobile-sdk-core',
             'mobile-ui-react',
             'mobile-samples',
@@ -68,9 +69,10 @@ class MobileSdkDirs:
         for relative_dir in relative_dirs:
             self.dirs.append(build_dir(relative_dir))
         self.sdk_ios = self.dirs[0]
-        self.sdk_core = self.dirs[1]
-        self.ui_react = self.dirs[2]
-        self.samples = self.dirs[3]
+        self.sdk_android = self.dirs[1]
+        self.sdk_core = self.dirs[2]
+        self.ui_react = self.dirs[3]
+        self.samples = self.dirs[4]
 
     def __iter__(self):
         return iter(self.dirs)
@@ -163,6 +165,15 @@ def modify_package_resolved(args, filename):
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
+def modify_build_gradle(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    if replace_all(filename, [
+        ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+        ("(version = ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+    ]) != 2:
+        raise Exception("Not enough replacements")
+
+
 def change_command(args):
     if not args.force:
         ensure_no_dirs_have_diffs()
@@ -174,6 +185,9 @@ def change_command(args):
     modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
     modify_package_json(args, sdk_dirs.sdk_core)
     modify_readme_md(args)
+
+def change_command_android(args):
+    modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'itwin-mobile-sdk', 'build.gradle'))
 
 def bump_command(args):
     if not args.force:
@@ -411,6 +425,11 @@ def do_command(args):
         for dir in sdk_dirs:
             subprocess.call(args, cwd=dir)
 
+def add_force_argument(parser):
+    parser.add_argument('-f', '--force', action='store_true', dest='force', help='Force even if local changes already exist')
+    parser.set_defaults(force=False)
+    # parser.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
@@ -432,12 +451,19 @@ if __name__ == '__main__':
     parser_change.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
     parser_change.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
     parser_change.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
-    parser_change.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    add_force_argument(parser_change)
+
+    parser_android = sub_parsers.add_parser('android', help='Change android')
+    parser_android.set_defaults(func=change_command_android)
+    parser_android.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=True)
+    # parser_android.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
+    # parser_android.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
+    # add_force_argument(parser_android)
 
     parser_bump = sub_parsers.add_parser('bump', help='Create new point release')
     parser_bump.set_defaults(func=bump_command)
     parser_bump.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_bump.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    add_force_argument(parser_bump)
 
     parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
     parser_changeui.set_defaults(func=changeui_command)
@@ -464,7 +490,7 @@ if __name__ == '__main__':
     parser_stage1.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
     parser_stage1.add_argument('-t', '--title', dest='title', help='Release title')
     parser_stage1.add_argument('--notes', dest='notes', help='Release notes')
-    parser_stage1.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    add_force_argument(parser_stage1)
 
     parser_stage2 = sub_parsers.add_parser('stage2', help='Execute bumpui then release2')
     parser_stage2.set_defaults(func=stage2_command)

@@ -207,19 +207,27 @@ def bump_command(args):
         ensure_no_dirs_have_diffs()
     get_versions(args)
     change_command(args)
-    npm_install_dir(args, sdk_dirs.sdk_core)
+    npm_install_dir(sdk_dirs.sdk_core)
 
 def changeui_command(args):
     args.current_mobile = args.new_mobile
     modify_package_json(args, sdk_dirs.ui_react)
 
-def npm_install_dir(args, dir):
+def npm_build_dir(dir, debug = False):
+    print('Performing npm run build in dir: ' + dir)
+    build_args = ['npm', 'run', 'build']
+    if debug:
+        build_args[2] += ':debug'
+    subprocess.check_call(build_args, cwd=dir)
+
+def npm_install_dir(dir):
+    print('Performing npm install in dir: ' + dir)
     subprocess.check_call(['npm', 'install'], cwd=dir)
 
 def bumpui_command(args):
     get_versions(args)
     changeui_command(args)
-    npm_install_dir(args, sdk_dirs.ui_react)
+    npm_install_dir(sdk_dirs.ui_react)
 
 def changesamples_command(args):
     args.current_mobile = args.new_mobile
@@ -231,8 +239,8 @@ def changesamples_command(args):
 def bumpsamples_command(args):
     get_versions(args)
     changesamples_command(args)
-    npm_install_dir(args, os.path.join(sdk_dirs.samples, react_app_subdir))
-    npm_install_dir(args, os.path.join(sdk_dirs.samples, token_server_subdir))
+    npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
 
 def dir_has_diff(dir):
     return subprocess.call(['git', 'diff', '--quiet'], cwd=dir) != 0
@@ -307,13 +315,14 @@ def release_dir(args, dir):
     if not args.notes:
         itwin_version = get_latest_itwin_version()
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
+    subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
-    subprocess.check_call(['git', 'push', '--repo', get_repo(dir), 'origin', args.new_mobile], cwd=dir)
+    subprocess.check_call(['git', 'push', get_repo(dir), args.new_mobile], cwd=dir)
     subprocess.check_call([
         'gh', 'release',
         'create', args.new_mobile,
-        '--target', 'main',
+        '--target', git_branch,
         '--title', args.title,
         '--notes', args.notes,
         ], cwd=dir)
@@ -341,15 +350,24 @@ def push2_command(args):
 def push3_command(args):
     push_command(args, sdk_dirs.samples, True)
 
+def show_node_version():
+    print("Using node version:")
+    subprocess.check_call(['node', '--version'])
+    print("Using npm version:")
+    subprocess.check_call(['npm', '--version'])
+
 def stage1_command(args):
+    show_node_version()
     bump_command(args)
     push1_command(args)
 
 def stage2_command(args):
+    show_node_version()
     bumpui_command(args)
     push2_command(args)
 
 def stage3_command(args):
+    show_node_version()
     populate_mobile_versions(args)
     # iTiwn/mobile-sdk-ios must be released before we can update the samples to point to it.
     # Release the three main packages in a row, then update and release the samples.
@@ -359,6 +377,21 @@ def stage3_command(args):
     bumpsamples_command(args)
     push3_command(args)
     release_dir(args, sdk_dirs.samples)
+
+def test_command(args):
+    show_node_version()
+    get_versions(args, True)
+    change_command(args)
+    changeui_command(args)
+    changesamples_command(args)
+    npm_install_dir(sdk_dirs.sdk_core)
+    npm_install_dir(sdk_dirs.ui_react)
+    npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
+    npm_build_dir(sdk_dirs.sdk_core, True)
+    npm_build_dir(sdk_dirs.ui_react, True)
+    npm_build_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_build_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
 
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
@@ -513,6 +546,13 @@ if __name__ == '__main__':
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')
     parser_do.set_defaults(func=do_command)
     parser_do.add_argument('strings', metavar='arg', nargs='+')
+
+    parser_test = sub_parsers.add_parser('test', help='Local test of new iTwin release.')
+    parser_test.set_defaults(func=test_command)
+    parser_test.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
+    parser_test.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version')
+    parser_test.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version')
+    parser_test.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
 
     args = parser.parse_args()
     sdk_dirs = MobileSdkDirs(args)

@@ -477,10 +477,10 @@ def add_force_argument(parser):
 def add_new_mobile_argument(parser, required=False):
     parser.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version', required=required)
 
-def add_common_change_arguments(parser):
-    add_new_mobile_argument(parser, True)
-    parser.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=True)
-    parser.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=True)
+def add_common_change_arguments(parser, required=True):
+    add_new_mobile_argument(parser, required)
+    parser.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version', required=required)
+    parser.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version', required=required)
 
 def add_common_stage_arguments(parser, new_mobile=True):
     if new_mobile:
@@ -549,10 +549,8 @@ if __name__ == '__main__':
 
     parser_test = sub_parsers.add_parser('test', help='Local test of new iTwin release.')
     parser_test.set_defaults(func=test_command)
-    parser_test.add_argument('-n', '--new', dest='new_mobile', help='New iTwin Mobile SDK release version')
-    parser_test.add_argument('-ni', '--newITwin', dest='new_itwin', help='New @itwin package version')
-    parser_test.add_argument('-na', '--newAddOn', dest='new_add_on', help='New itwin-mobile-native-ios version')
-    parser_test.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    add_common_change_arguments(parser_test, False)
+    add_force_argument(parser_test)
 
     args = parser.parse_args()
     sdk_dirs = MobileSdkDirs(args)

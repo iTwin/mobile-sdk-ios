@@ -291,7 +291,7 @@ def release_dir(args, dir):
     subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
-    subprocess.check_call(['git', 'push', '--repo', get_repo(dir), 'origin', args.new_mobile], cwd=dir)
+    subprocess.check_call(['git', 'push', get_repo(dir), args.new_mobile], cwd=dir)
     subprocess.check_call([
         'gh', 'release',
         'create', args.new_mobile,

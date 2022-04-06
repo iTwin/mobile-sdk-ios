@@ -288,13 +288,14 @@ def release_dir(args, dir):
     if not args.notes:
         itwin_version = get_latest_itwin_version()
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
+    subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
     subprocess.check_call(['git', 'pull'], cwd=dir)
     subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
     subprocess.check_call(['git', 'push', '--repo', get_repo(dir), 'origin', args.new_mobile], cwd=dir)
     subprocess.check_call([
         'gh', 'release',
         'create', args.new_mobile,
-        '--target', 'main',
+        '--target', git_branch,
         '--title', args.title,
         '--notes', args.notes,
         ], cwd=dir)

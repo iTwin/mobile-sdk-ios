@@ -426,9 +426,7 @@ def do_command(args):
             subprocess.call(args, cwd=dir)
 
 def add_force_argument(parser):
-    parser.add_argument('-f', '--force', action='store_true', dest='force', help='Force even if local changes already exist')
-    parser.set_defaults(force=False)
-    # parser.add_argument('-f', '--force', action=argparse.BooleanOptionalAction, dest='force', help='Force even if local changes already exist')
+    parser.add_argument('-f', '--force', action='store_true', default=False, help='Force even if local changes already exist')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

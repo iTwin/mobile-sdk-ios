@@ -163,11 +163,11 @@ def modify_package_resolved(args, filename):
             package = match.group(1)
         if package == 'itwin-mobile-native':
             line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
-            if hasattr(args, 'new_add_on_commit_id'):
+            if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
         elif package == 'itwin-mobile-sdk':
             line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
-            if hasattr(args, 'new_commit_id'):
+            if hasattr(args, 'new_commit_id') and args.new_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
@@ -190,7 +190,7 @@ def modify_android_yml(args, filename):
 def change_command(args):
     if not args.force:
         ensure_no_dirs_have_diffs()
-    if not hasattr(args, 'current_mobile'):
+    if not hasattr(args, 'current_mobile') or not args.current_mobile:
         args.current_mobile = get_last_release()
     modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package.swift'))
     modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package@swift-5.5.swift'))
@@ -545,6 +545,7 @@ if __name__ == '__main__':
 
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')
     parser_do.set_defaults(func=do_command)
+    parser_do.add_argument('-p', '--print', action='store_true', default=False, help='Print each dir')
     parser_do.add_argument('strings', metavar='arg', nargs='+')
 
     parser_test = sub_parsers.add_parser('test', help='Local test of new iTwin release.')

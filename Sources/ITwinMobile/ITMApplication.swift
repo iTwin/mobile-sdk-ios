@@ -319,7 +319,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         guard let viewController = type(of: self).topViewController else {
             return nil
         }
-        return ITMAuthorizationClient(itmApplication: self, viewController: viewController)
+        return ITMAuthorizationClient(itmApplication: self, viewController: viewController, configData: configData ?? [:])
     }
 
     /// Loads the app config JSON from the main bundle.

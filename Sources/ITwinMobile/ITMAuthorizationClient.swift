@@ -34,12 +34,23 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
+    /// - Parameter itmApplication: The ``ITMApplication`` in which this ``ITMAuthorizationClient`` is being used.
     /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
-    public init(itmApplication: ITMApplication, viewController: UIViewController? = nil) {
+    /// - Parameter configData: A JSON object containing at least an `ITMAPPLICATION_CLIENT_ID` value, and optionally `ITMAPPLICATION_ISSUER_URL`, `ITMAPPLICATION_REDIRECT_URI`, and/or `ITMAPPLICATION_SCOPE` values. If `ITMAPPLICATION_CLIENT_ID` is not present this initializer will fail.
+    public init?(itmApplication: ITMApplication, viewController: UIViewController? = nil, configData: JSON) {
         self.itmApplication = itmApplication
         self.viewController = viewController
         super.init()
         registerQueryHandlers()
+        let issuerUrl = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://ims.bentley.com/"
+        let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
+        let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
+        let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs"
+        authSettings = AuthSettings(issuerUrl, clientId, redirectUrl, scope, "")
+        if checkSettings() != nil {
+            return nil
+        }
+        loadState()
     }
 
     private func registerQueryHandlers() {

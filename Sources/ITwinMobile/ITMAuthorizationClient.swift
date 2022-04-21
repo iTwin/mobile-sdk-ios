@@ -11,10 +11,19 @@ import AppAuth
 import AppAuthCore
 #endif
 
+public struct ITMAuthSettings {
+    public var issuerUrl: String
+    public var clientId: String
+    public var redirectUrl: String
+    public var sessionId: String
+    public var scope: String
+}
+
+
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
     /// The AuthSettings object from imodeljs.
-    public var authSettings: AuthSettings?
+    public var authSettings: ITMAuthSettings?
     public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
@@ -46,7 +55,8 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
         let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
         let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs"
-        authSettings = AuthSettings(issuerUrl, clientId, redirectUrl, scope, "")
+        authSettings = ITMAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, sessionId: "", scope: scope)
+        
         if checkSettings() != nil {
             return nil
         }
@@ -199,11 +209,6 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     
     /// Calls the onUserStateChanged callback, if that callback is set.
     open func raiseOnUserStateChanged() {
-        if let onUserStateChanged = onUserStateChanged {
-            getAccessToken() { accessToken, error in
-                onUserStateChanged(accessToken, error)
-            }
-        }
     }
     
     private func isInvalidGrantError(_ error: NSError) -> Bool {
@@ -216,7 +221,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
 
     /// Refreshes the user's access token.
     /// - Parameter completion: Callback to call upon success or error.
-    open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
+    open func refreshAccessToken(_ completion: @escaping (Error?) -> ()) {
         guard let authState = authState else {
             sign() { error in
                 if let error = error {
@@ -248,7 +253,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     ///   - clientID: The imodeljs app's clientID.
     ///   - clientSecret: The optional clientSecret.
     ///   - completion: The callback to call upon success or error.
-    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping AuthorizationClientCallback) {
+    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping (Error?) -> ()) {
         guard let authSettings = authSettings else {
             completion(error(reason: "ITMAuthorizationClient: not initialized"))
             return
@@ -420,16 +425,13 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         ITMApplication.logger.log(.error, "ITMAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
     
-    // MARK: - AuthorizationClient Protocol implementation
-
-    public var onUserStateChanged: UserStateChanged?
     public var isAuthorized: Bool {
         get {
             return authState?.isAuthorized ?? false
         }
     }
 
-    open func initialize(_ authSettings: AuthSettings, onComplete completion: @escaping AuthorizationClientCallback) {
+    open func initialize(_ authSettings: ITMAuthSettings, onComplete completion: @escaping (Error?) -> ()) {
         self.authSettings = authSettings
         if let error = checkSettings() {
             completion(error)
@@ -439,7 +441,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         completion(nil)
     }
 
-    open func sign(in completion: @escaping AuthorizationClientCallback) {
+    open func sign(in completion: @escaping (Error?) -> ()) {
         if let error = checkSettings() {
             completion(error)
             return
@@ -483,7 +485,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         }
     }
 
-    open func signOut(_ completion: @escaping AuthorizationClientCallback) {
+    open func signOut(_ completion: @escaping (Error?) -> ()) {
         if let error = checkSettings() {
             completion(error)
             return
@@ -492,7 +494,13 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         raiseOnUserStateChanged()
         completion(nil)
     }
+    
+    open func resumeExternalUserAgentFlow(_ url: URL) -> Bool {
+        // This is only needed by AppAuth before iOS 11, and we require iOS 12.2.
+        return false
+    }
 
+    // MARK: - AuthorizationClient Protocol implementation
     open func getAccessToken(_ completion: @escaping AccessTokenCallback) {
         if let error = checkSettings() {
             completion(nil, error)
@@ -520,10 +528,5 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                 completion("Bearer \(tokenString)", nil)
             }
         }
-    }
-    
-    open func resumeExternalUserAgentFlow(_ url: URL) -> Bool {
-        // This is only needed by AppAuth before iOS 11, and we require iOS 12.2.
-        return false
     }
 }

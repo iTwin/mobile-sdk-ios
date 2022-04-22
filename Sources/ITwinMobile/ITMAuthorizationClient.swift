@@ -19,6 +19,7 @@ public struct ITMAuthSettings {
     public var scope: String
 }
 
+public typealias AuthorizationClientCallback = (Error?) -> ()
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
@@ -221,7 +222,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
 
     /// Refreshes the user's access token.
     /// - Parameter completion: Callback to call upon success or error.
-    open func refreshAccessToken(_ completion: @escaping (Error?) -> ()) {
+    open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
         guard let authState = authState else {
             sign() { error in
                 if let error = error {
@@ -253,7 +254,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     ///   - clientID: The imodeljs app's clientID.
     ///   - clientSecret: The optional clientSecret.
     ///   - completion: The callback to call upon success or error.
-    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping (Error?) -> ()) {
+    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping AuthorizationClientCallback) {
         guard let authSettings = authSettings else {
             completion(error(reason: "ITMAuthorizationClient: not initialized"))
             return
@@ -431,7 +432,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         }
     }
 
-    open func initialize(_ authSettings: ITMAuthSettings, onComplete completion: @escaping (Error?) -> ()) {
+    open func initialize(_ authSettings: ITMAuthSettings, onComplete completion: @escaping AuthorizationClientCallback) {
         self.authSettings = authSettings
         if let error = checkSettings() {
             completion(error)
@@ -441,7 +442,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         completion(nil)
     }
 
-    open func sign(in completion: @escaping (Error?) -> ()) {
+    open func sign(in completion: @escaping AuthorizationClientCallback) {
         if let error = checkSettings() {
             completion(error)
             return
@@ -485,7 +486,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         }
     }
 
-    open func signOut(_ completion: @escaping (Error?) -> ()) {
+    open func signOut(_ completion: @escaping ) {
         if let error = checkSettings() {
             completion(error)
             return

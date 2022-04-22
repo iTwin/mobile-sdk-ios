@@ -486,7 +486,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         }
     }
 
-    open func signOut(_ completion: @escaping ) {
+    open func signOut(_ completion: @escaping AuthorizationClientCallback) {
         if let error = checkSettings() {
             completion(error)
             return

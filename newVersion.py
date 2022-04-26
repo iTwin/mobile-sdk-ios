@@ -176,8 +176,8 @@ def modify_build_gradle(args, filename):
     if replace_all(filename, [
         ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
         ("(version = ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-    ]) != 2:
-        raise Exception("Not enough replacements")
+    ]) != 3:
+        raise Exception("Wrong number of replacements")
 
 def modify_android_yml(args, filename):
     print("Processing: " + os.path.realpath(filename))
@@ -185,7 +185,7 @@ def modify_android_yml(args, filename):
         ("( +ref: ')[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
         ("( +gh release download )[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
     ]) != 2:
-        raise Exception("Not enough replacements")
+        raise Exception("Wrong number of replacements")
 
 def change_command(args):
     if not args.force:

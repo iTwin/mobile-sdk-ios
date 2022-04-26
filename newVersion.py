@@ -198,7 +198,7 @@ def change_command(args):
     modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
     modify_readme_md(args, sdk_dirs.sdk_ios)
     modify_readme_md(args, sdk_dirs.sdk_android)
-    modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'itwin-mobile-sdk', 'build.gradle'))
+    modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'mobile-sdk', 'build.gradle'))
     modify_android_yml(args, os.path.join(sdk_dirs.sdk_android, '.github', 'workflows', 'android.yml'))
     modify_package_json(args, sdk_dirs.sdk_core)
 

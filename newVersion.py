@@ -37,11 +37,15 @@ itwin_version_package = '@itwin/core-common'
 native_version_package = '@itwin/core-backend'
 # The branch this script is running in
 git_branch = 'main'
-# The names of the sample apps
-sample_names = [
+# The names of the iOS sample apps
+ios_sample_names = [
     'MobileStarter',
     'SwiftUIStarter',
     'ThirdPartyAuth',
+]
+# The names of the Android sample apps
+android_sample_names = [
+    'iTwinStarter'
 ]
 
 # ===================================================================================
@@ -179,6 +183,14 @@ def modify_build_gradle(args, filename):
     ]) != 3:
         raise Exception("Wrong number of replacements")
 
+def modify_sample_build_gradle(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    if replace_all(filename, [
+        ("(releaseImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+        ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
+    ]) != 2:
+        raise Exception("Wrong number of replacements")
+
 def modify_android_yml(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [
@@ -235,6 +247,7 @@ def changesamples_command(args):
     modify_package_json(args, os.path.join(sdk_dirs.samples, token_server_subdir))
     modify_samples_package_resolved(args)
     modify_samples_project_pbxproj(args)
+    modify_samples_build_gradle(args)
 
 def bumpsamples_command(args):
     get_versions(args)
@@ -274,7 +287,7 @@ def commit_dir(args, dir):
 
 def get_xcodeproj_dirs():
     xcodeproj_dirs = []
-    for sample_name in sample_names:
+    for sample_name in ios_sample_names:
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, sample_name + '.xcodeproj'))
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
     return xcodeproj_dirs
@@ -291,6 +304,10 @@ def modify_samples_package_resolved(args):
     for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
+def modify_samples_build_gradle(args):
+    for sample_name in android_sample_names:
+        modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'Android', sample_name, 'app/build.gradle'))
+
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
     if not hasattr(args, 'new_mobile') or not args.new_mobile:
@@ -302,7 +319,7 @@ def populate_mobile_versions(args, current = False):
 def get_repo(dir):
     return 'https://' + os.getenv('GH_TOKEN') + '@github.com/iTwin/' + os.path.basename(dir)
 
-def push_dir(args, dir):
+def push_dir(dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
     subprocess.check_call(['git', 'push', get_repo(dir)], cwd=dir)
@@ -338,10 +355,11 @@ def push_command(args, dir, current = False):
     populate_mobile_versions(args, current)
     print("Pushing version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
-    push_dir(args, dir)
+    push_dir(dir)
 
 def push1_command(args):
     push_command(args, sdk_dirs.sdk_ios)
+    push_command(args, sdk_dirs.sdk_android)
     push_command(args, sdk_dirs.sdk_core)
 
 def push2_command(args):
@@ -372,6 +390,7 @@ def stage3_command(args):
     # iTiwn/mobile-sdk-ios must be released before we can update the samples to point to it.
     # Release the three main packages in a row, then update and release the samples.
     release_dir(args, sdk_dirs.sdk_ios)
+    release_dir(args, sdk_dirs.sdk_android)
     release_dir(args, sdk_dirs.sdk_core)
     release_dir(args, sdk_dirs.ui_react)
     bumpsamples_command(args)

@@ -67,7 +67,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_getAccessToken") { () -> Promise<String> in
             let (promise, resolver) = Promise<String>.pending()
             if self.itmApplication.itmMessenger.frontendLaunchDone {
-                self.getAccessToken() { token, error in
+                self.getAccessToken() { token, expirationDate, error in
                     if let error = error {
                         resolver.reject(error)
                     }
@@ -481,29 +481,33 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     // MARK: - AuthorizationClient Protocol implementation
     open func getAccessToken(_ completion: @escaping AccessTokenCallback) {
         if let error = checkSettings() {
-            completion(nil, error)
+            completion(nil, nil, error)
             return
         }
         refreshAccessToken() { error in
             if let error = error {
-                completion(nil, error)
+                completion(nil, nil, error)
                 return
             }
             self.fetchUserInfo() { userInfo, error in
                 if let error = error {
-                    completion(nil, error)
+                    completion(nil, nil, error)
                     return
                 }
                 guard let authState = self.authState,
                       let lastTokenResponse = authState.lastTokenResponse else {
-                    completion(nil, self.error(reason: "No token after refresh"))
+                    completion(nil, nil, self.error(reason: "No token after refresh"))
                     return
                 }
                 guard let tokenString = lastTokenResponse.accessToken else {
-                    completion(nil, self.error(reason: "Invalid token after refresh"))
+                    completion(nil, nil, self.error(reason: "Invalid token after refresh"))
                     return
                 }
-                completion("Bearer \(tokenString)", nil)
+                guard let expirationDate = lastTokenResponse.accessTokenExpirationDate else {
+                    completion(nil, nil, self.error(reason: "Invalid expiration date after refresh"))
+                    return
+                }
+                completion("Bearer \(tokenString)", expirationDate, nil)
             }
         }
     }

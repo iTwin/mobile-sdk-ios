@@ -179,8 +179,10 @@ def modify_build_gradle(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [
         ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-        ("(version = ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-    ]) != 3:
+        ("(version = ')((?!-debug'$)[.0-9a-z-])+", "\\g<1>" + args.new_mobile),
+        ("(version = ')[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
+        ("(api 'com.github.itwin:mobile-native-android:)[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
+    ]) != 4:
         raise Exception("Wrong number of replacements")
 
 def modify_sample_build_gradle(args, filename):

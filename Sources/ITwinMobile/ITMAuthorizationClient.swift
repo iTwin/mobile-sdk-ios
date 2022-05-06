@@ -208,8 +208,8 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         saveState()
     }
     
-    /// Calls the onUserStateChanged callback, if that callback is set.
-    open func raiseOnUserStateChanged() {
+    /// Calls the onAccessTokenChanged callback, if that callback is set.
+    open func raiseOnAccessTokenChanged() {
         if let onAccessTokenChanged = self.onAccessTokenChanged {
             self.getAccessToken() { token, expirationDate, error in
                 if let token = token,
@@ -234,7 +234,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// - Parameter completion: Callback to call upon success or error.
     open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
         guard let authState = authState else {
-            sign() { error in
+            signIn() { error in
                 if let error = error {
                     completion(error)
                 } else {
@@ -248,7 +248,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                 ITMApplication.logger.log(.error, "Error fetching fresh tokens: \(error)")
                 if self.isInvalidGrantError(error) || self.isTokenRefreshError(error) {
                     self.innerSignOut()
-                    self.sign(in: completion)
+                    self.signIn(completion)
                 } else {
                     completion(error)
                 }
@@ -427,7 +427,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// - Note: If you are storing the authorization state, you should update the storage when the state changes.
     public func didChange(_ state: OIDAuthState) {
         stateChanged()
-        raiseOnUserStateChanged()
+        raiseOnAccessTokenChanged()
     }
 
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
@@ -442,7 +442,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         }
     }
 
-    open func sign(in completion: @escaping AuthorizationClientCallback) {
+    open func signIn(_ completion: @escaping AuthorizationClientCallback) {
         if let error = checkSettings() {
             completion(error)
             return
@@ -464,14 +464,14 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                 }
                 self.serviceConfig = serviceConfig
                 self.saveState()
-                self.sign(in: completion)
+                self.signIn(completion)
             }
             return
         }
         if authState == nil {
             doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
                 completion(error)
-                self.raiseOnUserStateChanged()
+                self.raiseOnAccessTokenChanged()
             }
         } else {
             refreshAccessToken() { error in
@@ -480,7 +480,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
                 } else {
                     // Refresh failed; sign out and try again from scratch.
                     self.innerSignOut()
-                    self.sign(in: completion)
+                    self.signIn(completion)
                 }
             }
         }
@@ -492,7 +492,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
             return
         }
         innerSignOut()
-        raiseOnUserStateChanged()
+        raiseOnAccessTokenChanged()
         completion(nil)
     }
 

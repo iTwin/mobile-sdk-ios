@@ -63,6 +63,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         loadState()
     }
 
+    // Used elsewhere in ITM SDK (remove?)
     private func registerQueryHandlers() {
         itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_getAccessToken") { () -> Promise<String> in
             let (promise, resolver) = Promise<String>.pending()
@@ -205,6 +206,20 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// Called when the auth state changes.
     open func stateChanged() {
         saveState()
+    }
+    
+    /// Calls the onUserStateChanged callback, if that callback is set.
+    open func raiseOnUserStateChanged() {
+        if let onAccessTokenChanged = self.onAccessTokenChanged {
+            self.getAccessToken() { token, expirationDate, error in
+                if let token = token,
+                   let expirationDate = expirationDate {
+                    onAccessTokenChanged(token, expirationDate)
+                } else {
+                    onAccessTokenChanged(nil, nil)
+                }
+            }
+        }
     }
     
     private func isInvalidGrantError(_ error: NSError) -> Bool {
@@ -412,6 +427,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
     /// - Note: If you are storing the authorization state, you should update the storage when the state changes.
     public func didChange(_ state: OIDAuthState) {
         stateChanged()
+        raiseOnUserStateChanged()
     }
 
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
@@ -455,6 +471,7 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         if authState == nil {
             doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
                 completion(error)
+                self.raiseOnUserStateChanged()
             }
         } else {
             refreshAccessToken() { error in
@@ -475,11 +492,12 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
             return
         }
         innerSignOut()
+        raiseOnUserStateChanged()
         completion(nil)
     }
 
     // MARK: - AuthorizationClient Protocol implementation
-    open func getAccessToken(_ completion: @escaping AccessTokenCallback) {
+    open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
         if let error = checkSettings() {
             completion(nil, nil, error)
             return
@@ -511,4 +529,6 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
             }
         }
     }
+    
+    public var onAccessTokenChanged: AccessTokenChangedCallback?
 }

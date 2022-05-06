@@ -50,7 +50,6 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
         self.itmApplication = itmApplication
         self.viewController = viewController
         super.init()
-        registerQueryHandlers()
         let issuerUrl = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://ims.bentley.com/"
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
         let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
@@ -61,43 +60,6 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
             return nil
         }
         loadState()
-    }
-
-    // Used elsewhere in ITM SDK (remove?)
-    private func registerQueryHandlers() {
-        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_getAccessToken") { () -> Promise<String> in
-            let (promise, resolver) = Promise<String>.pending()
-            if self.itmApplication.itmMessenger.frontendLaunchDone {
-                self.getAccessToken() { token, expirationDate, error in
-                    if let error = error {
-                        resolver.reject(error)
-                    }
-                    else if let token = token {
-                        resolver.fulfill(token)
-                    } else {
-                        resolver.reject(ITMError())
-                    }
-                }
-            } else {
-                resolver.reject(ITMError())
-            }
-            return promise
-        }
-        itmApplication.registerQueryHandler("Bentley_ITMAuthorizationClient_signOut") { () -> Promise<()> in
-            let (promise, resolver) = Promise<()>.pending()
-            if self.itmApplication.itmMessenger.frontendLaunchDone {
-                self.signOut() { error in
-                    if let error = error {
-                        resolver.reject(error)
-                    } else {
-                        resolver.fulfill(())
-                    }
-                }
-            } else {
-                resolver.reject(ITMError())
-            }
-            return promise
-        }
     }
 
     /// Creates and returns an NSError object with the specified settings.

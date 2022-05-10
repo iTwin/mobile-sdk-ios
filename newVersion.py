@@ -222,7 +222,7 @@ def bump_command(args):
     change_command(args)
     npm_install_dir(sdk_dirs.sdk_core)
 
-def changeall_command(args):
+def changeitwin_command(args):
     args.skip_commit_id = True
     change_command(args)
     npm_install_dir(sdk_dirs.sdk_core)
@@ -232,11 +232,11 @@ def changeall_command(args):
     changeui_command(args)
     changesamples_command(args)
 
-def bumpall_command(args):
+def bumpitwin_command(args):
     if not args.force:
         ensure_no_dirs_have_diffs()
-    get_versions(args)
-    changeall_command(args)
+    get_versions(args, True)
+    changeitwin_command(args)
 
 def changeui_command(args):
     args.current_mobile = args.new_mobile
@@ -551,15 +551,15 @@ if __name__ == '__main__':
     add_new_mobile_argument(parser_bump)
     add_force_argument(parser_bump)
 
-    parser_changeall = sub_parsers.add_parser('changeall', help='Change iTwin version (alternative to bumpall, specify versions)')
-    parser_changeall.set_defaults(func=changeall_command)
-    add_common_change_arguments(parser_changeall)
-    add_force_argument(parser_changeall)
+    parser_changeitwin = sub_parsers.add_parser('changeitwin', help='Change iTwin version (alternative to bumpitwin, specify versions)')
+    parser_changeitwin.set_defaults(func=changeitwin_command)
+    add_common_change_arguments(parser_changeitwin)
+    add_force_argument(parser_changeitwin)
 
-    parser_bumpall = sub_parsers.add_parser('bumpall', help='Update all locally for new iTwin version')
-    parser_bumpall.set_defaults(func=bumpall_command)
-    add_new_mobile_argument(parser_bumpall)
-    add_force_argument(parser_bumpall)
+    parser_bumpitwin = sub_parsers.add_parser('bumpitwin', help='Update all locally for new iTwin version')
+    parser_bumpitwin.set_defaults(func=bumpitwin_command)
+    add_new_mobile_argument(parser_bumpitwin)
+    add_force_argument(parser_bumpitwin)
 
     parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
     parser_changeui.set_defaults(func=changeui_command)

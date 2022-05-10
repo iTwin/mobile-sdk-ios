@@ -169,7 +169,7 @@ def modify_package_resolved(args, filename):
             line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
             if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
-        elif package == 'itwin-mobile-sdk':
+        elif package == 'itwin-mobile-sdk' and not skip_commit_id(args):
             line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
             if hasattr(args, 'new_commit_id') and args.new_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
@@ -180,7 +180,6 @@ def modify_build_gradle(args, filename):
     if replace_all(filename, [
         ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
         ("(version = ')((?!-debug'$)[.0-9a-z-])+", "\\g<1>" + args.new_mobile),
-        ("(version = ')[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
         ("(api 'com.github.itwin:mobile-native-android:)[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
     ]) != 4:
         raise Exception("Wrong number of replacements")
@@ -222,6 +221,22 @@ def bump_command(args):
     get_versions(args)
     change_command(args)
     npm_install_dir(sdk_dirs.sdk_core)
+
+def changeall_command(args):
+    args.skip_commit_id = True
+    change_command(args)
+    npm_install_dir(sdk_dirs.sdk_core)
+    npm_install_dir(sdk_dirs.ui_react)
+    npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
+    changeui_command(args)
+    changesamples_command(args)
+
+def bumpall_command(args):
+    if not args.force:
+        ensure_no_dirs_have_diffs()
+    get_versions(args)
+    changeall_command(args)
 
 def changeui_command(args):
     args.current_mobile = args.new_mobile
@@ -295,13 +310,14 @@ def get_xcodeproj_dirs():
     return xcodeproj_dirs
 
 def modify_samples_project_pbxproj(args):
-    if not hasattr(args, 'new_commit_id'):
-        args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
     for dir in get_xcodeproj_dirs():
         modify_project_pbxproj(args, os.path.join(dir, 'project.pbxproj'))
 
+def skip_commit_id(args):
+    return hasattr(args, 'skip_commit_id') and args.skip_commit_id
+
 def modify_samples_package_resolved(args):
-    if not hasattr(args, 'new_commit_id'):
+    if not hasattr(args, 'new_commit_id') and not skip_commit_id(args):
         args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
     for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
@@ -534,6 +550,16 @@ if __name__ == '__main__':
     parser_bump.set_defaults(func=bump_command)
     add_new_mobile_argument(parser_bump)
     add_force_argument(parser_bump)
+
+    parser_changeall = sub_parsers.add_parser('changeall', help='Change iTwin version (alternative to bumpall, specify versions)')
+    parser_changeall.set_defaults(func=changeall_command)
+    add_common_change_arguments(parser_changeall)
+    add_force_argument(parser_changeall)
+
+    parser_bumpall = sub_parsers.add_parser('bumpall', help='Update all locally for new iTwin version')
+    parser_bumpall.set_defaults(func=bumpall_command)
+    add_new_mobile_argument(parser_bumpall)
+    add_force_argument(parser_bumpall)
 
     parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
     parser_changeui.set_defaults(func=changeui_command)

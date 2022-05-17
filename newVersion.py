@@ -16,7 +16,7 @@ import traceback
 
 # iTwin base version to search for. 3.1.x for now.
 itwin_base_version_search = "3\\.1\\."
-itwin_base_version_search2 = "3\\.0\\."
+itwin_base_version_search2 = "3\\.2\\."
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
@@ -226,11 +226,11 @@ def changeitwin_command(args):
     args.skip_commit_id = True
     change_command(args)
     npm_install_dir(sdk_dirs.sdk_core)
+    changeui_command(args)
     npm_install_dir(sdk_dirs.ui_react)
+    changesamples_command(args)
     npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
     npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
-    changeui_command(args)
-    changesamples_command(args)
 
 def bumpitwin_command(args):
     if not args.force:
@@ -251,7 +251,7 @@ def npm_build_dir(dir, debug = False):
 
 def npm_install_dir(dir):
     print('Performing npm install in dir: ' + dir)
-    subprocess.check_call(['npm', 'install'], cwd=dir)
+    subprocess.check_call(['npm', 'install', '--force'], cwd=dir)
 
 def bumpui_command(args):
     get_versions(args)

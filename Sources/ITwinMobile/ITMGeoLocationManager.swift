@@ -378,7 +378,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             "positionId": positionId,
             "error": errorJson
         ]
-        let js = "window.Bentley_ITMGeolocation('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
+        let js = "window.Bentley_ITMGeolocationResponse('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
         itmMessenger.evaluateJavaScript(js)
     }
 
@@ -408,7 +408,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 "positionId": positionId,
                 "position": position
             ]
-            let js = "window.Bentley_ITMGeolocation('getCurrentPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
+            let js = "window.Bentley_ITMGeolocationResponse('getCurrentPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
             self.itmMessenger.evaluateJavaScript(js)
         }.catch { error in
             var errorJson: [String: Any]
@@ -445,7 +445,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                             "positionId": positionId,
                             "position": positionJson
                         ]
-                        let js = "window.Bentley_ITMGeolocation('watchPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
+                        let js = "window.Bentley_ITMGeolocationResponse('watchPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
                         self.itmMessenger.evaluateJavaScript(js)
                     }
                 }

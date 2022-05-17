@@ -16,7 +16,7 @@ import traceback
 
 # iTwin base version to search for. 3.1.x for now.
 itwin_base_version_search = "3\\.1\\."
-itwin_base_version_search2 = "3\\.0\\."
+itwin_base_version_search2 = "3\\.2\\."
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
@@ -37,11 +37,15 @@ itwin_version_package = '@itwin/core-common'
 native_version_package = '@itwin/core-backend'
 # The branch this script is running in
 git_branch = 'main'
-# The names of the sample apps
-sample_names = [
+# The names of the iOS sample apps
+ios_sample_names = [
     'MobileStarter',
     'SwiftUIStarter',
     'ThirdPartyAuth',
+]
+# The names of the Android sample apps
+android_sample_names = [
+    'iTwinStarter'
 ]
 
 # ===================================================================================
@@ -165,7 +169,7 @@ def modify_package_resolved(args, filename):
             line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
             if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
-        elif package == 'itwin-mobile-sdk':
+        elif package == 'itwin-mobile-sdk' and not skip_commit_id(args):
             line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
             if hasattr(args, 'new_commit_id') and args.new_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
@@ -175,9 +179,18 @@ def modify_build_gradle(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [
         ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-        ("(version = ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+        ("(version = ')((?!-debug'$)[.0-9a-z-])+", "\\g<1>" + args.new_mobile),
+        ("(api 'com.github.itwin:mobile-native-android:)[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
+    ]) != 4:
+        raise Exception("Wrong number of replacements")
+
+def modify_sample_build_gradle(args, filename):
+    print("Processing: " + os.path.realpath(filename))
+    if replace_all(filename, [
+        ("(releaseImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+        ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
     ]) != 2:
-        raise Exception("Not enough replacements")
+        raise Exception("Wrong number of replacements")
 
 def modify_android_yml(args, filename):
     print("Processing: " + os.path.realpath(filename))
@@ -185,7 +198,7 @@ def modify_android_yml(args, filename):
         ("( +ref: ')[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
         ("( +gh release download )[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
     ]) != 2:
-        raise Exception("Not enough replacements")
+        raise Exception("Wrong number of replacements")
 
 def change_command(args):
     if not args.force:
@@ -198,7 +211,7 @@ def change_command(args):
     modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
     modify_readme_md(args, sdk_dirs.sdk_ios)
     modify_readme_md(args, sdk_dirs.sdk_android)
-    modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'itwin-mobile-sdk', 'build.gradle'))
+    modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'mobile-sdk', 'build.gradle'))
     modify_android_yml(args, os.path.join(sdk_dirs.sdk_android, '.github', 'workflows', 'android.yml'))
     modify_package_json(args, sdk_dirs.sdk_core)
 
@@ -208,6 +221,22 @@ def bump_command(args):
     get_versions(args)
     change_command(args)
     npm_install_dir(sdk_dirs.sdk_core)
+
+def changeitwin_command(args):
+    args.skip_commit_id = True
+    change_command(args)
+    npm_install_dir(sdk_dirs.sdk_core)
+    changeui_command(args)
+    npm_install_dir(sdk_dirs.ui_react)
+    changesamples_command(args)
+    npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
+
+def bumpitwin_command(args):
+    if not args.force:
+        ensure_no_dirs_have_diffs()
+    get_versions(args, True)
+    changeitwin_command(args)
 
 def changeui_command(args):
     args.current_mobile = args.new_mobile
@@ -222,7 +251,7 @@ def npm_build_dir(dir, debug = False):
 
 def npm_install_dir(dir):
     print('Performing npm install in dir: ' + dir)
-    subprocess.check_call(['npm', 'install'], cwd=dir)
+    subprocess.check_call(['npm', 'install', '--force'], cwd=dir)
 
 def bumpui_command(args):
     get_versions(args)
@@ -235,6 +264,7 @@ def changesamples_command(args):
     modify_package_json(args, os.path.join(sdk_dirs.samples, token_server_subdir))
     modify_samples_package_resolved(args)
     modify_samples_project_pbxproj(args)
+    modify_samples_build_gradle(args)
 
 def bumpsamples_command(args):
     get_versions(args)
@@ -274,22 +304,27 @@ def commit_dir(args, dir):
 
 def get_xcodeproj_dirs():
     xcodeproj_dirs = []
-    for sample_name in sample_names:
+    for sample_name in ios_sample_names:
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, sample_name + '.xcodeproj'))
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
     return xcodeproj_dirs
 
 def modify_samples_project_pbxproj(args):
-    if not hasattr(args, 'new_commit_id'):
-        args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
     for dir in get_xcodeproj_dirs():
         modify_project_pbxproj(args, os.path.join(dir, 'project.pbxproj'))
 
+def skip_commit_id(args):
+    return hasattr(args, 'skip_commit_id') and args.skip_commit_id
+
 def modify_samples_package_resolved(args):
-    if not hasattr(args, 'new_commit_id'):
+    if not hasattr(args, 'new_commit_id') and not skip_commit_id(args):
         args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
     for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+
+def modify_samples_build_gradle(args):
+    for sample_name in android_sample_names:
+        modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'Android', sample_name, 'app/build.gradle'))
 
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
@@ -302,7 +337,7 @@ def populate_mobile_versions(args, current = False):
 def get_repo(dir):
     return 'https://' + os.getenv('GH_TOKEN') + '@github.com/iTwin/' + os.path.basename(dir)
 
-def push_dir(args, dir):
+def push_dir(dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
     subprocess.check_call(['git', 'push', get_repo(dir)], cwd=dir)
@@ -338,10 +373,11 @@ def push_command(args, dir, current = False):
     populate_mobile_versions(args, current)
     print("Pushing version: " + args.new_mobile + "\nin dir: " + dir)
     commit_dir(args, dir)
-    push_dir(args, dir)
+    push_dir(dir)
 
 def push1_command(args):
     push_command(args, sdk_dirs.sdk_ios)
+    push_command(args, sdk_dirs.sdk_android)
     push_command(args, sdk_dirs.sdk_core)
 
 def push2_command(args):
@@ -372,6 +408,7 @@ def stage3_command(args):
     # iTiwn/mobile-sdk-ios must be released before we can update the samples to point to it.
     # Release the three main packages in a row, then update and release the samples.
     release_dir(args, sdk_dirs.sdk_ios)
+    release_dir(args, sdk_dirs.sdk_android)
     release_dir(args, sdk_dirs.sdk_core)
     release_dir(args, sdk_dirs.ui_react)
     bumpsamples_command(args)
@@ -513,6 +550,16 @@ if __name__ == '__main__':
     parser_bump.set_defaults(func=bump_command)
     add_new_mobile_argument(parser_bump)
     add_force_argument(parser_bump)
+
+    parser_changeitwin = sub_parsers.add_parser('changeitwin', help='Change iTwin version (alternative to bumpitwin, specify versions)')
+    parser_changeitwin.set_defaults(func=changeitwin_command)
+    add_common_change_arguments(parser_changeitwin)
+    add_force_argument(parser_changeitwin)
+
+    parser_bumpitwin = sub_parsers.add_parser('bumpitwin', help='Update all locally for new iTwin version')
+    parser_bumpitwin.set_defaults(func=bumpitwin_command)
+    add_new_mobile_argument(parser_bumpitwin)
+    add_force_argument(parser_bumpitwin)
 
     parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')
     parser_changeui.set_defaults(func=changeui_command)

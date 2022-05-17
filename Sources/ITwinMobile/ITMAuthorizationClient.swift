@@ -464,6 +464,10 @@ open class ITMAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateCh
             completion(nil, nil, error)
             return
         }
+        if !itmApplication.itmMessenger.frontendLaunchDone {
+            completion(nil, nil, nil)
+            return
+        }
         refreshAccessToken() { error in
             if let error = error {
                 completion(nil, nil, error)

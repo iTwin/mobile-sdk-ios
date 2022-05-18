@@ -97,8 +97,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
-    /// The `AuthorizationClient` used by the `IModelJsHost`. This must be an ``ITMAuthorizationClient`` in order to
-    /// use the `ITMAuthorizationClient` TypeScript class.
+    /// The `AuthorizationClient` used by the `IModelJsHost`.
     public var authorizationClient: AuthorizationClient?
     
     /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
@@ -302,7 +301,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// - Note: The default implementation returns hash parameters that are required in order for the TypeScript
     /// code to work. You must include those values if you override this function to return other values.
-    /// - Returns: Empty string.
+    /// - Returns: The hash params required by every iTwin Mobile app.
     open func getUrlHashParams() -> HashParams {
         return [
             HashParam(name: "port", value: "\(IModelJsHost.sharedInstance().getPort())"),
@@ -310,12 +309,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         ]
     }
 
-    /// Gets the `AuthorizationClient` to be used for this iTwin Mobile web app.
+    /// Creates the `AuthorizationClient` to be used for this iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// If your application handles authorization on its own, create a class that implements the `AuthorizationClient` protocol
     /// to handle authorization.
-    /// - Returns: A `MobileAuthorizationClient` instance from IModelJsNative.
-    open func getAuthClient() -> AuthorizationClient? {
+    /// - Returns: An ``ITMAuthorizationClient`` instance configured using `configData`.
+    open func createAuthClient() -> AuthorizationClient? {
         guard let viewController = type(of: self).topViewController else {
             return nil
         }
@@ -375,7 +374,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let backendDir = backendUrl.deletingLastPathComponent().path
         setenv("ITMAPPLICATION_BACKEND_ROOT", backendDir, 1)
 
-        authorizationClient = getAuthClient()
+        authorizationClient = createAuthClient()
         IModelJsHost.sharedInstance().loadBackend(
             backendUrl,
             withAuthClient: authorizationClient,

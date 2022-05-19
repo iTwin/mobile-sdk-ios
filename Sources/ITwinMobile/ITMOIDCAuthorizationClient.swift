@@ -21,7 +21,7 @@ public struct ITMAuthSettings {
 public typealias AuthorizationClientCallback = (Error?) -> ()
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
-open class ITMOIDCAuthorizationClient: NSObject, AuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
+open class ITMOIDCAuthorizationClient: ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
     /// The AuthSettings object from imodeljs.
     public var authSettings: ITMAuthSettings?
     public let itmApplication: ITMApplication
@@ -62,16 +62,6 @@ open class ITMOIDCAuthorizationClient: NSObject, AuthorizationClient, OIDAuthSta
         loadState()
     }
 
-    /// Creates and returns an NSError object with the specified settings.
-    /// - Parameters:
-    ///   - domain: The domain to use for the NSError, default "com.bentley.itwin-mobile-sdk"
-    ///   - code: The code to use for the NSError, defaults 200.
-    ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
-    /// - Returns: An NSError object with the specified values.
-    public func error(domain: String = "com.bentley.itwin-mobile-sdk", code: Int = 200, reason: String) -> NSError {
-        return NSError(domain: domain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason])
-    }
-    
     /// Creates a mutable dictionary populated with the common keys and values needed for every keychain query.
     /// - Returns: An NSMutableDictionary with the common query items, or nil if issuerUrl and clientId are not set in authSettings.
     public func commonKeychainQuery() -> NSMutableDictionary? {
@@ -168,20 +158,6 @@ open class ITMOIDCAuthorizationClient: NSObject, AuthorizationClient, OIDAuthSta
     /// Called when the auth state changes.
     open func stateChanged() {
         saveState()
-    }
-    
-    /// Calls the onAccessTokenChanged callback, if that callback is set.
-    open func raiseOnAccessTokenChanged() {
-        if let onAccessTokenChanged = self.onAccessTokenChanged {
-            self.getAccessToken() { token, expirationDate, error in
-                if let token = token,
-                   let expirationDate = expirationDate {
-                    onAccessTokenChanged(token, expirationDate)
-                } else {
-                    onAccessTokenChanged(nil, nil)
-                }
-            }
-        }
     }
     
     private func isInvalidGrantError(_ error: NSError) -> Bool {
@@ -459,7 +435,7 @@ open class ITMOIDCAuthorizationClient: NSObject, AuthorizationClient, OIDAuthSta
     }
 
     // MARK: - AuthorizationClient Protocol implementation
-    open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
+    open override func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
         if let error = checkSettings() {
             completion(nil, nil, error)
             return
@@ -495,6 +471,4 @@ open class ITMOIDCAuthorizationClient: NSObject, AuthorizationClient, OIDAuthSta
             }
         }
     }
-    
-    public var onAccessTokenChanged: AccessTokenChangedCallback?
 }

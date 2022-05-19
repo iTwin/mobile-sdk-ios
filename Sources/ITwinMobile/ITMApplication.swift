@@ -313,12 +313,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// If your application handles authorization on its own, create a class that implements the `AuthorizationClient` protocol
     /// to handle authorization.
-    /// - Returns: An ``ITMAuthorizationClient`` instance configured using `configData`.
+    /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using `configData`.
     open func createAuthClient() -> AuthorizationClient? {
         guard let viewController = type(of: self).topViewController else {
             return nil
         }
-        return ITMAuthorizationClient(itmApplication: self, viewController: viewController, configData: configData ?? [:])
+        return ITMOIDCAuthorizationClient(itmApplication: self, viewController: viewController, configData: configData ?? [:])
     }
 
     /// Loads the app config JSON from the main bundle.
@@ -327,10 +327,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The following keys in the returned value are used by iTwin Mobile SDK:
     /// |Key|Description|
     /// |---|-----------|
-    /// | ITMAPPLICATION\_CLIENT\_ID | ITMAuthorizationClient required value containing the app's client ID. |
-    /// | ITMAPPLICATION\_SCOPE | ITMAuthorizationClient required value containing the app's scope. |
-    /// | ITMAPPLICATION\_ISSUER\_URL | ITMAuthorizationClient optional value containing the app's issuer URL. |
-    /// | ITMAPPLICATION\_REDIRECT\_URI | ITMAuthorizationClient optional value containing the app's redirect URL. |
+    /// | ITMAPPLICATION\_CLIENT\_ID | ITMOIDCAuthorizationClient required value containing the app's client ID. |
+    /// | ITMAPPLICATION\_SCOPE | ITMOIDCAuthorizationClient required value containing the app's scope. |
+    /// | ITMAPPLICATION\_ISSUER\_URL | ITMOIDCAuthorizationClient optional value containing the app's issuer URL. |
+    /// | ITMAPPLICATION\_REDIRECT\_URI | ITMOIDCAuthorizationClient optional value containing the app's redirect URL. |
     /// | ITMAPPLICATION\_MESSAGE\_LOGGING | Set to YES to have ITMMessenger log message traffic between JavaScript and Swift. |
     /// | ITMAPPLICATION\_FULL\_MESSAGE\_LOGGING | Set to YES to include full message data in the ITMMessenger message logs. (__Do not use in production.__) |
     /// Note: Other keys may be present but are ignored by iTwin Mobile SDK. For example, the iTwin Mobile SDK sample apps include keys with an `ITMSAMPLE_` prefix.

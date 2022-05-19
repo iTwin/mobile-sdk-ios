@@ -30,5 +30,6 @@ Interaction with the API starts with the ``ITMApplication`` class. You use this 
 - ``ITMLogger``
 - ``ITMNativeUI``
 - ``ITMNativeUIComponent``
+- ``ITMOIDCAuthorizationClient``
 - ``ITMWeakScriptMessageHandler``
 - ``ITMWebViewLogger``

@@ -105,12 +105,10 @@ public extension CLLocation {
 }
 
 /// Methods for getting more information from and exerting more contol over an ``ITMGeolocationManager`` object.
-///  - Note: Even though all methods in this protocol are required, there is a default extension to this protocol that implements them, with the
-///          behavior of that default extension documented for each method.
 public protocol ITMGeolocationManagerDelegate: AnyObject {
     /// Called to determine whether or not to call `ITMDevicePermissionsHelper.openLocationAccessDialog`.
     ///
-    /// The default implementation returns true. Overload this method if you want to prevent `ITMDevicePermissionsHelper.openLocationAccessDialog`
+    /// The default implementation returns true. Implement this method if you want to prevent `ITMDevicePermissionsHelper.openLocationAccessDialog`
     /// from being called for a given action.
     /// - Note: `action` will never be `clearWatch`.
     /// - Parameters:
@@ -120,7 +118,6 @@ public protocol ITMGeolocationManagerDelegate: AnyObject {
     /// Called when ``ITMGeolocationManager`` receives `clearWatch` request from web view.
     ///
     /// The default implementation doesn't do anything.
-    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
     /// - Parameters:
     ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
     ///   - position: The positionId of the request send from the web view.
@@ -128,7 +125,6 @@ public protocol ITMGeolocationManagerDelegate: AnyObject {
     /// Called when ``ITMGeolocationManager`` receives `getCurrentPosition` request from web view.
     ///
     /// The default implementation doesn't do anything.
-    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
     /// - Parameters:
     ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
     ///   - position: The positionId of the request send from the web view.
@@ -136,7 +132,6 @@ public protocol ITMGeolocationManagerDelegate: AnyObject {
     /// Called when ``ITMGeolocationManager`` receives `watchPosition` request from a web view.
     ///
     /// The default implementation doesn't do anything.
-    /// - Warning: Apple's DocC documentation generator is marking this method as required, even though it is optional.
     /// - Parameters:
     ///   - manager: The ``ITMGeolocationManager`` informing the delegate of the impending event.
     ///   - position: The positionId of the request send from the web view.
@@ -145,19 +140,19 @@ public protocol ITMGeolocationManagerDelegate: AnyObject {
 
 /// Default implemenation for pseudo-optional ITMGeolocationManagerDelegate protocol functions.
 public extension ITMGeolocationManagerDelegate {
-    /// Always returns true.
+    /// This default implementation always returns true.
     func geolocationManager(_ manager: ITMGeolocationManager, shouldShowLocationAccessDialogFor action: ITMGeolocationManager.Action) -> Bool {
         return true
     }
-    /// Does nothing.
+    /// This default implementation does nothing.
     func geolocationManager(_ manager: ITMGeolocationManager, willClearWatch position: Int64) {
         //do nothing
     }
-    /// Does nothing.
+    /// This default implementation does nothing.
     func geolocationManager(_ manager: ITMGeolocationManager, willGetCurrentPosition position: Int64) {
         //do nothing
     }
-    /// Does nothing.
+    /// This default implementation does nothing.
     func geolocationManager(_ manager: ITMGeolocationManager, willWatchPosition position: Int64) {
         //do nothing
     }

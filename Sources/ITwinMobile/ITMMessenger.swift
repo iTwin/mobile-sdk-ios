@@ -79,14 +79,12 @@ public protocol ITMQueryHandler: NSObjectProtocol {
     ///   - body: Optional message data sent from TypeScript.
     /// - Returns: true if you handle the given query, or false otherwise. If you return true, the query will not be passed to any other query handlers.
     func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) -> Bool
+    /// Gets the type of queries that this ``ITMQueryHandler`` handles.
     func getQueryType() -> String?
 }
 
 public extension ITMQueryHandler {
-    /// We'd really like getQueryType to be an optional protocol method that returns
-    /// a string, but Swtift only allows optional protocol methods in @objc protocols.
-    /// This extension means that any class that implements ITMQueryHandler that
-    /// does not have a queryType doesn't have to implement getQueryType to return nil.
+    /// This default implementation always returns `nil`.
     func getQueryType() -> String? {
         return nil
     }

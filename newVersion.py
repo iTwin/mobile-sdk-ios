@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-from concurrent.futures import process
 import fileinput
 import re
 import subprocess
@@ -195,9 +194,9 @@ def modify_sample_build_gradle(args, filename):
 def modify_android_yml(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [
-        ("( +ref: ')[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
-        ("( +gh release download )[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
-    ]) != 2:
+        ("( +ref: ')" + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+        ("( +ref: ')" + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+    ]) != 1:
         raise Exception("Wrong number of replacements")
 
 def change_command(args):

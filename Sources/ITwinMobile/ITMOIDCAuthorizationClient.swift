@@ -21,7 +21,12 @@ public struct ITMAuthSettings {
 public typealias AuthorizationClientCallback = (Error?) -> ()
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
-open class ITMOIDCAuthorizationClient: ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
+open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
+    /// Instance for `onAccessTokenChanged` property from the `AuthorizationClient` protocol.
+    public var onAccessTokenChanged: AccessTokenChangedCallback?
+    /// Instance for `errorDomain` property from the `ITMAuthorizationClient` protocol.
+    public let errorDomain = "com.bentley.itwin-mobile-sdk"
+
     /// The AuthSettings object from imodeljs.
     public var authSettings: ITMAuthSettings?
     public let itmApplication: ITMApplication
@@ -435,7 +440,7 @@ open class ITMOIDCAuthorizationClient: ITMAuthorizationClient, OIDAuthStateChang
     }
 
     // MARK: - AuthorizationClient Protocol implementation
-    open override func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
+    open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
         if let error = checkSettings() {
             completion(nil, nil, error)
             return

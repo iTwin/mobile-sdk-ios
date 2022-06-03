@@ -87,7 +87,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Tracks whether the web view should be visible in the application, or kept hidden. (Once the web view has been created
     /// it cannot be destroyed. It must instead be hidden.)
     public var dormant = true
-    /// Tracks whether the fronend URL is on a remote server (used for debugging via react-scripts).
+    /// Tracks whether the frontend URL is on a remote server (used for debugging via react-scripts).
     public var usingRemoteServer = false
     private var queryHandlers: [ITMQueryHandler] = []
     private var reachabilityObserver: Any?

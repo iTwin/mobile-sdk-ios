@@ -429,6 +429,26 @@ def test_command(args):
     npm_build_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
     npm_build_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
 
+def checkversions_command(args):
+    get_versions(args)
+    print("-------------------------------------------------------------------------------")
+    show_node_version()
+    print("new_mobile: " + args.new_mobile)
+    print("new_itwin: " + args.new_itwin)
+    print("new_add_on: " + args.new_add_on)
+    print("new_add_on_commit_id: " + args.new_add_on_commit_id)
+
+def fetch_arg_from_environment(args, arg_name):
+    value = os.getenv(arg_name)
+    if not value is None:
+        setattr(args, arg_name.lower()[4:], value)
+
+def process_environment(args):
+    fetch_arg_from_environment(args, 'ITM_NEW_MOBILE')
+    fetch_arg_from_environment(args, 'ITM_NEW_ITWIN')
+    fetch_arg_from_environment(args, 'ITM_NEW_ADD_ON')
+    fetch_arg_from_environment(args, 'ITM_NEW_ADD_ON_COMMIT_ID')
+
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
     tags = result.splitlines()
@@ -495,8 +515,8 @@ def get_versions(args, current = False):
 
     if not found_all:
         raise Exception("Error: Unable to determine all versions.")
-    args.new_mobile = args.new_mobile
-    args.new_itwin = itwin_version
+    if not hasattr(args, 'new_itwin') or not args.new_itwin:
+        args.new_itwin = itwin_version
     args.new_add_on = add_on_version
     args.new_add_on_commit_id = add_on_commit_id
 
@@ -599,7 +619,11 @@ if __name__ == '__main__':
     add_common_change_arguments(parser_test, False)
     add_force_argument(parser_test)
 
+    parser_checkversions = sub_parsers.add_parser('checkversions', help='Check versions for next release.')
+    parser_checkversions.set_defaults(func=checkversions_command)
+
     args = parser.parse_args()
+    process_environment(args)
     sdk_dirs = MobileSdkDirs(args)
 
     try:

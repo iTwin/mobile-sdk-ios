@@ -186,9 +186,9 @@ def modify_build_gradle(args, filename):
 def modify_sample_build_gradle(args, filename):
     print("Processing: " + os.path.realpath(filename))
     if replace_all(filename, [
-        ("(releaseImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-        ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
-    ]) != 2:
+        ("(implementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+        # ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
+    ]) != 1:
         raise Exception("Wrong number of replacements")
 
 # def modify_android_yml(args, filename):

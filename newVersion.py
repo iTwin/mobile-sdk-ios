@@ -191,13 +191,13 @@ def modify_sample_build_gradle(args, filename):
     ]) != 2:
         raise Exception("Wrong number of replacements")
 
-def modify_android_yml(args, filename):
-    print("Processing: " + os.path.realpath(filename))
-    if replace_all(filename, [
-        ("( +ref: ')" + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-        ("( +ref: ')" + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-    ]) != 1:
-        raise Exception("Wrong number of replacements")
+# def modify_android_yml(args, filename):
+#     print("Processing: " + os.path.realpath(filename))
+#     if replace_all(filename, [
+#         ("( +ref: ')" + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+#         ("( +ref: ')" + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
+#     ]) != 1:
+#         raise Exception("Wrong number of replacements")
 
 def change_command(args):
     if not args.force:
@@ -211,7 +211,7 @@ def change_command(args):
     modify_readme_md(args, sdk_dirs.sdk_ios)
     modify_readme_md(args, sdk_dirs.sdk_android)
     modify_build_gradle(args, os.path.join(sdk_dirs.sdk_android, 'mobile-sdk', 'build.gradle'))
-    modify_android_yml(args, os.path.join(sdk_dirs.sdk_android, '.github', 'workflows', 'android.yml'))
+    # modify_android_yml(args, os.path.join(sdk_dirs.sdk_android, '.github', 'workflows', 'android.yml'))
     modify_package_json(args, sdk_dirs.sdk_core)
 
 def bump_command(args):

@@ -368,12 +368,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         let backendUrl = getBackendUrl()
 
-        // Allow backend loader to know the full path to the directory containing
-        // main.js. Put that into the ITMAPPLICATION_BACKEND_ROOT environment variable so
-        // that it is available there.
-        let backendDir = backendUrl.deletingLastPathComponent().path
-        setenv("ITMAPPLICATION_BACKEND_ROOT", backendDir, 1)
-
         authorizationClient = createAuthClient()
         IModelJsHost.sharedInstance().loadBackend(
             backendUrl,

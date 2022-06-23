@@ -157,6 +157,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
+    /// Must be called from the `viewWillAppear` function of the `UIViewController` that is presenting
+    /// the iTwin app's `UIWebView`. Please note that ``ITMViewController`` calls this function automatically.
+    /// - Parameter viewController: The `UIViewController` that contains the `UIWebView`.
     open func viewWillAppear(viewController: ITMViewController) {
         for (key, value) in keyboardNotifications {
             keyboardObservers.append(NotificationCenter.default.addObserver(forName: key, object: nil, queue: nil, using: { [weak self] notification in

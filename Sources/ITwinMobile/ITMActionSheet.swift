@@ -10,8 +10,9 @@ import WebKit
 /// ``ITMNativeUIComponent`` that presents a `UIAlertController` with a style of `.actionSheet`.
 /// This class is used by the `ActionSheet` TypeScript class in @itwin/mobile-core.
 final public class ITMActionSheet: ITMNativeUIComponent {
-    override init(viewController: UIViewController, itmMessenger: ITMMessenger) {
-        super.init(viewController: viewController, itmMessenger: itmMessenger)
+    ///   - itmNativeUI: The ``ITMNativeUI`` used to present the action sheet.
+    override init(itmNativeUI: ITMNativeUI) {
+        super.init(itmNativeUI: itmNativeUI)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet") { (params: [String: Any]) -> Promise<String?> in
             if self.viewController == nil {
                 return Promise.value(nil)

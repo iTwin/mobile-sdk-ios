@@ -55,13 +55,19 @@ public extension CGRect {
 /// Container class for all ``ITMNativeUIComponent`` objects.
 open class ITMNativeUI {
     private var components: [ITMNativeUIComponent] = []
+    /// The `UIViewController` that components display in.
+    public weak var viewController: UIViewController?
+    /// The ``ITMMessenger`` that sends messages to components, and optionally receives messages.
+    public var itmMessenger: ITMMessenger
     
     /// - Parameters:
     ///   - viewController: The `UIViewController` to display the native UI components in.
     ///   - itmMessenger: The ``ITMMessenger`` to communicate with the iTwin Mobile app's frontend.
     public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
-        components.append(ITMActionSheet(viewController: viewController, itmMessenger: itmMessenger))
-        components.append(ITMAlert(viewController: viewController, itmMessenger: itmMessenger))
+        self.viewController = viewController
+        self.itmMessenger = itmMessenger
+        components.append(ITMActionSheet(itmNativeUI: self))
+        components.append(ITMAlert(itmNativeUI: self))
 //        components.append(ITMDatePicker(viewController: viewController, itmMessenger: itmMessenger))
     }
 
@@ -81,27 +87,33 @@ open class ITMNativeUI {
 
 /// Base class for all UI components in ``ITMNativeUI``.
 open class ITMNativeUIComponent: NSObject {
+    /// The ``ITMNativeUI`` used to present the component.
+    public let itmNativeUI: ITMNativeUI
     /// The query handler handling messages from the iTwin Mobile app frontend.
     public var queryHandler: ITMQueryHandler?
-    /// The ``ITMMessenger`` that sends messages to this component, and optionally receives messages.
-    public var itmMessenger: ITMMessenger
-    /// The `UIViewController` that this component displays in.
-    public weak var viewController: UIViewController?
 
     /// - Parameters:
-    ///   - viewController: The `UIViewController` that this component displays in.
-    ///   - itmMessenger: The ``ITMMessenger`` that sends messages to this component, and optionally receives messages.
-    public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
-        self.viewController = viewController
-        self.itmMessenger = itmMessenger
+    ///   - itmNativeUI: The ``ITMNativeUI`` used to present the component.
+    public init(itmNativeUI: ITMNativeUI) {
+        self.itmNativeUI = itmNativeUI
         super.init()
     }
 
     /// Detach this component from its ``ITMMessenger``.
     public func detach() {
         if let queryHandler = queryHandler {
-            itmMessenger.unregisterQueryHandler(queryHandler)
+            self.itmMessenger.unregisterQueryHandler(queryHandler)
             self.queryHandler = nil
         }
+    }
+    
+    /// The `UIViewController` for this component; this comes from ``itmNativeUI``.
+    public var viewController: UIViewController? {
+        itmNativeUI.viewController
+    }
+    
+    /// The ``ITMMessenger`` this component uses to communicate with the iTwin Mobile app's frontend; this comes from ``itmNativeUI``.
+    public var itmMessenger: ITMMessenger {
+        itmNativeUI.itmMessenger
     }
 }

@@ -391,6 +391,13 @@ def do_command(args):
         for dir in sdk_dirs:
             subprocess.call(args, cwd=dir)
 
+def check_node_version():
+    print("Verifying that node version is 14.x")
+    results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
+    match = re.search('^v14\\.', results)
+    if not match:
+        raise Exception("Error: imodeljs 2.19.x requires Node 14.x. You have " + results.rstrip('\n') + ".")
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
@@ -485,6 +492,7 @@ if __name__ == '__main__':
 
     try:
         if hasattr(args, 'func'):
+            check_node_version()
             args.func(args)
         else:
             parser.print_help()

@@ -544,6 +544,13 @@ def add_common_stage_arguments(parser, new_mobile=True):
     parser.add_argument('-t', '--title', dest='title', help='Release title')
     parser.add_argument('--notes', dest='notes', help='Release notes')
 
+def check_node_version():
+    print("Verifying that node version is 16.x")
+    results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
+    match = re.search('^v16\\.', results)
+    if not match:
+        raise Exception("Error: Node 16.x required. You have " + results.rstrip('\n') + ".")
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
@@ -628,6 +635,7 @@ if __name__ == '__main__':
 
     try:
         if hasattr(args, 'func'):
+            check_node_version()
             args.func(args)
         else:
             parser.print_help()

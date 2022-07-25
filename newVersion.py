@@ -550,12 +550,10 @@ def check_node_version():
     print("Verifying that node version is 16.x, with minimum of 16.11.")
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
     match = re.search('^v16\\.([0-9]+)\\.', results)
-    if not match:
-        raise Exception("Error: Node 16.x required. You have " + results.rstrip('\n') + ".")
+    if not match or int(match.group(1)) < 11:
+        raise Exception("Error: Node 16.x required, with minimum of 16.11. You have " + results.rstrip('\n') + ".")
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
-    if int(match.group(1)) < 11:
-        raise Exception("Error: Node 16.x required, with minimum of 16.11. You have " + results.rstrip('\n') + ".")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

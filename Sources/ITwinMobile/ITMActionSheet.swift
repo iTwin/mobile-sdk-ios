@@ -13,48 +13,50 @@ final public class ITMActionSheet: ITMNativeUIComponent {
     ///   - itmNativeUI: The ``ITMNativeUI`` used to present the action sheet.
     override init(itmNativeUI: ITMNativeUI) {
         super.init(itmNativeUI: itmNativeUI)
-        queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet") { (params: [String: Any]) -> Promise<String?> in
-            if self.viewController == nil {
-                return Promise.value(nil)
-            }
-            let (presentedPromise, presentedResolver) = Promise<String?>.pending()
-            if let actions = params["actions"] as? [[String: Any]] {
-                var actionSelected = false
-                let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
-                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
-                alert.onClose = {
-                    // When an action is selected, this gets called before the action's handler.
-                    // By running async in the main event queue, we delay processing this until
-                    // after the handler has had a chance to execute.
-                    DispatchQueue.main.async {
-                        if !actionSelected {
-                            // If no action has been selected, then the user tapped outside the popover on
-                            // an iPad. This cancels the action sheet.
-                            presentedResolver.fulfill(nil)
-                        }
-                    }
-                }
-                alert.popoverPresentationController?.sourceView = self.itmMessenger.webView
-                if let sourceRectDict = params["sourceRect"] as? [String: Any],
-                    let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
-                    alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
-                } else {
-                    // We shouldn't ever get here, but a 0,0 popover is better than an unhandled exception.
-                    assert(false)
-                    alert.popoverPresentationController?.sourceRect = CGRect()
-                }
-                for actionDict in actions {
-                    if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict),
-                        let actionStyle = ITMAlertActionStyle(rawValue: action.style) {
-                        alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(actionStyle)) { _ in
-                            actionSelected = true
-                            presentedResolver.fulfill(action.name)
-                        })
-                    }
-                }
-                self.viewController?.present(alert, animated: true)
-            }
-            return presentedPromise
+        queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet", handleQuery)
+    }
+
+    private func handleQuery(params: [String: Any]) -> Promise<String?> {
+        if self.viewController == nil {
+            return Promise.value(nil)
         }
+        let (presentedPromise, presentedResolver) = Promise<String?>.pending()
+        if let actions = params["actions"] as? [[String: Any]] {
+            var actionSelected = false
+            let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
+            alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
+            alert.onClose = {
+                // When an action is selected, this gets called before the action's handler.
+                // By running async in the main event queue, we delay processing this until
+                // after the handler has had a chance to execute.
+                DispatchQueue.main.async {
+                    if !actionSelected {
+                        // If no action has been selected, then the user tapped outside the popover on
+                        // an iPad. This cancels the action sheet.
+                        presentedResolver.fulfill(nil)
+                    }
+                }
+            }
+            alert.popoverPresentationController?.sourceView = self.itmMessenger.webView
+            if let sourceRectDict = params["sourceRect"] as? [String: Any],
+                let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
+                alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
+            } else {
+                // We shouldn't ever get here, but a 0,0 popover is better than an unhandled exception.
+                assert(false)
+                alert.popoverPresentationController?.sourceRect = CGRect()
+            }
+            for actionDict in actions {
+                if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict),
+                    let actionStyle = ITMAlertActionStyle(rawValue: action.style) {
+                    alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(actionStyle)) { _ in
+                        actionSelected = true
+                        presentedResolver.fulfill(action.name)
+                    })
+                }
+            }
+            self.viewController?.present(alert, animated: true)
+        }
+        return presentedPromise
     }
 }

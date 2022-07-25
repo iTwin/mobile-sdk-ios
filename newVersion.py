@@ -544,6 +544,7 @@ def add_common_stage_arguments(parser, new_mobile=True):
     parser.add_argument('-t', '--title', dest='title', help='Release title')
     parser.add_argument('--notes', dest='notes', help='Release notes')
 
+# We always want to publish our packages using Node 16, so check for that.
 def check_node_version():
     print("Verifying that node version is 16.x")
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')

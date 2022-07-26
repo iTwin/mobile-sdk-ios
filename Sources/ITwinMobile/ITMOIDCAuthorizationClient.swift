@@ -11,14 +11,19 @@ import AppAuth
 import AppAuthCore
 #endif
 
-public struct ITMAuthSettings {
+// MARK: - Helpers
+
+/// A struct to hold the settings used by ITMOIDCAuthorizationClient
+public struct ITMOIDCAuthSettings {
     public var issuerUrl: String
     public var clientId: String
     public var redirectUrl: String
     public var scope: String
 }
 
-public typealias AuthorizationClientCallback = (Error?) -> ()
+public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> ()
+
+// MARK: - ITMOIDCAuthorizationClient class
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
@@ -28,7 +33,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public let errorDomain = "com.bentley.itwin-mobile-sdk"
 
     /// The AuthSettings object from imodeljs.
-    public var authSettings: ITMAuthSettings?
+    public var authSettings: ITMOIDCAuthSettings?
     public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
@@ -59,7 +64,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
         let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
         let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs"
-        authSettings = ITMAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
+        authSettings = ITMOIDCAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
         
         if checkSettings() != nil {
             return nil
@@ -175,7 +180,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
 
     /// Refreshes the user's access token.
     /// - Parameter completion: Callback to call upon success or error.
-    open func refreshAccessToken(_ completion: @escaping AuthorizationClientCallback) {
+    open func refreshAccessToken(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
         guard let authState = authState else {
             signIn() { error in
                 if let error = error {
@@ -207,7 +212,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     ///   - clientID: The imodeljs app's clientID.
     ///   - clientSecret: The optional clientSecret.
     ///   - completion: The callback to call upon success or error.
-    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping AuthorizationClientCallback) {
+    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping ITMOIDCAuthorizationClientCallback) {
         guard let authSettings = authSettings else {
             completion(error(reason: "ITMOIDCAuthorizationClient: not initialized"))
             return
@@ -385,7 +390,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
     }
 
-    open func signIn(_ completion: @escaping AuthorizationClientCallback) {
+    open func signIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
         if let error = checkSettings() {
             completion(error)
             return
@@ -429,7 +434,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
     }
 
-    open func signOut(_ completion: @escaping AuthorizationClientCallback) {
+    open func signOut(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
         if let error = checkSettings() {
             completion(error)
             return

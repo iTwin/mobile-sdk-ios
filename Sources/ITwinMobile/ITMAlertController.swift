@@ -5,6 +5,8 @@
 
 import UIKit
 
+// MARK: - Helper class used by ITMAlertController
+
 class ITMErrorViewController: UIViewController {
     public static var statusBarStyle: UIStatusBarStyle = .default
     public static var statusBarHidden = false
@@ -17,6 +19,8 @@ class ITMErrorViewController: UIViewController {
         return ITMErrorViewController.statusBarHidden
     }
 }
+
+// MARK: - ITMAlertController class
 
 /// `UIAlertController` subclass that hides the status bar by default and presents on top of everything else.
 open class ITMAlertController: UIAlertController {

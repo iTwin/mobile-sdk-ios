@@ -7,7 +7,8 @@ import IModelJsNative
 import PromiseKit
 import WebKit
 
-// MARK: - JSON convenience
+// MARK: - JSON convenience functionality
+
 /// Convenience type alias for a dictionary intended for interop via JSON.
 public typealias JSON = [String: Any]
 
@@ -38,6 +39,8 @@ public extension JSON {
         return self[key] as? String == "YES"
     }
 }
+
+// MARK: - ITMApplication class
 
 /// Main class for interacting with one iTwin Mobile web app.
 /// - Note: Most applications will override this class in order to customize the behavior and register for messages.
@@ -449,7 +452,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
 
-    // MARK: - ITMApplication (WebView) presentation
+    // MARK: ITMApplication (WebView) presentation
 
     /// Top view for presenting iTwin Mobile web app in dormant state.
     /// Override this function in a subclass in order to add custom behavior.
@@ -525,7 +528,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         addApplicationToView(nil)
     }
 
-    // MARK: - WKUIDelegate Methods
+    // MARK: WKUIDelegate Methods
 
     /// See `WKUIDelegate` documentation.
     /// Override this function in a subclass in order to add custom behavior.
@@ -598,7 +601,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return WKWebView(frame: webView.frame, configuration: configuration)
     }
 
-    // MARK: - WKNavigationDelegate
+    // MARK: WKNavigationDelegate
 
     /// Handle necessary actions after the frontend web page is loaded (or reloaded).
     /// See `WKNavigationDelegate` documentation.
@@ -623,6 +626,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         itmMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")
     }
 }
+
+// MARK: - ITMApplication.HashParams convenience extension
 
 /// Extension allowing a ``ITMApplication.HashParams`` to be converted into a string.
 public extension ITMApplication.HashParams {

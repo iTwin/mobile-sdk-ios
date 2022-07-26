@@ -12,6 +12,8 @@ import PMKCoreLocation
 #endif
 import WebKit
 
+// MARK: - Structs for Geolocation related JS objects
+
 // Note: The defintion of these structs represent Geolocation related objects available
 // in most browsers. The objective of these structs is to map values between
 // CoreLocation and objects expected by the browser API (window.navigator.geolocation)
@@ -65,6 +67,8 @@ public struct GeolocationPositionError: Codable {
     }
 }
 
+// MARK: - CoreLocation extensions
+
 /// Extension to `CLLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
 public extension CLLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object converted to a JSON-compatible dictionary..
@@ -104,6 +108,8 @@ public extension CLLocation {
     }
 }
 
+// MARK: - ITMGeolocationManagerDelegate protocol
+
 /// Methods for getting more information from and exerting more contol over an ``ITMGeolocationManager`` object.
 public protocol ITMGeolocationManagerDelegate: AnyObject {
     /// Called to determine whether or not to call `ITMDevicePermissionsHelper.openLocationAccessDialog`.
@@ -138,6 +144,8 @@ public protocol ITMGeolocationManagerDelegate: AnyObject {
     func geolocationManager(_ manager: ITMGeolocationManager, willWatchPosition position: Int64)
 }
 
+// MARK: - ITMGeolocationManagerDelegate extension with default implementations
+
 /// Default implemenation for pseudo-optional ITMGeolocationManagerDelegate protocol functions.
 public extension ITMGeolocationManagerDelegate {
     /// This default implementation always returns true.
@@ -157,6 +165,8 @@ public extension ITMGeolocationManagerDelegate {
         //do nothing
     }
 }
+
+// MARK: - ITMGeolocationManager class
 
 /// Class for the native-side implementation of a `navigator.geolocation` polyfill.
 public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScriptMessageHandler {
@@ -453,7 +463,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    // MARK: - CLLocationManagerDelegate
+    // MARK: CLLocationManagerDelegate
     
     /// `CLLocationManagerDelegate` function that reports location updates to the JavaScript side of the polyfill.
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

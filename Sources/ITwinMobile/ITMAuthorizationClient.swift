@@ -5,6 +5,8 @@
 
 import IModelJsNative
 
+// MARK: - ITMAuthorizationClient protocol
+
 /// Protocol that extends `AuthorizationClient` with convenience functionality. A default extension to this protocol implements both of the provided functions.
 public protocol ITMAuthorizationClient: AuthorizationClient {
     /// The default domain to use in the ``error(domain:code:reason:)-7jgxz`` function.
@@ -21,6 +23,8 @@ public protocol ITMAuthorizationClient: AuthorizationClient {
     /// - Note: This also calls `getAccessToken` to get the current token and expirationDate in order to call `onAccessTokenChanged`.
     func raiseOnAccessTokenChanged()
 }
+
+// MARK: - ITMAuthorizationClient extension with default implementations
 
 /// Extension that provides default implementation for the functions in the `ITMAuthorizationClient` protocol.
 public extension ITMAuthorizationClient {

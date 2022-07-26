@@ -85,6 +85,8 @@ open class ITMNativeUI {
     }
 }
 
+// MARK: - ITMNativeUI class
+
 /// Base class for all UI components in ``ITMNativeUI``.
 open class ITMNativeUIComponent: NSObject {
     /// The ``ITMNativeUI`` used to present the component.

@@ -9,6 +9,8 @@ import PMKFoundation
 #endif
 import WebKit
 
+// MARK: - Convenience extensions
+
 extension String {
     /// Convert a String into BASE64-encoded UTF-8 data.
     func toBase64() -> String {
@@ -68,6 +70,8 @@ internal extension JSONSerialization {
     }
 }
 
+// MARK: - ITMQueryHandler protocol
+
 /// Protocol for ITMMessenger query handlers.
 public protocol ITMQueryHandler: NSObjectProtocol {
     /// Called when a query arrives from TypeScript.
@@ -83,12 +87,16 @@ public protocol ITMQueryHandler: NSObjectProtocol {
     func getQueryType() -> String?
 }
 
+// MARK: - ITMQueryHandler extension with default implementation
+
 public extension ITMQueryHandler {
     /// This default implementation always returns `nil`.
     func getQueryType() -> String? {
         return nil
     }
 }
+
+// MARK: - ITMWeakScriptMessageHandler class
 
 /// Because the WKWebView has a strong reference to any WKScriptMessageHandler
 /// objects attached to its userContentController, and ITMMessenger has a
@@ -106,6 +114,8 @@ public class ITMWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
         delegate?.userContentController(userContentController, didReceive: message)
     }
 }
+
+// MARK: - ITMError class
 
 /// Error with a JSON-encoded string with information about what went wrong.
 open class ITMError: Error {
@@ -136,6 +146,8 @@ open class ITMError: Error {
         return promise
     }
 }
+
+// MARK: - ITMMessenger class
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
 open class ITMMessenger: NSObject, WKScriptMessageHandler {

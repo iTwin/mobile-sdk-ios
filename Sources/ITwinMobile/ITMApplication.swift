@@ -17,7 +17,7 @@ public extension JSON {
     /// Deserializes passed String and returns Dictionary representing the JSON object encoded in the string
     /// - Parameters:
     ///   - jsonString: string to parse and convert to Dictionary
-    ///   - encoding: encoding of the source `jsonString`. Defaults to UTF8.
+    ///   - encoding: encoding of the source ``jsonString``. Defaults to UTF8.
     /// - Returns: Dictionary representation of the JSON string
     static func fromString(_ jsonString: String?, _ encoding: String.Encoding = String.Encoding.utf8) -> JSON? {
         if jsonString == nil {
@@ -105,7 +105,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
     /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
-    /// may lead to deadlock. This is done automatically in `loadFrontend`.
+    /// may lead to deadlock. This is done automatically in ``loadFrontend()``.
     public let backendLoadingDispatchGroup = DispatchGroup()
     private var backendLoaded = false
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
@@ -218,7 +218,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Creates an ``ITMMessenger`` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter webView: The `WKWebView` to which to attach the ``ITMMessenger``.
-    /// - Returns: An ``ITMMessenger`` object attached to `webView`.
+    /// - Returns: An ``ITMMessenger`` object attached to ``webView``.
     open class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
         return ITMMessenger(webView)
     }
@@ -226,14 +226,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Creates an ``ITMWebViewLogger`` for use with an iTwin Mobile web app.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter webView: The `WKWebView` to which to attach the ``ITMWebViewLogger``.
-    /// - Returns: An ``ITMWebViewLogger`` object attached to `webView`.
+    /// - Returns: An ``ITMWebViewLogger`` object attached to ``webView``.
     open class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger {
         let webViewLogger = ITMWebViewLogger(name: "ITMApplication Logger")
         return webViewLogger
     }
 
     /// Registers a handler for the given query from the web view.
-    /// You can use `unregisterQueryHandler` to unregister this at any time. Otherwise, it will be automatically unregistered when
+    /// You can use ``unregisterQueryHandler(_:)`` to unregister this at any time. Otherwise, it will be automatically unregistered when
     /// this ``ITMApplication`` is destroyed.
     /// - Parameters:
     ///   - type: The query type used by the JavaScript code to perform the query.
@@ -243,8 +243,21 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         queryHandlers.append(queryHandler)
     }
 
+    /// Registers a handler for the given message from the web view.
+    /// You can use ``unregisterQueryHandler(_:)`` to unregister this at any time. Otherwise, it will be automatically unregistered when
+    /// this ``ITMApplication`` is destroyed.
+    /// - Note: Unlike query handlers, message handlers do not return any results to the web view. That is the only difference
+    ///         between this and ``registerQueryHandler(_:_:)``.
+    /// - Parameters:
+    ///   - type: The message type used by the JavaScript code to send the message.
+    ///   - handler: The handler for the message.
+    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) -> ()) {
+        let queryHandler = itmMessenger.registerMessageHandler(type, handler)
+        queryHandlers.append(queryHandler)
+    }
+
     /// Unregisters a handler for the given query from the web view.
-    /// - Note: This can only be used to unregister a handler that was previously registered using `registerQueryHandler`.
+    /// - Note: This can only be used to unregister a handler that was previously registered using ``registerQueryHandler(_:_:)`` or ``registerMessageHandler(_:_:)``.
     /// - Parameter type: The type used when the query was registered.
     /// - Returns: true if the given query was previously registered (and thus unregistered here), or false otherwise.
     public func unregisterQueryHandler(_ type: String) -> Bool {
@@ -289,7 +302,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "\(type(of: self).getWebAppDir())/backend")!
     }
 
-    /// Gets the base URL string for the frontend. `loadFrontend` will automatically add necessary hash parameters to this URL string.
+    /// Gets the base URL string for the frontend. ``loadFrontend()`` will automatically add necessary hash parameters to this URL string.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
@@ -319,7 +332,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// If your application handles authorization on its own, create a class that implements the `AuthorizationClient` protocol
     /// to handle authorization.
-    /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using `configData`.
+    /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using ``configData``.
     open func createAuthClient() -> AuthorizationClient? {
         guard let viewController = type(of: self).topViewController else {
             return nil
@@ -340,7 +353,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// | ITMAPPLICATION\_MESSAGE\_LOGGING | Set to YES to have ITMMessenger log message traffic between JavaScript and Swift. |
     /// | ITMAPPLICATION\_FULL\_MESSAGE\_LOGGING | Set to YES to include full message data in the ITMMessenger message logs. (__Do not use in production.__) |
     /// Note: Other keys may be present but are ignored by iTwin Mobile SDK. For example, the iTwin Mobile SDK sample apps include keys with an `ITMSAMPLE_` prefix.
-    /// - Returns: The parsed contents of ITMAppConfig.json in the main bundle in the directory returned by `getWebAppDir`.
+    /// - Returns: The parsed contents of ITMAppConfig.json in the main bundle in the directory returned by ``getWebAppDir()``.
     open func loadITMAppConfig() -> JSON? {
         if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: type(of: self).getWebAppDir()),
             let configString = try? String(contentsOf: configUrl),

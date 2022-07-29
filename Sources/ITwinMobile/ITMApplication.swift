@@ -131,11 +131,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webView.uiDelegate = self
         webView.navigationDelegate = self
         backendLoadingDispatchGroup.enter()
-        registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> Promise<()> in
+        registerMessageHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> () in
             if let preferredColorScheme = params["preferredColorScheme"] as? Int {
                 ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
-            return Promise.value(())
         }
         configData = loadITMAppConfig()
         if let configData = configData {

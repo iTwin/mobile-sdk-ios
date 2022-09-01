@@ -22,9 +22,9 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     public func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         let fileUrl = getFileUrl(urlSchemeTask: urlSchemeTask)
         if fileUrl != nil {
-            type(of: self).respondWithDiskFile(urlSchemeTask: urlSchemeTask, fileUrl: fileUrl!)
+            Self.respondWithDiskFile(urlSchemeTask: urlSchemeTask, fileUrl: fileUrl!)
         } else {
-            type(of: self).cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
+            Self.cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
         }
     }
     

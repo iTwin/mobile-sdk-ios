@@ -123,9 +123,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     
     /// Creates an ``ITMApplication``
     required public override init() {
-        webView = type(of: self).createEmptyWebView()
-        webViewLogger = type(of: self).createWebViewLogger(webView)
-        itmMessenger = type(of: self).createITMMessenger(webView)
+        // Self (capital S) is equivalent to type(of: self)
+        webView = Self.createEmptyWebView()
+        webViewLogger = Self.createWebViewLogger(webView)
+        itmMessenger = Self.createITMMessenger(webView)
         geolocationManager = ITMGeolocationManager(itmMessenger: itmMessenger, webView: webView)
         super.init()
         webView.uiDelegate = self
@@ -298,7 +299,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: A file URL to the main.js file for the iTwin Mobile web app's backend.
     open func getBackendUrl() -> URL {
-        return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "\(type(of: self).getWebAppDir())/backend")!
+        return Bundle.main.url(forResource: "main", withExtension: "js", subdirectory: "\(Self.getWebAppDir())/backend")!
     }
 
     /// Gets the base URL string for the frontend. ``loadFrontend()`` will automatically add necessary hash parameters to this URL string.
@@ -333,7 +334,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// to handle authorization.
     /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using ``configData``.
     open func createAuthClient() -> AuthorizationClient? {
-        guard let viewController = type(of: self).topViewController else {
+        guard let viewController = Self.topViewController else {
             return nil
         }
         return ITMOIDCAuthorizationClient(itmApplication: self, viewController: viewController, configData: configData ?? [:])
@@ -354,7 +355,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Note: Other keys may be present but are ignored by iTwin Mobile SDK. For example, the iTwin Mobile SDK sample apps include keys with an `ITMSAMPLE_` prefix.
     /// - Returns: The parsed contents of ITMAppConfig.json in the main bundle in the directory returned by ``getWebAppDir()``.
     open func loadITMAppConfig() -> JSON? {
-        if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: type(of: self).getWebAppDir()),
+        if let configUrl = Bundle.main.url(forResource: "ITMAppConfig", withExtension: "json", subdirectory: Self.getWebAppDir()),
             let configString = try? String(contentsOf: configUrl),
             let configData = JSON.fromString(configString) {
             return configData
@@ -451,7 +452,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                                         ITMAlertController.doneWithAlertWindow()
                                     }))
                                     alert.modalPresentationCapturesStatusBarAppearance = true
-                                    type(of: self).topViewController?.present(alert, animated: true, completion: nil)
+                                    Self.topViewController?.present(alert, animated: true, completion: nil)
                                 }
                             }
                         }
@@ -498,7 +499,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hid the iTwin Mobile app.
     open func addApplicationToView(_ view: UIView?) {
-        guard let parentView = view ?? type(of: self).topView else {
+        guard let parentView = view ?? Self.topView else {
             return
         }
         dormant = view == nil ? true : false

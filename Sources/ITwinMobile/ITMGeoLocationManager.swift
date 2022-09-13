@@ -5,11 +5,7 @@
 
 import CoreLocation
 import Foundation
-import PromiseKit
-#if SWIFT_PACKAGE
-import PMKFoundation
-import PMKCoreLocation
-#endif
+import AsyncLocationKit
 import WebKit
 
 // MARK: - Structs for Geolocation related JS objects
@@ -69,23 +65,38 @@ public struct GeolocationPositionError: Codable {
 
 // MARK: - CoreLocation extensions
 
-/// Extension to `CLLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
-public extension CLLocationManager {
+/// Extension to `AsyncLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
+public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object converted to a JSON-compatible dictionary..
-    /// - Returns: `Promise` that when resolved contains a ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
-    ///            The `Promise` is rejected if there is an error looking up the position.
-    static func geolocationPosition() -> Promise<[String: Any]> {
-        firstly {
-            // NOTE: authorizationType: .whenInUse is REQUIRED below. The .automatic
-            // option does not work right. See here:
-            // https://dev.azure.com/bentleycs/beconnect/_workitems/edit/334106
-            CLLocationManager.requestLocation(authorizationType: .whenInUse)
-        }.then { (locations: [CLLocation]) -> Promise<[String: Any]> in
-            if let location = locations.last {
-                return try Promise.value(location.geolocationPosition())
-            }
-            throw ITMError(json: ["message": "Locations list empty."])
+    /// - Throws: Throws if there is anything that prevents the position lookup from working.
+    /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
+    func geolocationPosition() async throws -> [String: Any] {
+        let permission = await requestAuthorizationWhenInUse()
+        if permission != .authorizedAlways, permission != .authorizedWhenInUse {
+            throw ITMError(json: ["message": "Permission denied."])
         }
+        return try await withCheckedThrowingContinuation({ (continuation: CheckedContinuation<[String: Any], Error>) in
+            Task {
+                let locationUpdateEvent = try await requestLocation()
+                switch locationUpdateEvent {
+                case .didUpdateLocations(locations: let locations):
+                    if let location = locations.last {
+                        do {
+                            let result = try location.geolocationPosition()
+                            continuation.resume(returning: result)
+                        } catch let error {
+                            continuation.resume(throwing: error)
+                        }
+                    } else {
+                        continuation.resume(throwing: ITMError(json: ["message": "Locations list empty."]))
+                    }
+                case .didFailWith(error: let error):
+                    continuation.resume(throwing: error)
+                default:
+                    continuation.resume(throwing: ITMError(json: ["message": "Error getting location."]))
+                }
+            }
+        })
     }
 }
 
@@ -180,6 +191,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
     var itmMessenger: ITMMessenger
+    private var _asyncLocationManager: AsyncLocationManager?
     var webView: WKWebView
     private var orientationObserver: Any?
     private var isUpdatingPosition = false
@@ -270,47 +282,33 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func requestAuth() -> Promise<()> {
-        return firstly {
-            // NOTE 1: We don't really want the location here, but PromiseKit's
-            // CLLocationManager.requestLocation() automatically handles all of the
-            // authorization requesting, and there is a lot of (private) code behind
-            // that. So, instead of copying all of that code into here, we instead
-            // ask for a location but then ignore the result. If there is an
-            // authorization error, our return Promise will be rejected.
-            // NOTE 2: authorizationType: .whenInUse is REQUIRED below. The .automatic
-            // option does not work right. See here:
-            // https://dev.azure.com/bentleycs/beconnect/_workitems/edit/334106
-            CLLocationManager.requestLocation(authorizationType: .whenInUse)
-        }.map { _ -> () in
-            ()
-        }.recover { error -> Promise<()> in
-            if let pmkError = error as? CLLocationManager.PMKError, pmkError == CLLocationManager.PMKError.notAuthorized {
-                throw ITMError()
-            }
-            // If we get an error other than PMKError.notAuthorized, it means that the
-            // authorization portion of the requestLocation succeeded, so ignore the
-            // error and let it get handled later.
-            return Promise.value(())
+    private func requestAuth() async throws -> () {
+        let permission = await asyncLocationManager.requestAuthorizationWhenInUse()
+        if permission != .authorizedAlways, permission != .authorizedWhenInUse {
+            throw ITMError(json: ["message": "Permission denied."])
         }
     }
 
     /// Ask the user for location authorization if not already granted.
-    /// - Returns: `Promise` with no data that resolves if authorization is granted, or rejects if authorization is denied.
-    public func checkAuth() -> Promise<()> {
+    /// - Throws: Throws an exception if the user does not grant access.
+    public func checkAuth() async throws -> () {
         switch CLLocationManager.authorizationStatus() {
         case .authorizedAlways, .authorizedWhenInUse:
-            return Promise.value(())
+            return
         case .notDetermined:
-            return requestAuth()
-        case .denied, .restricted:
-            return Promise(error: ITMError())
+            return try await requestAuth()
         default:
-            return Promise(error: ITMError())
+            throw ITMError(json: ["message": "Permission denied."])
         }
     }
 
     private func watchPosition(_ message: [String: Any]) {
+        Task {
+            await watchPositionAsync(message)
+        }
+    }
+
+    private func watchPositionAsync(_ message: [String: Any]) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "watchPosition error: no Int64 positionId in request.")
@@ -327,14 +325,13 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             return
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
-        firstly {
-            checkAuth()
-        }.done {
+        do {
+            try await checkAuth()
             self.watchIds.insert(positionId)
             if self.watchIds.count == 1 {
                 self.startUpdatingPosition()
             }
-        }.catch { _ in
+        } catch {
             self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
         }
     }
@@ -387,7 +384,33 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         itmMessenger.evaluateJavaScript(js)
     }
 
+    private func initAsyncLocationManager() {
+        if _asyncLocationManager == nil {
+            _asyncLocationManager = AsyncLocationManager(desiredAccuracy: .bestAccuracy)
+        }
+    }
+
+    /// This ``ITMGeolocationManager``'s `AsyncLocationManager`. If this has not yet been initialized, that happens automatically in the main thread.
+    public var asyncLocationManager: AsyncLocationManager {
+        get {
+            if Thread.isMainThread {
+                initAsyncLocationManager()
+            } else {
+                DispatchQueue.main.sync {
+                    self.initAsyncLocationManager()
+                }
+            }
+            return self._asyncLocationManager!
+        }
+    }
+
     private func getCurrentPosition(_ message: [String: Any]) {
+        Task {
+            await getCurrentPositionAsync(message)
+        }
+    }
+
+    private func getCurrentPositionAsync(_ message: [String: Any]) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "getCurrentPosition error: no Int64 positionId in request.")
@@ -406,16 +429,15 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
 
         delegate?.geolocationManager(self, willGetCurrentPosition: positionId)
-        firstly {
-            CLLocationManager.geolocationPosition()
-        }.done { position in
+        do {
+            let position = try await asyncLocationManager.geolocationPosition()
             let message: [String: Any] = [
                 "positionId": positionId,
                 "position": position
             ]
             let js = "window.Bentley_ITMGeolocationResponse('getCurrentPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
             self.itmMessenger.evaluateJavaScript(js)
-        }.catch { error in
+        } catch {
             var errorJson: [String: Any]
             self.stopUpdatingPosition()
             // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
@@ -427,12 +449,17 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func sendLocationUpdates() {
+        Task {
+            await sendLocationUpdatesAsync()
+        }
+    }
+
+    private func sendLocationUpdatesAsync() async {
         if !isUpdatingPosition {
             return
         }
-        firstly {
-            checkAuth()
-        }.done {
+        do {
+            try await checkAuth()
             if let lastLocation = self.locationManager.location {
                 var positionJson: [String: Any]?
                 do {
@@ -455,7 +482,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                     }
                 }
             }
-        }.catch { _ in
+        } catch {
             let errorJson = self.notAuthorizedError
             for positionId in self.watchIds {
                 self.sendError("watchPosition", positionId: positionId, errorJson: errorJson)

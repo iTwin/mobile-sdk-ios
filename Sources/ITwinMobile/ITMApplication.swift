@@ -4,7 +4,6 @@
 *--------------------------------------------------------------------------------------------*/
 
 import IModelJsNative
-import PromiseKit
 import WebKit
 
 // MARK: - JSON convenience functionality
@@ -169,10 +168,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 if let messenger = self?.itmMessenger,
                    let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
                    let keyboardSize = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
-                    messenger.queryAndShowError(viewController, value, [
-                        "duration": duration,
-                        "height": keyboardSize.size.height
-                    ])
+                    Task {
+                        await messenger.queryAndShowError(viewController, value, [
+                            "duration": duration,
+                            "height": keyboardSize.size.height
+                        ])
+                    }
                 }
             }))
         }
@@ -238,7 +239,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameters:
     ///   - type: The query type used by the JavaScript code to perform the query.
     ///   - handler: The handler for the query.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) {
+    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) {
         let queryHandler = itmMessenger.registerQueryHandler(type, handler)
         queryHandlers.append(queryHandler)
     }
@@ -251,7 +252,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameters:
     ///   - type: The message type used by the JavaScript code to send the message.
     ///   - handler: The handler for the message.
-    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) -> ()) {
+    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) async throws -> ()) {
         let queryHandler = itmMessenger.registerMessageHandler(type, handler)
         queryHandlers.append(queryHandler)
     }

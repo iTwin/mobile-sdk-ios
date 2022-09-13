@@ -3,7 +3,6 @@
 * See LICENSE.md in the project root for license terms and full copyright notice.
 *--------------------------------------------------------------------------------------------*/
 
-import PromiseKit
 import UIKit
 import WebKit
 
@@ -33,7 +32,7 @@ struct ITMAlertAction: Codable, Equatable {
     // Note: UIAlertAction's title is in theory optional. However, if the title is missing when used in an action sheet
     // on an iPad, it will ALWAYS throw an exception. So title here is not optional.
     let title: String
-    let style: String
+    let style: ITMAlertActionStyle
 }
 
 // MARK: - ITMAlert class
@@ -47,32 +46,38 @@ final public class ITMAlert: ITMNativeUIComponent {
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentAlert", handleQuery)
     }
 
-    private func handleQuery(params: [String: Any]) -> Promise<String> {
-        let (presentedPromise, presentedResolver) = Promise<String>.pending()
-        if viewController == nil {
-            presentedResolver.reject(ITMError())
-        } else {
-            if let actions = params["actions"] as? [[String: Any]] {
-                let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
-                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
-                if actions.isEmpty {
-                    presentedResolver.reject(ITMError())
-                } else {
-                    for actionDict in actions {
-                        if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict),
-                            let actionStyle = ITMAlertActionStyle(rawValue: action.style) {
-                            alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(actionStyle)) { _ in
-                                presentedResolver.fulfill(action.name)
-                            })
-                        }
-                    }
-                    alert.modalPresentationCapturesStatusBarAppearance = true
-                    viewController?.present(alert, animated: true, completion: nil)
-                }
+    static func extractActions(params: [String: Any], errorPrefix: String) throws -> [ITMAlertAction] {
+        guard let actions = params["actions"] as? [[String: Any]], !actions.isEmpty else {
+            throw ITMError(json: ["message": "\(errorPrefix): actions must be present and not empty"])
+        }
+        var alertActions: [ITMAlertAction] = []
+        for actionDict in actions {
+            if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict) {
+                alertActions.append(action)
             } else {
-                presentedResolver.reject(ITMError())
+                throw ITMError(json: ["message": "\(errorPrefix): invalid action"])
             }
         }
-        return presentedPromise
+        return alertActions
+    }
+
+    private func handleQuery(params: [String: Any]) async throws -> String {
+        guard let viewController = viewController else {
+            throw ITMError(json: ["message": "ITMAlert: no view controller"])
+        }
+        let alertActions = try ITMAlert.extractActions(params: params, errorPrefix: "ITMAlert")
+        return await withCheckedContinuation({ (continuation: CheckedContinuation<String, Never>) in
+            DispatchQueue.main .async {
+                let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
+                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
+                for action in alertActions {
+                    alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in
+                        continuation.resume(returning: action.name)
+                    })
+                }
+                alert.modalPresentationCapturesStatusBarAppearance = true
+                viewController.present(alert, animated: true, completion: nil)
+            }
+        })
     }
 }

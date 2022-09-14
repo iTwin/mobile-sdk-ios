@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
     :file => "LICENSE"
   }
   s.platforms = {
-    :ios => "13.0"
+    :ios => "13.0",
     :osx => "12.0"
   }
   s.source_files = "Sources/**/*"

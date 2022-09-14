@@ -24,6 +24,8 @@ class ITMErrorViewController: UIViewController {
 
 /// `UIAlertController` subclass that hides the status bar by default and presents on top of everything else.
 open class ITMAlertController: UIAlertController {
+    /// Called from viewDidDisappear. Note that when an action is selected in an action sheet, this will be called
+    /// before the action's handler.
     var onClose: (() -> Void)?
     var rootBounds: CGRect?
     var deviceOrientation: UIDeviceOrientation?

@@ -67,7 +67,7 @@ final public class ITMAlert: ITMNativeUIComponent {
         }
         let alertActions = try ITMAlert.extractActions(params: params, errorPrefix: "ITMAlert")
         return await withCheckedContinuation({ (continuation: CheckedContinuation<String, Never>) in
-            DispatchQueue.main .async {
+            DispatchQueue.main.async {
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
                 alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
                 for action in alertActions {

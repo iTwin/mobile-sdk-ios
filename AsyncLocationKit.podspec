@@ -1,5 +1,5 @@
 Pod::Spec.new do |s|
-  s.name = "AsyncLoctionKit"
+  s.name = "AsyncLocationKit"
   s.version = "1.0.5"
   s.summary = "async/await CoreLocation"
   s.homepage = "https://github.com/AsyncSwift/AsyncLocationKit"

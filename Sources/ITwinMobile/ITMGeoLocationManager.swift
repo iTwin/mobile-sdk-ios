@@ -295,11 +295,11 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     private func watchPosition(_ message: [String: Any]) {
         Task {
-            await watchPositionAsync(message)
+            await watchPosition(message)
         }
     }
 
-    private func watchPositionAsync(_ message: [String: Any]) async {
+    private func watchPosition(_ message: [String: Any]) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "watchPosition error: no Int64 positionId in request.")
@@ -397,11 +397,11 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     private func getCurrentPosition(_ message: [String: Any]) {
         Task {
-            await getCurrentPositionAsync(message)
+            await getCurrentPosition(message)
         }
     }
 
-    private func getCurrentPositionAsync(_ message: [String: Any]) async {
+    private func getCurrentPosition(_ message: [String: Any]) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "getCurrentPosition error: no Int64 positionId in request.")
@@ -441,11 +441,11 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     private func sendLocationUpdates() {
         Task {
-            await sendLocationUpdatesAsync()
+            await sendLocationUpdates()
         }
     }
 
-    private func sendLocationUpdatesAsync() async {
+    private func sendLocationUpdates() async {
         if !isUpdatingPosition {
             return
         }

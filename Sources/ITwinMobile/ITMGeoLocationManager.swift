@@ -375,6 +375,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         itmMessenger.evaluateJavaScript(js)
     }
 
+    @MainActor
     private func initAsyncLocationManager() {
         if _asyncLocationManager == nil {
             _asyncLocationManager = AsyncLocationManager(desiredAccuracy: .bestAccuracy)
@@ -383,14 +384,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     /// This ``ITMGeolocationManager``'s `AsyncLocationManager`. If this has not yet been initialized, that happens automatically in the main thread.
     public var asyncLocationManager: AsyncLocationManager {
-        get {
-            if Thread.isMainThread {
-                initAsyncLocationManager()
-            } else {
-                DispatchQueue.main.sync {
-                    self.initAsyncLocationManager()
-                }
-            }
+        get async {
+            await initAsyncLocationManager()
             return self._asyncLocationManager!
         }
     }

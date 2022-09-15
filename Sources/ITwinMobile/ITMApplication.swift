@@ -79,6 +79,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public typealias HashParams = [HashParam]
     
     /// The `WKWebView` that the web app runs in.
+    @MainActor
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
     public let webViewLogger: ITMWebViewLogger

@@ -75,28 +75,19 @@ public extension AsyncLocationManager {
         if permission != .authorizedAlways, permission != .authorizedWhenInUse {
             throw ITMError(json: ["message": "Permission denied."])
         }
-        return try await withCheckedThrowingContinuation({ (continuation: CheckedContinuation<[String: Any], Error>) in
-            Task {
-                let locationUpdateEvent = try await requestLocation()
-                switch locationUpdateEvent {
-                case .didUpdateLocations(locations: let locations):
-                    if let location = locations.last {
-                        do {
-                            let result = try location.geolocationPosition()
-                            continuation.resume(returning: result)
-                        } catch let error {
-                            continuation.resume(throwing: error)
-                        }
-                    } else {
-                        continuation.resume(throwing: ITMError(json: ["message": "Locations list empty."]))
-                    }
-                case .didFailWith(error: let error):
-                    continuation.resume(throwing: error)
-                default:
-                    continuation.resume(throwing: ITMError(json: ["message": "Error getting location."]))
-                }
+        let locationUpdateEvent = try await requestLocation()
+        switch locationUpdateEvent {
+        case .didUpdateLocations(locations: let locations):
+            if let location = locations.last {
+                return try location.geolocationPosition()
+            } else {
+                throw ITMError(json: ["message": "Locations list empty."])
             }
-        })
+        case .didFailWith(error: let error):
+            throw error
+        default:
+            throw ITMError(json: ["message": "Error getting location."])
+        }
     }
 }
 

@@ -307,7 +307,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true {
-                ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
+                await ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
                     self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
                 }
             } else {
@@ -405,7 +405,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true {
-                ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
+                await ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
                     self.sendError("getCurrentPosition", positionId: positionId, errorJson: self.notAuthorizedError)
                 }
             } else {

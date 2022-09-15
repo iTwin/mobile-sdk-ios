@@ -29,7 +29,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         // It shouldn't be possible to get here with activeContinuation non-nil, but trigger a cancel of
         // any previous continuation just in case.
         resume(returning: nil)
-        return await withCheckedContinuation({ (continuation: CheckedContinuation<String?, Never>) in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             self.activeContinuation = continuation
             DispatchQueue.main.async {
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
@@ -62,6 +62,6 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                 }
                 viewController.present(alert, animated: true)
             }
-        })
+        }
     }
 }

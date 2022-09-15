@@ -66,7 +66,7 @@ final public class ITMAlert: ITMNativeUIComponent {
             throw ITMError(json: ["message": "ITMAlert: no view controller"])
         }
         let alertActions = try ITMAlert.extractActions(params: params, errorPrefix: "ITMAlert")
-        return await withCheckedContinuation({ (continuation: CheckedContinuation<String, Never>) in
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
             DispatchQueue.main.async {
                 let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
                 alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
@@ -76,8 +76,8 @@ final public class ITMAlert: ITMNativeUIComponent {
                     })
                 }
                 alert.modalPresentationCapturesStatusBarAppearance = true
-                viewController.present(alert, animated: true, completion: nil)
+                viewController.present(alert, animated: true)
             }
-        })
+        }
     }
 }

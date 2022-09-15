@@ -453,7 +453,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                                         ITMAlertController.doneWithAlertWindow()
                                     }))
                                     alert.modalPresentationCapturesStatusBarAppearance = true
-                                    Self.topViewController?.present(alert, animated: true, completion: nil)
+                                    Self.topViewController?.present(alert, animated: true)
                                 }
                             }
                         }
@@ -553,7 +553,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             ITMAlertController.doneWithAlertWindow()
         }))
         alert.modalPresentationCapturesStatusBarAppearance = true
-        ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
+        ITMAlertController.getAlertVC().present(alert, animated: true)
     }
 
     /// See `WKUIDelegate` documentation.
@@ -569,7 +569,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             ITMAlertController.doneWithAlertWindow()
         }))
         alert.modalPresentationCapturesStatusBarAppearance = true
-        ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
+        ITMAlertController.getAlertVC().present(alert, animated: true)
     }
 
     /// See `WKUIDelegate` documentation.
@@ -592,7 +592,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             ITMAlertController.doneWithAlertWindow()
         }))
         alert.modalPresentationCapturesStatusBarAppearance = true
-        ITMAlertController.getAlertVC().present(alert, animated: true, completion: nil)
+        ITMAlertController.getAlertVC().present(alert, animated: true)
     }
 
     /// Open the URL for the given navigation action.

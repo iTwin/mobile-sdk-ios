@@ -61,23 +61,22 @@ final public class ITMAlert: ITMNativeUIComponent {
         return alertActions
     }
 
+    @MainActor
     private func handleQuery(params: [String: Any]) async throws -> String {
         guard let viewController = viewController else {
             throw ITMError(json: ["message": "ITMAlert: no view controller"])
         }
         let alertActions = try ITMAlert.extractActions(params: params, errorPrefix: "ITMAlert")
         return await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
-            DispatchQueue.main.async {
-                let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
-                alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
-                for action in alertActions {
-                    alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in
-                        continuation.resume(returning: action.name)
-                    })
-                }
-                alert.modalPresentationCapturesStatusBarAppearance = true
-                viewController.present(alert, animated: true)
+            let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
+            alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
+            for action in alertActions {
+                alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in
+                    continuation.resume(returning: action.name)
+                })
             }
+            alert.modalPresentationCapturesStatusBarAppearance = true
+            viewController.present(alert, animated: true)
         }
     }
 }

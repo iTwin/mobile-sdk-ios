@@ -169,7 +169,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 }
                 let responseString = self.itmMessenger.jsonString(response)
                 self.itmMessenger.respondToQuery(queryId, responseString)
-            } catch let error {
+            } catch {
                 itmMessenger.respondToQuery(queryId, nil, error)
             }
             return true
@@ -595,7 +595,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private func internalQueryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {
         do {
             return try await internalQuery(type, data)
-        } catch let error {
+        } catch {
             _ = await ITMMessenger.errorHandler(vc, error)
             throw error
         }

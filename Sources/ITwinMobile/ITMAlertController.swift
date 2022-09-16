@@ -95,6 +95,10 @@ open class ITMAlertController: UIAlertController {
 
     open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
+        
+        // don't dismiss modal alerts as they stay in the center of the screen and should be handled by the user
+        if preferredStyle == .alert { return }
+
         if let deviceOrientation = deviceOrientation, deviceOrientation != UIDevice.current.orientation {
             dismiss(animated: true)
         }

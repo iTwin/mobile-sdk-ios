@@ -3,10 +3,6 @@
 * See LICENSE.md in the project root for license terms and full copyright notice.
 *--------------------------------------------------------------------------------------------*/
 
-import PromiseKit
-#if SWIFT_PACKAGE
-import PMKFoundation
-#endif
 import WebKit
 
 // MARK: - Convenience extensions
@@ -75,14 +71,14 @@ internal extension JSONSerialization {
 /// Protocol for ITMMessenger query handlers.
 public protocol ITMQueryHandler: NSObjectProtocol {
     /// Called when a query arrives from TypeScript.
-    /// You must eventually call `ITMMessenger.respondToQuery` (passing the given queryId) if you respond to a given query. You can do that after returning
-    /// true from this function, but you must do so once you are done with the query.
+    /// You must eventually call `ITMMessenger.respondToQuery` (passing the given queryId) if you respond to a given query. Return true after doing that.
+    /// - Note: If there is an error, call `ITMMessenger.respondToQuery` with a nil `responseJson` and an appropriate value for `error`.
     /// - Parameters:
     ///   - queryId: The query ID that must be sent back to TypeScript in the reponse.
     ///   - type: The query type.
     ///   - body: Optional message data sent from TypeScript.
     /// - Returns: true if you handle the given query, or false otherwise. If you return true, the query will not be passed to any other query handlers.
-    func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) -> Bool
+    func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) async -> Bool
     /// Gets the type of queries that this ``ITMQueryHandler`` handles.
     func getQueryType() -> String?
 }
@@ -137,14 +133,6 @@ open class ITMError: Error {
     public init(json: [String: Any]) {
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
     }
-    
-    /// Create and return a Promise of the given type that has already been rejected using the receiver as the error
-    /// - Returns: A Promise of the given type that has already been rejected using the receiver as the error.
-    public func rejectedPromise<T>() -> Promise<T> {
-        let (promise, resolver) = Promise<T>.pending()
-        resolver.reject(self)
-        return promise
-    }
 }
 
 // MARK: - ITMMessenger class
@@ -154,9 +142,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private class ITMWKQueryHandler<T, U>: NSObject, ITMQueryHandler {
         private var itmMessenger: ITMMessenger
         private var type: String
-        private var handler: (T) -> Promise<U>
+        private var handler: (T) async throws -> U
 
-        init(_ itmMessenger: ITMMessenger, _ type: String, _ handler: @escaping (T) -> Promise<U>) {
+        init(_ itmMessenger: ITMMessenger, _ type: String, _ handler: @escaping (T) async throws -> U) {
             self.itmMessenger = itmMessenger
             self.type = type
             self.handler = handler
@@ -166,23 +154,23 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             return type
         }
 
-        func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) -> Bool {
+        func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) async -> Bool {
             itmMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
-            let promise: Promise<U>
-            // swiftformat:disable void
-            if T.self == Void.self {
-                promise = handler(() as! T)
-            } else if let typedBody = body as? T {
-                promise = handler(typedBody)
-            } else {
-                itmMessenger.respondToQuery(queryId, nil)
-                return true
-            }
-            promise.done { response in
+            do {
+                let response: U
+                // swiftformat:disable void
+                if T.self == Void.self {
+                    response = try await handler(() as! T)
+                } else if let typedBody = body as? T {
+                    response = try await handler(typedBody)
+                } else {
+                    itmMessenger.respondToQuery(queryId, nil, ITMError(json: ["message": "Invalid input"]))
+                    return true
+                }
                 let responseString = self.itmMessenger.jsonString(response)
                 self.itmMessenger.respondToQuery(queryId, responseString)
-            }.catch { error in
-                self.itmMessenger.respondToQuery(queryId, nil, error)
+            } catch {
+                itmMessenger.respondToQuery(queryId, nil, error)
             }
             return true
         }
@@ -197,16 +185,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     /// Convenience typealias for a function that takes an optional string as input an returns void.
     public typealias ITMResponseHandler = (String?) -> ()
-    /// Convenience typealias for a function that takes an optional UIViewController and an Error and returns a Guarantee that resolves to void.
-    public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) -> Guarantee<()>
+    /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
+    public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> ()
 
     /// The webView associated with this ITMMessenger.
     open var webView: WKWebView
     /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
     /// The default handler simply logs the error using ITMApplication.logger.
-    public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) -> Guarantee<()> in
+    public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> () in
         ITMApplication.logger.log(.error, baseError.localizedDescription)
-        return Guarantee.value(())
     }
 
     // Note: queryId is static so that sequential WKMessageSenders that make use of the
@@ -230,8 +217,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private var queryResponseHandlers: [Int64: (success: ITMResponseHandler?, failure: ITMResponseHandler?)] = [:]
     private var jsQueue: [String] = []
     private var jsBusy = false
-    private var frontendLaunchPromise: Promise<()>
-    private var frontendLaunchResolver: Resolver<()>
+    private let frontendLaunchDispatchGroup = DispatchGroup()
+    private var frontendLaunchError: Error? = nil
 
     /// - Parameter webView: The WKWebView to which to attach this ITMMessageSender.
     public init(_ webView: WKWebView) {
@@ -245,7 +232,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         ITMMessenger.weakWebViews.append(weakWebView)
         self.webView = webView
         handlerNames = [queryName, queryResponseName]
-        (frontendLaunchPromise, frontendLaunchResolver) = Promise<()>.pending()
+        frontendLaunchDispatchGroup.enter()
         super.init()
         for handlerName in handlerNames {
             webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
@@ -260,46 +247,49 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
-    /// Send query and receive void response via Promise. Errors are shown automatically using errorHandler().
+    /// Send query and receive void response. Errors are shown automatically using ``errorHandler``, but not thrown.
     /// - Parameters:
     ///   - vc: if specified, is checked for visiblity and only then error is shown. View controller that displays error dialog if still visible. Errors shown globally if nil.
     ///   - type: query type.
     ///   - data: optional request data to send.
-    /// - Returns: A void promise that completes when the query has been handled by the TypeScript code.
-    @discardableResult
-    public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) -> Promise<()> {
-        return internalQueryAndShowError(vc, type, data)
+    public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async -> () {
+        do {
+            return try await internalQueryAndShowError(vc, type, data)
+        } catch {
+            // Ignore error (it has been shown, and we aren't being asked to produce a return value that we don't have.)
+        }
     }
 
-    /// Send message and receive parsed typed response via Promise. Errors are shown automatically using errorHandler().
+    /// Send message and receive an async parsed typed response. Errors are shown automatically using ``errorHandler``.
+    /// - Throws: If the query produces an error, it is thrown after being shown to the user via ``errorHandler``.
     /// - Parameters:
     ///   - vc: if specified, is checked for visiblity and only then error is shown. View controller that displays error dialog if still visible. Errors shown globally if nil.
     ///   - type: query type.
     ///   - data: optional request data to send.
-    /// - Returns: A promise that completes with the value returned by the TypeScript code.
+    /// - Returns: The value returned by the TypeScript code.
     @discardableResult
-    public func queryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) -> Promise<T> {
-        return internalQueryAndShowError(vc, type, data)
+    public func queryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {
+        return try await internalQueryAndShowError(vc, type, data)
     }
 
-    /// Send message and receive void response via Promise. Errors cause the returned promise to reject.
+    /// Send message with no response.
+    /// - Throws: Throws an error if there is a problem.
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    /// - Returns: A void promise that completes when the query has been handled by the TypeScript code.
-    @discardableResult
-    public func query(_ type: String, _ data: Any? = nil) -> Promise<()> {
-        return internalQuery(type, data)
+    public func query(_ type: String, _ data: Any? = nil) async throws -> () {
+        return try await internalQuery(type, data)
     }
 
-    /// Send message and receive parsed typed response via Promise. Errors cause the returned promise to reject.
+    /// Send message and receive an async parsed typed response.
+    /// - Throws: Throws an error if there is a problem.
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    /// - Returns: A promise that completes with the value returned by the TypeScript code.
+    /// - Returns: The value returned by the TypeScript code.
     @discardableResult
-    public func query<T>(_ type: String, _ data: Any? = nil) -> Promise<T> {
-        return internalQuery(type, data)
+    public func query<T>(_ type: String, _ data: Any? = nil) async throws -> T {
+        return try await internalQuery(type, data)
     }
 
     /// Register specific query handler for the given query type. Returns created handler, use it with ``unregisterQueryHandler(_:)``
@@ -307,7 +297,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - type: query type.
     ///   - handler: callback function for query.
     /// - Returns: The query handler created to handle the given query type.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) -> ITMQueryHandler {
+    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
         return internalRegisterQueryHandler(type, handler)
     }
 
@@ -318,10 +308,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - type: message type.
     ///   - handler: callback function for message.
     /// - Returns: The message handler created to handle the given message type.
-    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) -> ()) -> ITMQueryHandler {
-        return internalRegisterQueryHandler(type) { (input: T) -> Promise<()> in
-            handler(input)
-            return Promise.value(())
+    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) async throws -> ()) -> ITMQueryHandler {
+        return internalRegisterQueryHandler(type) { (input: T) async throws -> () in
+            try await handler(input)
         }
     }
 
@@ -348,30 +337,34 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Evaluate a JavaScript string in this ITMMessenger's WKWebView. Note that this uses a queue, and only one JavaScript string is evaluated at a time.
-    /// WKWebView doesn't work right when multiple evaluateJavaScript calls are active at the same time.
+    /// WKWebView doesn't work right when multiple evaluateJavaScript calls are active at the same time. This function returns immediately, while the
+    /// JavaScript is scheduled for later evaluation.
     /// - Parameter js: The JavaScript string to evaluate.
     open func evaluateJavaScript(_ js: String) {
-        // Calling evaluateJavascript multiple times in a row before the prior
-        // evaluation completes results in loss of all but one. Either the first
-        // or last is called, and the rest disappear.
-        if jsBusy {
-            jsQueue.append(js)
-            return
-        }
-        jsBusy = true
-        webView.evaluateJavaScript(js, completionHandler: { _, _ in
-            self.jsBusy = false
-            if self.jsQueue.isEmpty {
+        DispatchQueue.main.async {
+            // Calling evaluateJavascript multiple times in a row before the prior
+            // evaluation completes results in loss of all but one. Either the first
+            // or last is called, and the rest disappear.
+            if self.jsBusy {
+                self.jsQueue.append(js)
                 return
             }
-            let js = self.jsQueue[0]
-            self.jsQueue.remove(at: 0)
-            self.evaluateJavaScript(js)
-        })
+            self.jsBusy = true
+            self.webView.evaluateJavaScript(js, completionHandler: { _, _ in
+                self.jsBusy = false
+                if self.jsQueue.isEmpty {
+                    return
+                }
+                let js = self.jsQueue[0]
+                self.jsQueue.remove(at: 0)
+                self.evaluateJavaScript(js)
+            })
+        }
     }
 
     /// Implementation of the WKScriptMessageHandler function. If you override this function, it is STRONGLY recommended that you call this version via super
     /// as part of your implementation.
+    /// - Note: Since query handling is async, this function will return before that finishes if the message is a query.
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? String,
             let data = body.data(using: .utf8),
@@ -383,7 +376,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         switch message.name {
         case queryName:
             if let name = jsonObject["name"] as? String, let queryId = jsonObject["queryId"] as? Int64 {
-                processQuery(name, withBody: jsonObject["message"], queryId: queryId)
+                Task {
+                    await processQuery(name, withBody: jsonObject["message"], queryId: queryId)
+                }
             }
             break
         case queryResponseName:
@@ -472,48 +467,65 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     /// Called after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
     open func frontendLaunchSuceeded() {
+        frontendLaunchError = nil
         frontendLaunchDone = true
-        frontendLaunchResolver.fulfill(())
+        frontendLaunchDispatchGroup.leave()
     }
 
     /// Called if the frontend fails to launch. This prevents any queries from being sent to TypeScript.
     open func frontendLaunchFailed(_ error: Error) {
-        frontendLaunchResolver.reject(error)
+        frontendLaunchError = error
+        frontendLaunchDispatchGroup.leave()
     }
 
-    private func internalRegisterQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) -> Promise<U>) -> ITMQueryHandler {
+    private func internalRegisterQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
         let queryHandler = ITMWKQueryHandler<T, U>(self, type, handler)
         queryHandlerDict[type] = queryHandler
         return queryHandler
     }
 
-    private func internalQueryWithCallbacks(_ type: String, dataString: String, success: ITMResponseHandler?, failure: ITMResponseHandler?) {
-        _ = firstly {
-            frontendLaunchPromise
-        }.done {
-            let queryId = ITMMessenger.queryId
-            self.logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
-            ITMMessenger.queryId += 1
-            self.queryResponseHandlers[queryId] = (success: success, failure: failure)
-            let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
-            self.evaluateJavaScript(js)
+    /// Async property that resolves when the frontend launch has succeeded (``frontendLaunchSuceeded()`` has been called).
+    /// - Throws: The value passed to the `error` parameter of ``frontendLaunchFailed(_:)``.
+    public var frontendLaunched: () {
+        get async throws {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(), Error>) in
+                DispatchQueue(label: "ITM.WaitForFrontend", qos: .userInitiated).async {
+                    self.frontendLaunchDispatchGroup.wait()
+                    if let error = self.frontendLaunchError {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: ())
+                    }
+                }
+            }
         }
     }
 
-    private func processQuery(_ name: String, withBody body: Any?, queryId: Int64) {
+    private func internalQueryWithCallbacks(_ type: String, dataString: String, success: ITMResponseHandler?, failure: ITMResponseHandler?) async throws {
+        try await frontendLaunched
+        let queryId = ITMMessenger.queryId
+        self.logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
+        ITMMessenger.queryId += 1
+        self.queryResponseHandlers[queryId] = (success: success, failure: failure)
+        let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
+        self.evaluateJavaScript(js)
+    }
+
+    private func processQuery(_ name: String, withBody body: Any?, queryId: Int64) async {
         if let queryHandler = queryHandlerDict[name] {
-            // The ITMWKQueryHandler implementation of ITMQueryHandler here
+            // All entries in queryHandlerDict are of type ITMWKQueryHandler.
+            // ITMWKQueryHandler's implementation of ITMQueryHandler.handleQuery
             // always returns true. If you register to handle a specific query
             // you must handle it. Since there can be only one handler for any
             // particular query, return if we find one.
-            _ = queryHandler.handleQuery(queryId, name, body)
+            _ = await queryHandler.handleQuery(queryId, name, body)
             return
         }
         for queryHandler in queryHandlers {
             // These query handlers don't indicate what queries they handle.
             // So iterate through all of them until one indicates that it has
             // handled the query.
-            if queryHandler.handleQuery(queryId, name, body) {
+            if await queryHandler.handleQuery(queryId, name, body) {
                 return
             }
         }
@@ -558,31 +570,33 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         return true
     }
 
-    private func internalQuery<T>(_ type: String, _ data: Any? = nil) -> Promise<T> {
-        return Promise { seal in
-            self.internalQueryWithCallbacks(
-                type,
-                dataString: JSONSerialization.string(withITMJSONObject: data) ?? "",
-                success: { (dataStr: String?) in
-                    self.callClosureWithGenericData(
-                        type,
-                        ITMMessenger.parseMessageJsonString(dataStr!),
-                        { data in seal.fulfill(data) },
-                        { error in seal.reject(error) }
-                    )
-                },
-                failure: { (errorStr: String?) in
-                    seal.reject(ITMError(jsonString: errorStr ?? ""))
-                }
-            )
+    private func internalQuery<T>(_ type: String, _ data: Any? = nil) async throws -> T {
+        return try await withCheckedThrowingContinuation { continuation in
+            Task {
+                try await self.internalQueryWithCallbacks(
+                    type,
+                    dataString: JSONSerialization.string(withITMJSONObject: data) ?? "",
+                    success: { (dataStr: String?) in
+                        self.callClosureWithGenericData(
+                            type,
+                            ITMMessenger.parseMessageJsonString(dataStr!),
+                            { data in continuation.resume(returning: data) },
+                            { error in continuation.resume(throwing: error) }
+                        )
+                    },
+                    failure: { (errorStr: String?) in
+                        continuation.resume(throwing: ITMError(jsonString: errorStr ?? ""))
+                    }
+                )
+            }
         }
     }
 
-    private func internalQueryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) -> Promise<T> {
-        return firstly {
-            internalQuery(type, data)
-        }.recover { error -> Promise<T> in
-            _ = ITMMessenger.errorHandler(vc, error)
+    private func internalQueryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {
+        do {
+            return try await internalQuery(type, data)
+        } catch {
+            _ = await ITMMessenger.errorHandler(vc, error)
             throw error
         }
     }
@@ -626,7 +640,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         if failure != nil {
             failure!(error)
         } else {
-            _ = ITMMessenger.errorHandler(nil, error)
+            Task {
+                await ITMMessenger.errorHandler(nil, error)
+            }
         }
     }
 

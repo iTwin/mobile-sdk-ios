@@ -363,6 +363,7 @@ def release_dir(args, dir):
     subprocess.check_call(['git', 'pull'], cwd=dir)
     if dir.endswith('mobile-sdk-ios'):
         release_upload(args, dir, 'itwin-mobile-sdk.podspec')
+        release_upload(args, dir, 'AsyncLocationKit.podspec')
 
 def release_upload(args, dir, filename):
     print("Uploading in dir: {} file: {}".format(dir, filename))

@@ -28,7 +28,7 @@ dependencies: [
 
 ### CocoaPods
 
-With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native` and `itwin-mobile-sdk` to your `Podfile`. __Note:__ these are not hosted on the CocoaPods CDN so the correct URLs must be specified.
+With [CocoaPods](https://guides.cocoapods.org/using/getting-started.html), add `itwin-mobile-native`, `itwin-mobile-sdk`, and `AsyncLocationKit` to your `Podfile`. __Note:__ these are not hosted on the CocoaPods CDN so the correct URLs must be specified. Also, AsyncLocationKit does not have a podspec, so one is included as part of the `mobile-sdk-ios` release.
 
 It is also necessary to disable bitcode for the itwin projects, which can be done via a `post_install` function.
 
@@ -44,7 +44,8 @@ target 'MyMobileApp' do
 
   # Pods for MyMobileApp
   pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/3.2.14/itwin-mobile-native-ios.podspec'
-  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.10.31/itwin-mobile-sdk.podspec'    
+  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.10.31/itwin-mobile-sdk.podspec'
+  pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.10.31/AsyncLocationKit.podspec'
 end
 
 post_install do |installer|

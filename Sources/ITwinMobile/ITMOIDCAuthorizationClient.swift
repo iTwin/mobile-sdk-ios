@@ -5,7 +5,6 @@
 
 import UIKit
 import IModelJsNative
-import PromiseKit
 import AppAuth
 #if SWIFT_PACKAGE
 import AppAuthCore

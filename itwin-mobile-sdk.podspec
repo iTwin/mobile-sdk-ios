@@ -9,15 +9,13 @@ Pod::Spec.new do |spec|
   spec.source       = { :git => "#{spec.homepage}.git", :tag => "#{spec.version}"}
   spec.source_files = "Sources/**/*"
   spec.exclude_files = "Sources/ITwinMobile/ITwinMobile.docc/**/*"
-  spec.swift_versions = "5.3"
-  spec.ios.deployment_target = "12.2"
+  spec.swift_version = "5.5"
+  spec.ios.deployment_target = "13.0"
   spec.pod_target_xcconfig = { 'ENABLE_BITCODE' => 'NO' }
   spec.pod_target_xcconfig = { 'ONLY_ACTIVE_ARCH' => 'YES' }
   spec.user_target_xcconfig = { 'ONLY_ACTIVE_ARCH' => 'YES' } # not recommended but `pod lib lint` fails without it
-  spec.dependency "PromiseKit", "~> 6.8"
-  spec.dependency "PromiseKit/CoreLocation", "~> 6.0"
-  spec.dependency "PromiseKit/Foundation", "~> 6.0"
   spec.dependency "ReachabilitySwift"
+  spec.dependency "AsyncLocationKit", "~> 1.0.5"
   spec.dependency "AppAuth", "~> 1.4"
   spec.dependency "itwin-mobile-native", "3.2.14"
 end

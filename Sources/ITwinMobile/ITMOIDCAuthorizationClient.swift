@@ -65,7 +65,9 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs"
         authSettings = ITMOIDCAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
         
-        if checkSettings() != nil {
+        do {
+            try checkSettings()
+        } catch {
             return nil
         }
         loadState()
@@ -191,7 +193,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return
         }
         authState.performAction() { accessToken, idToken, error in
-            if let error = error as NSError? {
+            if let error = error as? NSError {
                 ITMApplication.logger.log(.error, "Error fetching fresh tokens: \(error)")
                 if self.isInvalidGrantError(error) || self.isTokenRefreshError(error) {
                     self.innerSignOut()
@@ -257,52 +259,51 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     }
     
     /// Check to see if the authSettings member variable contains valid data.
-    /// - Returns: An NSError if the settings are invalid, or nil if they are valid.
-    open func checkSettings() -> NSError? {
+    /// - Throws: an error if the settings aren't valid
+    open func checkSettings() throws {
         guard let authSettings = authSettings else {
-            return error(reason: "ITMOIDCAuthorizationClient: initialize() was never called")
+            throw error(reason: "ITMOIDCAuthorizationClient: initialize() was never called")
         }
         if authSettings.clientId.count == 0 {
-            return error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty clientId")
+            throw error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty clientId")
         }
         if authSettings.scope.count == 0 {
-            return error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty scope")
+            throw error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty scope")
         }
         guard let _ = URL(string: authSettings.redirectUrl) else {
-            return error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty redirectUrl")
+            throw error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty redirectUrl")
         }
         guard let _ = URL(string: authSettings.issuerUrl) else {
-            return error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty issuerUrl")
+            throw error(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty issuerUrl")
         }
-        return nil
     }
     
-    /// Fetch and return the userInfo data from the userinfo endpoint, if needed. If userInfo has already been fetched, convert it to a JSON string and return it.
-    /// - Parameter completion: The callback to call with the JSON-encoded userInfo string.
-    open func fetchUserInfo(_ completion: @escaping (String?, Error?) -> ()) {
+    /// Fetch and store the userInfo data from the userinfo endpoint, if needed. If userInfo has already been fetched, just call the completion.
+    /// - Parameter completion: The callback to call once the userInfo has been stored.
+    open func fetchUserInfo(_ completion: @escaping (Result<(), Error>) -> ()) {
         if userInfo != nil {
-            if let userInfoJson = JSONSerialization.string(withITMJSONObject: userInfo) {
-                completion(userInfoJson, nil)
+            if JSONSerialization.string(withITMJSONObject: userInfo) != nil {
+                completion(.success(()))
             } else {
                 userInfo = nil
             }
         }
         guard let authState = authState else {
-            completion(nil, error(reason: "ITMOIDCAuthorizationClient not signed in"))
+            completion(.failure(error(reason: "ITMOIDCAuthorizationClient not signed in")))
             return
         }
         guard let userinfoEnpoint = authState.lastAuthorizationResponse.request.configuration.discoveryDocument?.userinfoEndpoint else {
-            completion(nil, error(reason: "ITMOIDCAuthorizationClient: Userinfo endpoint not declared in discovery document"))
+            completion(.failure(error(reason: "ITMOIDCAuthorizationClient: Userinfo endpoint not declared in discovery document")))
             return
         }
         authState.performAction() { accessToken, idToken, error in
             if let error = error {
                 ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient: Error fetching fresh tokens: \(error)")
-                completion(nil, error)
+                completion(.failure(error))
                 return
             }
             guard let accessToken = accessToken else {
-                completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: No access token after fetching fresh tokens"))
+                completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: No access token after fetching fresh tokens")))
                 return
             }
             var request = URLRequest(url: userinfoEnpoint)
@@ -313,24 +314,23 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             let postDataTask = session.dataTask(with: request) { data, response, error in
                 DispatchQueue.main.async {
                     if let error = error {
-                        completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: HTTP Request failed fetching user info: \(error)"))
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: HTTP Request failed fetching user info: \(error)")))
                         return
                     }
                     guard let httpResponse = response as? HTTPURLResponse else {
-                        completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Response not HTTP fetching user info"))
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Response not HTTP fetching user info")))
                         return
                     }
                     guard let data = data else {
-                        completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: No data fetching user info"))
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: No data fetching user info")))
                         return
                     }
-                    let responseText = String(data: data, encoding: .utf8)
                     guard let jsonDictionaryOrArray = try? JSONSerialization.jsonObject(with: data, options: []) else {
-                        completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON"))
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")))
                         return
                     }
                     guard let jsonDictionary = jsonDictionaryOrArray as? [AnyHashable: Any] else {
-                        completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON"))
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")))
                         return
                     }
                     if httpResponse.statusCode != 200 {
@@ -341,19 +341,19 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                             let oauthError = OIDErrorUtilities.resourceServerAuthorizationError(withCode: 0, errorResponse: jsonDictionary, underlyingError: error)
                             authState.update(withAuthorizationError: oauthError)
                             ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient: Authorization error: \(oauthError)")
-                            completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Authorization error"))
+                            completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Authorization error")))
                         } else {
                             if let error = error {
-                                completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Unknown error: \(error)"))
+                                completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Unknown error: \(error)")))
                             } else {
-                                completion(nil, self.error(reason: "ITMOIDCAuthorizationClient: Unknown error"))
+                                completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Unknown error")))
                             }
                         }
                         return
                     }
                     // Success response
                     self.userInfo = jsonDictionary as NSDictionary
-                    completion(responseText, nil)
+                    completion(.success(()))
                 }
             }
             postDataTask.resume()
@@ -390,7 +390,9 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     }
 
     open func signIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        if let error = checkSettings() {
+        do {
+            try checkSettings()
+        } catch {
             completion(error)
             return
         }
@@ -434,7 +436,9 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     }
 
     open func signOut(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        if let error = checkSettings() {
+        do {
+            try checkSettings()
+        } catch {
             completion(error)
             return
         }
@@ -445,7 +449,9 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
 
     // MARK: - AuthorizationClient Protocol implementation
     open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
-        if let error = checkSettings() {
+        do {
+            try checkSettings()
+        } catch {
             completion(nil, nil, error)
             return
         }
@@ -458,25 +464,26 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                 completion(nil, nil, error)
                 return
             }
-            self.fetchUserInfo() { userInfo, error in
-                if let error = error {
+            self.fetchUserInfo() { response in
+                switch response {
+                case .failure(let error):
                     completion(nil, nil, error)
-                    return
+                case .success:
+                    guard let authState = self.authState,
+                          let lastTokenResponse = authState.lastTokenResponse else {
+                        completion(nil, nil, self.error(reason: "No token after refresh"))
+                        return
+                    }
+                    guard let tokenString = lastTokenResponse.accessToken else {
+                        completion(nil, nil, self.error(reason: "Invalid token after refresh"))
+                        return
+                    }
+                    guard let expirationDate = lastTokenResponse.accessTokenExpirationDate else {
+                        completion(nil, nil, self.error(reason: "Invalid expiration date after refresh"))
+                        return
+                    }
+                    completion("Bearer \(tokenString)", expirationDate, nil)
                 }
-                guard let authState = self.authState,
-                      let lastTokenResponse = authState.lastTokenResponse else {
-                    completion(nil, nil, self.error(reason: "No token after refresh"))
-                    return
-                }
-                guard let tokenString = lastTokenResponse.accessToken else {
-                    completion(nil, nil, self.error(reason: "Invalid token after refresh"))
-                    return
-                }
-                guard let expirationDate = lastTokenResponse.accessTokenExpirationDate else {
-                    completion(nil, nil, self.error(reason: "Invalid expiration date after refresh"))
-                    return
-                }
-                completion("Bearer \(tokenString)", expirationDate, nil)
             }
         }
     }

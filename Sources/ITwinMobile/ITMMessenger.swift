@@ -183,7 +183,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
-    /// Convenience typealias for a function that takes an optional string and an optional error and returns void.
+    /// Convenience typealias for a function that takes a `String Result` and returns void.
     public typealias ITMResponseHandler = (Result<String, Error>) -> ()
     /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
     public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> ()

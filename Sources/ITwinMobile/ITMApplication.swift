@@ -239,8 +239,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// this ``ITMApplication`` is destroyed.
     /// - Parameters:
     ///   - type: The query type used by the JavaScript code to perform the query.
-    ///   - handler: The handler for the query.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) {
+    ///   - handler: The handler for the query. Note that it will be called on the main thread.
+    public func registerQueryHandler<T, U>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) {
         let queryHandler = itmMessenger.registerQueryHandler(type, handler)
         queryHandlers.append(queryHandler)
     }
@@ -252,8 +252,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///         between this and ``registerQueryHandler(_:_:)``.
     /// - Parameters:
     ///   - type: The message type used by the JavaScript code to send the message.
-    ///   - handler: The handler for the message.
-    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) async throws -> ()) {
+    ///   - handler: The handler for the message. Note that it will be called on the main thread.
+    public func registerMessageHandler<T>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> ()) {
         let queryHandler = itmMessenger.registerMessageHandler(type, handler)
         queryHandlers.append(queryHandler)
     }

@@ -132,7 +132,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webView.uiDelegate = self
         webView.navigationDelegate = self
         backendLoadingDispatchGroup.enter()
-        registerMessageHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> () in
+        registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> () in
             if let preferredColorScheme = params["preferredColorScheme"] as? Int {
                 ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
@@ -245,21 +245,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         queryHandlers.append(queryHandler)
     }
 
-    /// Registers a handler for the given message from the web view.
-    /// You can use ``unregisterQueryHandler(_:)`` to unregister this at any time. Otherwise, it will be automatically unregistered when
-    /// this ``ITMApplication`` is destroyed.
-    /// - Note: Unlike query handlers, message handlers do not return any results to the web view. That is the only difference
-    ///         between this and ``registerQueryHandler(_:_:)``.
-    /// - Parameters:
-    ///   - type: The message type used by the JavaScript code to send the message.
-    ///   - handler: The handler for the message. Note that it will be called on the main thread.
-    public func registerMessageHandler<T>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> ()) {
-        let queryHandler = itmMessenger.registerMessageHandler(type, handler)
-        queryHandlers.append(queryHandler)
-    }
-
     /// Unregisters a handler for the given query from the web view.
-    /// - Note: This can only be used to unregister a handler that was previously registered using ``registerQueryHandler(_:_:)`` or ``registerMessageHandler(_:_:)``.
+    /// - Note: This can only be used to unregister a handler that was previously registered using ``registerQueryHandler(_:_:)``.
     /// - Parameter type: The type used when the query was registered.
     /// - Returns: true if the given query was previously registered (and thus unregistered here), or false otherwise.
     public func unregisterQueryHandler(_ type: String) -> Bool {

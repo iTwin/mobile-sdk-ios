@@ -298,18 +298,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - type: query type.
     ///   - handler: callback function for query.
     /// - Returns: The query handler created to handle the given query type.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
-        return internalRegisterQueryHandler(type, handler)
-    }
-
-    /// Register specific message handler for the given message type. Returns created handler, use it with ``unregisterQueryHandler(_:)``.
-    /// - Note: Unlike query handlers, message handlers do not return any results to the web view. That is the only difference
-    ///         between this and ``registerQueryHandler(_:_:)``.
-    /// - Parameters:
-    ///   - type: message type.
-    ///   - handler: callback function for message.
-    /// - Returns: The message handler created to handle the given message type.
-    public func registerMessageHandler<T>(_ type: String, _ handler: @escaping (T) async throws -> ()) -> ITMQueryHandler {
+    public func registerQueryHandler<T, U>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) -> ITMQueryHandler {
         return internalRegisterQueryHandler(type, handler)
     }
 
@@ -324,8 +313,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         queryHandlers.append(handler)
     }
 
-    /// Unregister a query handler registered with ``registerQueryHandler(_:_:)``, ``registerQueryHandler(_:)``,
-    /// or ``registerMessageHandler(_:_:)``.
+    /// Unregister a query handler registered with ``registerQueryHandler(_:_:)`` or ``registerQueryHandler(_:)``.
     /// - Parameter handler: query handler to unregister.
     public func unregisterQueryHandler(_ handler: ITMQueryHandler) {
         if let queryType = handler.getQueryType() {

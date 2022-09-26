@@ -154,6 +154,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             return type
         }
 
+        @MainActor
         func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) async -> Bool {
             itmMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
             do {

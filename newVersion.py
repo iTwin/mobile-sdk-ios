@@ -13,9 +13,9 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base version to search for. 3.1.x for now.
-itwin_base_version_search = "3\\.1\\."
-itwin_base_version_search2 = "3\\.2\\."
+# iTwin base version to search for. 3.3.x for now.
+itwin_base_version_search = "3\\.2\\."
+itwin_base_version_search2 = "3\\.3\\."
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.

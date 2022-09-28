@@ -22,7 +22,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
-        .package(name: "itwin-mobile-native", url: "https://github.com/iTwin/mobile-native-ios", .exact("3.4.17")),
+        .package(name: "itwin-mobile-native", url: "https://github.com/iTwin/mobile-native-ios", .exact("3.3.16")),
         .package(url: "https://github.com/AsyncSwift/AsyncLocationKit.git", .upToNextMajor(from: "1.0.0")),
         .package(name: "Reachability", url: "https://github.com/ashleymills/Reachability.swift", from: "5.1.0"),
         .package(name: "AppAuth", url: "https://github.com/openid/AppAuth-iOS.git", .upToNextMajor(from: "1.6.0")),

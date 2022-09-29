@@ -205,7 +205,6 @@ def change_command(args):
     if not hasattr(args, 'current_mobile') or not args.current_mobile:
         args.current_mobile = get_last_release()
     modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package.swift'))
-    modify_package_swift(args, os.path.join(sdk_dirs.sdk_ios, 'Package@swift-5.5.swift'))
     modify_package_resolved(args, os.path.join(sdk_dirs.sdk_ios, 'Package.resolved'))
     modify_podspec(args, os.path.join(sdk_dirs.sdk_ios, 'itwin-mobile-sdk.podspec'))
     modify_readme_md(args, sdk_dirs.sdk_ios)

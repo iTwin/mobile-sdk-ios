@@ -38,13 +38,16 @@ native_version_package = '@itwin/core-backend'
 git_branch = 'main'
 # The names of the iOS sample apps
 ios_sample_names = [
+    'CameraSample',
     'MobileStarter',
     'SwiftUIStarter',
     'ThirdPartyAuth',
 ]
 # The names of the Android sample apps
 android_sample_names = [
+    'CameraSample',
     'iTwinStarter'
+    'SwiftUIStarter',
 ]
 
 # ===================================================================================

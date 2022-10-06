@@ -266,6 +266,7 @@ def changesamples_command(args):
     modify_samples_package_resolved(args)
     modify_samples_project_pbxproj(args)
     modify_samples_build_gradle(args)
+    modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'Android/Shared/build.gradle'))
 
 def bumpsamples_command(args):
     get_versions(args)

@@ -46,8 +46,8 @@ ios_sample_names = [
 # The names of the Android sample apps
 android_sample_names = [
     'CameraSample',
-    'iTwinStarter'
-    'SwiftUIStarter',
+    'iTwinStarter',
+    'ThirdPartyAuth'
 ]
 
 # ===================================================================================

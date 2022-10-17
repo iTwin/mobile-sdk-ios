@@ -38,6 +38,8 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                 // When an action is selected, this gets called before the action's handler.
                 // By running async in the main event queue, we delay processing this until
                 // after the handler has had a chance to execute.
+                // NOTE: Task { @MainActor won't work below, because we're already on the UI thread when
+                // we get here; using DispatchQueue.main.async forces the code inside to run later.
                 DispatchQueue.main.async {
                     // If no action has been selected, then the user tapped outside the popover on
                     // an iPad, OR an orientation change or window resize trigerred a cancel. This

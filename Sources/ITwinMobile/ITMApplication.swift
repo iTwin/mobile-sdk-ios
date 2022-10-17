@@ -39,14 +39,6 @@ public extension JSON {
     }
 }
 
-
-extension Task where Success == Never, Failure == Never {
-    // Convenience so you don't have to figure out how many zeros to add to your sleep.
-    static func sleep(milliseconds: UInt64) async throws {
-        try await sleep(nanoseconds: milliseconds * 1000000)
-    }
-}
-
 // MARK: - ITMApplication class
 
 /// Main class for interacting with one iTwin Mobile web app.
@@ -396,11 +388,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // It's highly unlikely we could get here with backendLoadedContinuation nil,
             // but if we do, we need to wait for it to be initialized before continuing, or
             // nothing will work.
-            while backendLoadedContinuation == nil {
-                // Wait 10ms before trying again.
-                // Note: because our task cannot be canceled, sleep can never throw.
-                try await Task.sleep(milliseconds: 10)
-            }
+            await ITMMessenger.waitUntilReady({ self.backendLoadedContinuation != nil })
             await itmMessenger.waitUntilReady()
             IModelJsHost.sharedInstance().loadBackend(
                 backendUrl,

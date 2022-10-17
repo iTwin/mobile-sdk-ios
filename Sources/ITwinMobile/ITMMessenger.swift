@@ -66,6 +66,13 @@ internal extension JSONSerialization {
     }
 }
 
+extension Task where Success == Never, Failure == Never {
+    // Convenience so you don't have to figure out how many zeros to add to your sleep.
+    static func sleep(milliseconds: UInt64) async throws {
+        try await sleep(nanoseconds: milliseconds * 1000000)
+    }
+}
+
 // MARK: - ITMQueryHandler protocol
 
 /// Protocol for ITMMessenger query handlers.
@@ -265,11 +272,19 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     /// Wait until this ``ITMMessenger`` has fully finished initializing.
     public func waitUntilReady() async {
+        // It's highly unlikely we could get here with frontendLaunchContinuation nil,
+        // but if we do, we need to wait for it to be initialized before continuing, or
+        // nothing will work.
+        await ITMMessenger.waitUntilReady({ self.frontendLaunchContinuation != nil })
+    }
+    
+    /// Wait until the given `isReady` predicate returns true.
+    /// - Note: If isReady returns true immediately, no waiting occurs.
+    /// - Parameter isReady: Predicate to wait on. This function will not return until `isReady` returns true.
+    public static func waitUntilReady(_ isReady: @escaping () -> Bool) async {
+        if isReady() { return }
         let task = Task {
-            // It's highly unlikely we could get here with frontendLaunchContinuation nil,
-            // but if we do, we need to wait for it to be initialized before continuing, or
-            // nothing will work.
-            while frontendLaunchContinuation == nil {
+            while !isReady() {
                 // Wait 10ms before trying again.
                 // Note: because our task cannot be canceled, sleep can never throw.
                 try? await Task.sleep(milliseconds: 10)

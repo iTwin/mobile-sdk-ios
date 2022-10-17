@@ -177,6 +177,17 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
+    /// Wrapper for a dictionary that uses an actor to ensure that all modifications happen in the same thread.
+    private actor ResponseHandlers {
+        private var responseHandlers: [Int64: ITMResponseHandler] = [:]
+        
+        // NOTE: subscript set is not supported for actors in Swift. :-/
+        subscript(key: Int64) -> ITMResponseHandler? { responseHandlers[key] }
+
+        func set(_ key: Int64, _ value: @escaping ITMResponseHandler) { responseHandlers[key] = value }
+        func removeValue(forKey key: Int64) { responseHandlers.removeValue(forKey: key) }
+    }
+
     private struct WeakWKWebView: Equatable {
         weak var webView: WKWebView?
         static func == (lhs: WeakWKWebView, rhs: WeakWKWebView) -> Bool {
@@ -208,18 +219,18 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Whether or not full logging of all messages (with their optional bodies) is enabled.
     /// - warning: You should only enable this in debug builds, since message bodies may contain private information.
     public static var isFullLoggingEnabled = false
-    /// Indicates whether or not the frontend has finished launching. Specfically, if ``frontendLaunchSuceeded()`` has been called.
+    /// Indicates whether or not the frontend has finished launching. Specfically, if ``frontendLaunchSucceeded()`` has been called.
     public var frontendLaunchDone = false
     private let queryName = "Bentley_ITMMessenger_Query"
     private let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
     private let handlerNames: [String]
     private var queryHandlerDict: [String: ITMQueryHandler] = [:]
     private var queryHandlers: [ITMQueryHandler] = []
-    private var responseHandlers: [Int64: ITMResponseHandler] = [:]
+    private var responseHandlers = ResponseHandlers()
     private var jsQueue: [String] = []
     private var jsBusy = false
-    private let frontendLaunchDispatchGroup = DispatchGroup()
-    private var frontendLaunchError: Error? = nil
+    private var frontendLaunchTask: Task<Void, Error>?
+    private var frontendLaunchContinuation: CheckedContinuation<Void, Error>?
 
     /// - Parameter webView: The WKWebView to which to attach this ITMMessageSender.
     public init(_ webView: WKWebView) {
@@ -233,8 +244,12 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         ITMMessenger.weakWebViews.append(weakWebView)
         self.webView = webView
         handlerNames = [queryName, queryResponseName]
-        frontendLaunchDispatchGroup.enter()
         super.init()
+        frontendLaunchTask = Task {
+            try await withCheckedThrowingContinuation { continuation in
+                frontendLaunchContinuation = continuation
+            }
+        }
         for handlerName in handlerNames {
             webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
         }
@@ -246,6 +261,21 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         for handlerName in handlerNames {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
         }
+    }
+
+    /// Wait until this ``ITMMessenger`` has fully finished initializing.
+    public func waitUntilReady() async {
+        let task = Task {
+            // It's highly unlikely we could get here with frontendLaunchContinuation nil,
+            // but if we do, we need to wait for it to be initialized before continuing, or
+            // nothing will work.
+            while frontendLaunchContinuation == nil {
+                // Wait 10ms before trying again.
+                // Note: because our task cannot be canceled, sleep can never throw.
+                try? await Task.sleep(milliseconds: 10)
+            }
+        }
+        return await task.value
     }
 
     /// Send query and receive void response. Errors are shown automatically using ``errorHandler``, but not thrown.
@@ -328,7 +358,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// JavaScript is scheduled for later evaluation.
     /// - Parameter js: The JavaScript string to evaluate.
     open func evaluateJavaScript(_ js: String) {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             // Calling evaluateJavascript multiple times in a row before the prior
             // evaluation completes results in loss of all but one. Either the first
             // or last is called, and the rest disappear.
@@ -453,16 +483,16 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Called after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
-    open func frontendLaunchSuceeded() {
-        frontendLaunchError = nil
+    open func frontendLaunchSucceeded() {
         frontendLaunchDone = true
-        frontendLaunchDispatchGroup.leave()
+        frontendLaunchContinuation?.resume(returning: ())
+        frontendLaunchContinuation = nil
     }
 
     /// Called if the frontend fails to launch. This prevents any queries from being sent to TypeScript.
     open func frontendLaunchFailed(_ error: Error) {
-        frontendLaunchError = error
-        frontendLaunchDispatchGroup.leave()
+        frontendLaunchContinuation?.resume(throwing: error)
+        frontendLaunchContinuation = nil
     }
 
     private func internalRegisterQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
@@ -471,20 +501,11 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         return queryHandler
     }
 
-    /// Async property that resolves when the frontend launch has succeeded (``frontendLaunchSuceeded()`` has been called).
+    /// Async property that resolves when the frontend launch has succeeded (``frontendLaunchSucceeded()`` has been called).
     /// - Throws: The value passed to the `error` parameter of ``frontendLaunchFailed(_:)``.
     public var frontendLaunched: () {
         get async throws {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<(), Error>) in
-                DispatchQueue(label: "ITM.WaitForFrontend", qos: .userInitiated).async {
-                    self.frontendLaunchDispatchGroup.wait()
-                    if let error = self.frontendLaunchError {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: ())
-                    }
-                }
-            }
+            try await frontendLaunchTask?.value
         }
     }
 
@@ -493,16 +514,18 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         self.logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
         ITMMessenger.queryId += 1
         return try await withCheckedThrowingContinuation { continuation in
-            self.responseHandlers[queryId] = { result in
-                switch result {
-                case .success(let resultString):
-                    continuation.resume(returning: resultString)
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
+            Task {
+                await self.responseHandlers.set(queryId, { result in
+                    switch result {
+                    case .success(let resultString):
+                        continuation.resume(returning: resultString)
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                })
+                let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
+                self.evaluateJavaScript(js)
             }
-            let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
-            self.evaluateJavaScript(js)
         }
     }
 
@@ -530,18 +553,20 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     private func processQueryResponse(_ response: Any?, queryId: Int64, error: Any?) {
-        guard let handler = responseHandlers[queryId] else { return }
-        let responseString = jsonString(response)
-        if let error = error {
-            logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: error)
-            if !handleNotImplementedError(error: error, handler: handler) {
-                handler(.failure(ITMError(jsonString: jsonString(error))))
+        Task {
+            guard let handler = await responseHandlers[queryId] else { return }
+            let responseString = jsonString(response)
+            if let error = error {
+                logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: error)
+                if !handleNotImplementedError(error: error, handler: handler) {
+                    handler(.failure(ITMError(jsonString: jsonString(error))))
+                }
+            } else {
+                logQuery("Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: response)
+                handler(.success(responseString))
             }
-        } else {
-            logQuery("Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: response)
-            handler(.success(responseString))
+            await responseHandlers.removeValue(forKey: queryId)
         }
-        responseHandlers.removeValue(forKey: queryId)
     }
 
     private func logQuery(_ title: String, _ queryId: String, _ type: String?, messageData: Any?) {

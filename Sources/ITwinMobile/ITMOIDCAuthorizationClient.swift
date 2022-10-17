@@ -238,7 +238,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                                               redirectURL: redirectUrl,
                                               responseType: OIDResponseTypeCode,
                                               additionalParameters: nil)
-        DispatchQueue.main.async {
+        Task { @MainActor in
             if let viewController = ITMApplication.topViewController {
                 // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
                 // However, even though we require iOS 12.2, if we ignore the value, it gets deleted by the system,
@@ -312,7 +312,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             let configuration = URLSessionConfiguration.default
             let session = URLSession(configuration: configuration)
             let postDataTask = session.dataTask(with: request) { data, response, error in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     if let error = error {
                         completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: HTTP Request failed fetching user info: \(error)")))
                         return

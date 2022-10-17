@@ -39,6 +39,14 @@ public extension JSON {
     }
 }
 
+
+extension Task where Success == Never, Failure == Never {
+    // Convenience so you don't have to figure out how many zeros to add to your sleep.
+    static func sleep(milliseconds: UInt64) async throws {
+        try await sleep(nanoseconds: milliseconds * 1000000)
+    }
+}
+
 // MARK: - ITMApplication class
 
 /// Main class for interacting with one iTwin Mobile web app.
@@ -102,12 +110,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let geolocationManager: ITMGeolocationManager
     /// The `AuthorizationClient` used by the `IModelJsHost`.
     public var authorizationClient: AuthorizationClient?
-    
-    /// A DispatchGroup that is busy until the backend is finished loading. Use `backendLoadingDispatchGroup.wait()` on a
-    /// background `DispatchQueue` to ensure the backend is done loading. Do __not__ do that on the main DispatchQueue, or it
-    /// may lead to deadlock. This is done automatically in ``loadFrontend()``.
-    public let backendLoadingDispatchGroup = DispatchGroup()
-    private var backendLoaded = false
+
+    /// A Task whose value resolves (to `Void`) once the backend has loaded.
+    public var backendLoadedTask: Task<Void, Never>!
+    /// The `CheckedContinuation` that when resolved causes ``backendLoadedTask`` to be resolved.
+    public var backendLoadedContinuation: CheckedContinuation<Void, Never>?
+    private var backendLoadStarted = false
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
     static public var preferredColorScheme = PreferredColorScheme.automatic
 
@@ -129,9 +137,13 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         itmMessenger = Self.createITMMessenger(webView)
         geolocationManager = ITMGeolocationManager(itmMessenger: itmMessenger, webView: webView)
         super.init()
+        backendLoadedTask = Task {
+            await withCheckedContinuation { continuation in
+                backendLoadedContinuation = continuation
+            }
+        }
         webView.uiDelegate = self
         webView.navigationDelegate = self
-        backendLoadingDispatchGroup.enter()
         registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> () in
             if let preferredColorScheme = params["preferredColorScheme"] as? Int {
                 ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
@@ -367,29 +379,42 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Loads the iTwin Mobile web app backend.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Note: This function returns before the loading has completed.
     /// - Parameter allowInspectBackend: Whether or not to all debugging of the backend.
+    @MainActor
     open func loadBackend(_ allowInspectBackend: Bool) {
-        if backendLoaded {
+        if backendLoadStarted {
             return
         }
+        backendLoadStarted = true
         let backendUrl = getBackendUrl()
 
         authorizationClient = createAuthClient()
-        IModelJsHost.sharedInstance().loadBackend(
-            backendUrl,
-            withAuthClient: authorizationClient,
-            withInspect: allowInspectBackend
-        ) { _ in
-            // This callback gets called each time the app returns to the foreground. That is
-            // probably a bug in iModelJS, but this check avoids having that cause problems.
-            if !self.backendLoaded {
-                self.backendLoaded = true
-                self.backendLoadingDispatchGroup.leave()
+        Task {
+            // It's highly unlikely we could get here with backendLoadedContinuation nil,
+            // but if we do, we need to wait for it to be initialized before continuing, or
+            // nothing will work.
+            while backendLoadedContinuation == nil {
+                // Wait 10ms before trying again.
+                // Note: because our task cannot be canceled, sleep can never throw.
+                try await Task.sleep(milliseconds: 10)
             }
+            await itmMessenger.waitUntilReady()
+            IModelJsHost.sharedInstance().loadBackend(
+                backendUrl,
+                withAuthClient: authorizationClient,
+                withInspect: allowInspectBackend
+            ) { _ in
+                // This callback gets called each time the app returns to the foreground. That is
+                // probably a bug in iModelJS, but clearing backendLoadedContinuation avoids having
+                // that cause problems.
+                self.backendLoadedContinuation?.resume(returning: ())
+                self.backendLoadedContinuation = nil
+            }
+            IModelJsHost.sharedInstance().register(webView)
         }
-        IModelJsHost.sharedInstance().register(webView)
     }
 
     /// Suffix to add to the user agent reported by the frontend.
@@ -399,64 +424,93 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return ""
     }
 
-    /// Loads the iTwin Mobile web app frontend.
+    /// Async property that resolves when the backend has finished loading.
+    public var backendLoaded: Void {
+        get async {
+            await backendLoadedTask.value
+        }
+    }
+
+    /// Show an error to the user indicating that the frontend at the given location failed to load.
+    /// - Note: This will only be called if the developer configures the app to use a React debug server.
+    /// - Parameter request: The `URLRequest` used to load the frontend.
+    @MainActor
+    open func showFrontendLoadError(request: URLRequest) {
+        let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(request.url?.absoluteString ?? "<Missing URL>")).", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+            ITMAlertController.doneWithAlertWindow()
+        }))
+        alert.modalPresentationCapturesStatusBarAppearance = true
+        Self.topViewController?.present(alert, animated: true)
+    }
+
+    /// Loads the iTwin Mobile web app frontend using the given `URLRequest`.
+    ///
+    /// This function is called by ``loadFrontend()`` after that function first waits for the backend to finish loading. You should not call
+    /// this function directly, unless you override ``loadFrontend()`` without calling the original.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Note: This function returns before the loading has completed.
-    open func loadFrontend() {
-        DispatchQueue(label: "ITM.WaitForBackend", qos: .userInitiated).async {
-            // We must wait for the backend to finish loading before loading the frontend.
-            // The wait has to happen without blocking the main thread.
-            self.backendLoadingDispatchGroup.wait()
-            let url = self.getBaseUrl() + self.getUrlHashParams().toString()
-            let request = URLRequest(url: URL(string: url)!)
-            // The call to evaluateJavaScript must happen in the main thread.
-            DispatchQueue.main.async {
-                // NOTE: the below runs before the webView's main page has been loaded, and
-                // we wait for the execution to complete before loading the main page. So we
-                // can't use itmMessenger.evaluateJavaScript here, even though we use it
-                // everywhere else in this file.
-                self.webView.evaluateJavaScript("navigator.userAgent") { [weak webView = self.webView] result, error in
-                    if let webView = webView {
-                        if let userAgent = result as? String {
-                            var customUserAgent: String
-                            if userAgent.contains("Mobile") {
-                                // The userAgent in the webView starts out as a mobile userAgent, and
-                                // then subsequently changes to a Mac desktop userAgent. If we set
-                                // customUserAgent to the original mobile one, all will be fine.
-                                customUserAgent = userAgent
-                            } else {
-                                // If in the future the webView starts out with a Mac desktop userAgent,
-                                // append /Mobile to the end so that UIFramework.isMobile() will work.
-                                customUserAgent = userAgent + " Mobile"
+    /// - Parameter request: The `URLRequest` to load into webview.
+    @MainActor
+    open func loadFrontend(request: URLRequest) {
+        // NOTE: the below runs before the webView's main page has been loaded, and
+        // we wait for the execution to complete before loading the main page. So we
+        // can't use itmMessenger.evaluateJavaScript here, even though we use it
+        // everywhere else in this file.
+        self.webView.evaluateJavaScript("navigator.userAgent") { [weak webView = self.webView] result, error in
+            if let webView = webView {
+                if let userAgent = result as? String {
+                    var customUserAgent: String
+                    if userAgent.contains("Mobile") {
+                        // The userAgent in the webView starts out as a mobile userAgent, and
+                        // then subsequently changes to a Mac desktop userAgent. If we set
+                        // customUserAgent to the original mobile one, all will be fine.
+                        customUserAgent = userAgent
+                    } else {
+                        // If in the future the webView starts out with a Mac desktop userAgent,
+                        // append /Mobile to the end so that UIFramework.isMobile() will work.
+                        customUserAgent = userAgent + " Mobile"
+                    }
+                    customUserAgent += self.getUserAgentSuffix()
+                    webView.customUserAgent = customUserAgent
+                }
+                _ = webView.load(request)
+                if self.usingRemoteServer {
+                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
+                        if !self.fullyLoaded {
+                            Task {
+                                await self.showFrontendLoadError(request: request)
                             }
-                            customUserAgent += self.getUserAgentSuffix()
-                            webView.customUserAgent = customUserAgent
-                        }
-                        webView.load(request)
-                        if self.usingRemoteServer {
-                            _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
-                                if !self.fullyLoaded {
-                                    let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(url).", preferredStyle: .alert)
-                                    alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
-                                        ITMAlertController.doneWithAlertWindow()
-                                    }))
-                                    alert.modalPresentationCapturesStatusBarAppearance = true
-                                    Self.topViewController?.present(alert, animated: true)
-                                }
-                            }
-                        }
-                        self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
-                            self?.updateReachability()
                         }
                     }
                 }
+                self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
+                    self?.updateReachability()
+                }
             }
+        }
+    }
+
+    /// Loads the iTwin Mobile web app frontend.
+    ///
+    /// Override this function in a subclass in order to add custom behavior. If you do not call this function in the override, you must
+    /// wait for the backend to launch using `await backendLoaded`, and probably call ``loadFrontend(request:)`` to do
+    /// the actual loading.
+    /// - Note: This function returns before the loading has completed.
+    open func loadFrontend() {
+        Task {
+            await backendLoaded
+            let url = self.getBaseUrl() + self.getUrlHashParams().toString()
+            let request = URLRequest(url: URL(string: url)!)
+            await loadFrontend(request: request)
         }
     }
 
     // MARK: ITMApplication (WebView) presentation
 
     /// Top view for presenting iTwin Mobile web app in dormant state.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     /// Always add dormant application to ``topViewController``'s view to ensure it appears in presented view hierarchy
     /// - Returns: The top view.
@@ -466,6 +520,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Top view controller for presenting iTwin Mobile web app.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view controller.
     public class var topViewController: UIViewController? {
@@ -483,6 +538,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return nil
     }
 
+    /// Show or hide the iTwin Mobile app.
+    ///
     /// If the view is valid, iTwin Mobile app is added in active state.
     /// If the view is nil, iTwin Mobile app is hidden and set as dormant.
     /// Override this function in a subclass in order to add custom behavior.
@@ -518,6 +575,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Present the iTwin Mobile app in the given view, filling it completely.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter view: View in which to present the iTiwn Mobile app.
     open func presentInView(_ view: UIView) {
@@ -525,6 +583,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Hide the iTwin Mobile app and set it as dormant.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     open func presentHidden() {
         addApplicationToView(nil)
@@ -533,6 +592,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     // MARK: WKUIDelegate Methods
 
     /// See `WKUIDelegate` documentation.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
@@ -545,6 +605,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// See `WKUIDelegate` documentation.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> ()) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
@@ -561,6 +622,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// See `WKUIDelegate` documentation.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> ()) {
         let alert = ITMAlertController(title: nil, message: prompt, preferredStyle: .alert)
@@ -584,6 +646,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     /// Open the URL for the given navigation action.
+    ///
     /// If the navigation action's `targetFrame` is nil, open the URL using iOS default behavior (opens it in Safari).
     /// If the navigation action's `targetFrame` is not nil, return an unattached WKWebView (which prevents a crash). In
     /// this case, the URL is not opened anywhere.
@@ -606,7 +669,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     // MARK: WKNavigationDelegate
 
     /// Handle necessary actions after the frontend web page is loaded (or reloaded).
+    ///
     /// See `WKNavigationDelegate` documentation.
+    ///
     /// Override this function in a subclass in order to add custom behavior.
     open func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // There is an apparent bug in WKWebView when running in landscape mode on a

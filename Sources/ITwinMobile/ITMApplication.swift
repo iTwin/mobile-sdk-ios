@@ -136,7 +136,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         webView.uiDelegate = self
         webView.navigationDelegate = self
-        registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> () in
+        registerQueryHandler("Bentley_ITM_updatePreferredColorScheme") { (params: [String: Any]) -> Void in
             if let preferredColorScheme = params["preferredColorScheme"] as? Int {
                 ITMApplication.preferredColorScheme = PreferredColorScheme(rawValue: preferredColorScheme) ?? .automatic
             }
@@ -582,7 +582,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
             completionHandler()
@@ -595,7 +595,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
             completionHandler(true)
@@ -612,7 +612,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> ()) {
+    open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
         let alert = ITMAlertController(title: nil, message: prompt, preferredStyle: .alert)
         alert.addTextField { textField in
             textField.text = defaultText

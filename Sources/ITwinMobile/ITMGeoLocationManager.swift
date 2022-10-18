@@ -273,7 +273,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func requestAuth() async throws -> () {
+    private func requestAuth() async throws -> Void {
         let permission = await asyncLocationManager.requestAuthorizationWhenInUse()
         if permission != .authorizedAlways, permission != .authorizedWhenInUse {
             throw ITMError(json: ["message": "Permission denied."])
@@ -282,7 +282,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     /// Ask the user for location authorization if not already granted.
     /// - Throws: Throws an exception if the user does not grant access.
-    public func checkAuth() async throws -> () {
+    public func checkAuth() async throws -> Void {
         switch CLLocationManager.authorizationStatus() {
         case .authorizedAlways, .authorizedWhenInUse:
             return

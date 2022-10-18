@@ -23,7 +23,7 @@ internal extension JSONSerialization {
         guard let object = object else {
             return ""
         }
-        if let _ = object as? () {
+        if let _ = object as? Void {
             // Return empty JSON string for void.
             return ""
         }
@@ -203,15 +203,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Convenience typealias for a function that takes a `String Result` and returns void.
-    public typealias ITMResponseHandler = (Result<String, Error>) -> ()
+    public typealias ITMResponseHandler = (Result<String, Error>) -> Void
     /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
-    public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> ()
+    public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> Void
 
     /// The webView associated with this ITMMessenger.
     open var webView: WKWebView
     /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
     /// The default handler simply logs the error using ITMApplication.logger.
-    public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> () in
+    public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> Void in
         ITMApplication.logger.log(.error, baseError.localizedDescription)
     }
 
@@ -298,7 +298,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - vc: if specified, is checked for visiblity and only then error is shown. View controller that displays error dialog if still visible. Errors shown globally if nil.
     ///   - type: query type.
     ///   - data: optional request data to send.
-    public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async -> () {
+    public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async -> Void {
         do {
             return try await internalQueryAndShowError(vc, type, data)
         } catch {
@@ -323,7 +323,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    public func query(_ type: String, _ data: Any? = nil) async throws -> () {
+    public func query(_ type: String, _ data: Any? = nil) async throws -> Void {
         return try await internalQuery(type, data)
     }
 
@@ -620,7 +620,6 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     private func convertResult<T>(_ messageType: String, _ dataString: String) throws -> T {
         var data = ITMMessenger.parseMessageJsonString(dataString)
-        // swiftformat:disable void
         if T.self == Void.self {
             let voidAsT = () as! T // This has to be a separate variable to avoid a warning in the next line
             return voidAsT

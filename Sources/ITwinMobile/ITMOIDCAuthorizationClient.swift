@@ -20,7 +20,7 @@ public struct ITMOIDCAuthSettings {
     public var scope: String
 }
 
-public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> ()
+public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> Void
 
 // MARK: - ITMOIDCAuthorizationClient class
 
@@ -280,7 +280,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     
     /// Fetch and store the userInfo data from the userinfo endpoint, if needed. If userInfo has already been fetched, just call the completion.
     /// - Parameter completion: The callback to call once the userInfo has been stored.
-    open func fetchUserInfo(_ completion: @escaping (Result<(), Error>) -> ()) {
+    open func fetchUserInfo(_ completion: @escaping (Result<(), Error>) -> Void) {
         if userInfo != nil {
             if JSONSerialization.string(withITMJSONObject: userInfo) != nil {
                 completion(.success(()))

@@ -75,7 +75,7 @@ open class ITMAlertController: UIAlertController {
     }
 
     /// Call this to indicate that you are done using the ``ITMAlertController``, so that it can clean up.
-    public static var doneWithAlertWindow: () -> () = {
+    public static var doneWithAlertWindow: () -> Void = {
         alertWindow?.windowScene = nil
         alertWindow = nil
     }

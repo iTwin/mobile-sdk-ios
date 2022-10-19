@@ -43,11 +43,7 @@ open class ITMAlertController: UIAlertController {
             alertWindow!.windowLevel = UIWindow.Level.alert + 1
             ITMAlertController.alertWindow = alertWindow
         }
-        for scene in UIApplication.shared.connectedScenes {
-            if scene.activationState == .foregroundActive {
-                alertWindow?.windowScene = (scene as? UIWindowScene)
-            }
-        }
+        alertWindow?.windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
         alertWindow!.makeKeyAndVisible()
         // Even though we initialized the UIWindow with the proper frame, makeKeyAndVisible sometimes
         // corrupts the frame, changing the orientation and moving it completely off-screen. I think

@@ -254,15 +254,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameter type: The type used when the query was registered.
     /// - Returns: true if the given query was previously registered (and thus unregistered here), or false otherwise.
     public func unregisterQueryHandler(_ type: String) -> Bool {
-        for i in 0..<queryHandlers.count {
-            let queryHandler = queryHandlers[i]
-            if queryHandler.getQueryType() == type {
-                itmMessenger.unregisterQueryHandler(queryHandler)
-                queryHandlers.remove(at: i)
-                return true
-            }
+        guard let index = queryHandlers.firstIndex(where: { $0.getQueryType() == type}) else {
+            return false
         }
-        return false
+        itmMessenger.unregisterQueryHandler(queryHandlers[index])
+        queryHandlers.remove(at: index)
+        return true
     }
 
     /// Updates the reachability status in the web view. This is called automatically any time the reachability status changes.

@@ -50,15 +50,11 @@ final public class ITMAlert: ITMNativeUIComponent {
         guard let actions = params["actions"] as? [[String: Any]], !actions.isEmpty else {
             throw ITMError(json: ["message": "\(errorPrefix): actions must be present and not empty"])
         }
-        var alertActions: [ITMAlertAction] = []
-        for actionDict in actions {
-            if let action: ITMAlertAction = try? ITMDictionaryDecoder.decode(actionDict) {
-                alertActions.append(action)
-            } else {
-                throw ITMError(json: ["message": "\(errorPrefix): invalid action"])
-            }
+        do {
+            return try actions.map { try ITMDictionaryDecoder.decode($0) }
+        } catch {
+            throw ITMError(json: ["message": "\(errorPrefix): invalid action"])
         }
-        return alertActions
     }
 
     @MainActor

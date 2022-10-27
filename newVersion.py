@@ -246,7 +246,7 @@ def modify_samples_package_resolved(args):
 
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
-    if not args.new_mobile:
+    if not hasattr(args, 'new_commit_id') or not args.new_mobile:
         if current:
             args.new_mobile = args.current_mobile
         else:
@@ -301,6 +301,12 @@ def release2_command(args):
 def release3_command(args):
     create_release(args, sdk_dirs.samples, True)
 
+def show_node_version():
+    print("Using node version:")
+    subprocess.check_call(['node', '--version'])
+    print("Using npm version:")
+    subprocess.check_call(['npm', '--version'])
+
 def stage1_command(args):
     bump_command(args)
     release1_command(args)
@@ -312,6 +318,15 @@ def stage2_command(args):
 def stage3_command(args):
     bumpsamples_command(args)
     release3_command(args)
+
+def checkversions_command(args):
+    get_versions(args)
+    print("-------------------------------------------------------------------------------")
+    show_node_version()
+    print("new_mobile: " + args.new_mobile)
+    print("new_itwin: " + args.new_itwin)
+    print("new_add_on: " + args.new_add_on)
+    print("new_add_on_commit_id: " + args.new_add_on_commit_id)
 
 def get_last_release():
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
@@ -338,7 +353,7 @@ def get_next_release(last_release):
 
 def get_latest_itwin_version():
     dist_tags = subprocess.check_output(['npm', 'dist-tag', itwin_version_package], encoding='UTF-8')
-    match = re.search('previous: ([.0-9]+)', dist_tags)
+    match = re.search('latest: ([.0-9]+)', dist_tags)
     if match and len(match.groups()) == 1:
         return match.group(1)
 
@@ -486,6 +501,9 @@ if __name__ == '__main__':
     parser_do = sub_parsers.add_parser('do', help='Run a command in each dir')
     parser_do.set_defaults(func=do_command)
     parser_do.add_argument('strings', metavar='arg', nargs='+')
+
+    parser_checkversions = sub_parsers.add_parser('checkversions', help='Check versions for next release.')
+    parser_checkversions.set_defaults(func=checkversions_command)
 
     args = parser.parse_args()
     sdk_dirs = MobileSdkDirs(args)

@@ -293,7 +293,7 @@ def create_release(args, dir, current = False):
 
 def release1_command(args):
     create_release(args, sdk_dirs.sdk_ios)
-    create_release(args, sdk_dirs.sdk_core)
+    create_release(args, sdk_dirs.sdk_core, True)
 
 def release2_command(args):
     create_release(args, sdk_dirs.ui_react, True)

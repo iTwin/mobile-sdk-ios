@@ -71,7 +71,7 @@ public extension AsyncLocationManager {
     /// - Throws: Throws if there is anything that prevents the position lookup from working.
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
     func geolocationPosition() async throws -> [String: Any] {
-        let permission = await requestAuthorizationWhenInUse()
+        let permission = await requestPermission(with: .whenInUsage)
         if permission != .authorizedAlways, permission != .authorizedWhenInUse {
             throw ITMError(json: ["message": "Permission denied."])
         }
@@ -274,7 +274,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func requestAuth() async throws -> Void {
-        let permission = await asyncLocationManager.requestAuthorizationWhenInUse()
+        let permission = await asyncLocationManager.requestPermission(with: .whenInUsage)
         if permission != .authorizedAlways, permission != .authorizedWhenInUse {
             throw ITMError(json: ["message": "Permission denied."])
         }

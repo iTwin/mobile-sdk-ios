@@ -15,8 +15,8 @@
         "repositoryURL": "https://github.com/AsyncSwift/AsyncLocationKit.git",
         "state": {
           "branch": null,
-          "revision": "973a0a5ee72b7d714dedf8aeee54fb91638fdf82",
-          "version": "1.0.5"
+          "revision": "485a6e173d7f73fc7aeb120501810d3310e905be",
+          "version": "1.5.6"
         }
       },
       {
@@ -24,8 +24,8 @@
         "repositoryURL": "https://github.com/iTwin/mobile-native-ios",
         "state": {
           "branch": null,
-          "revision": "2a6d69a5fa5188c01582873fc454de2580cc509f",
-          "version": "3.3.16"
+          "revision": "291d4352743fdf1f3ca83173808cde24c0d1e6f3",
+          "version": "3.4.21"
         }
       },
       {

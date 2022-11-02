@@ -26,6 +26,9 @@ public protocol ITMAuthorizationClient: AuthorizationClient {
 
 // MARK: - ITMAuthorizationClient extension with default implementations
 
+/// Key used in the `userInfo` dict of errors created with `error(domain:code:reason:)`.
+public let ITMAuthorizationClientErrorKey = "ITMAuthorizationClientErrorKey"
+
 /// Extension that provides default implementation for the functions in the `ITMAuthorizationClient` protocol.
 public extension ITMAuthorizationClient {
     /// Creates and returns an NSError object with the specified settings. Provides a default value `nil` for `domain` and a default value of `200` for `code`. The `nil` default value for domain causes it to use the value stored in ``errorDomain``.
@@ -33,9 +36,9 @@ public extension ITMAuthorizationClient {
     ///   - domain: The domain to use for the NSError, default to nil, which uses the value from ``errorDomain``.
     ///   - code: The code to use for the NSError, defaults 200.
     ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
-    /// - Returns: An NSError object with the specified values.
+    /// - Returns: An NSError object with the specified values. Along with the other settings, the `userInfo` dictionary of the return value will contain a value of `true` for `ITMAuthorizationClientErrorKey`.
     func error(domain: String? = nil, code: Int = 200, reason: String) -> NSError {
-        return NSError(domain: domain ?? errorDomain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason])
+        return NSError(domain: domain ?? errorDomain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason, ITMAuthorizationClientErrorKey: true])
     }
 
     /// Calls the onAccessTokenChanged callback, if that callback is set.

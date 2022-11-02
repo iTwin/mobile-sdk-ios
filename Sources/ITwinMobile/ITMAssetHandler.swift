@@ -53,17 +53,18 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     ///   - urlSchemeTask: The `WKURLSchemeTask` that will receive the file data.
     ///   - fileUrl: The file URL to get the data from.
     open class func respondWithDiskFile(urlSchemeTask: WKURLSchemeTask, fileUrl: URL) {
-        URLSession.shared.dataTask(with: fileUrl) { data, response, error in
-            if error != nil {
+        Task {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: fileUrl)
+                let taskResponse: URLResponse
+                taskResponse = HTTPURLResponse(url: urlSchemeTask.request.url!, mimeType: response.mimeType, expectedContentLength: Int(response.expectedContentLength), textEncodingName: response.textEncodingName)
+                urlSchemeTask.didReceive(taskResponse)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+            } catch {
                 cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
-                return
             }
-            let taskResponse: URLResponse
-            taskResponse = HTTPURLResponse(url: urlSchemeTask.request.url!, mimeType: response?.mimeType, expectedContentLength: Int(response?.expectedContentLength ?? 0), textEncodingName: response?.textEncodingName)
-            urlSchemeTask.didReceive(taskResponse)
-            urlSchemeTask.didReceive(data!)
-            urlSchemeTask.didFinish()
-        }.resume()
+        }
     }
     
     /// Cancels the request in the `urlSchemeTask` with a "file not found" error.

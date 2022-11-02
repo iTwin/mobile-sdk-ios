@@ -306,32 +306,19 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                 completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: No access token after fetching fresh tokens")))
                 return
             }
-            var request = URLRequest(url: userinfoEnpoint)
-            let authorizationHeaderValue = "Bearer \(accessToken)"
-            request.addValue(authorizationHeaderValue, forHTTPHeaderField: "Authorization")
-            let configuration = URLSessionConfiguration.default
-            let session = URLSession(configuration: configuration)
-            let postDataTask = session.dataTask(with: request) { data, response, error in
-                Task { @MainActor in
-                    if let error = error {
-                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: HTTP Request failed fetching user info: \(error)")))
-                        return
-                    }
+            Task { @MainActor in
+                var request = URLRequest(url: userinfoEnpoint)
+                request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+                do {
+                    let (data, response) = try await URLSession.shared.data(for: request)
                     guard let httpResponse = response as? HTTPURLResponse else {
-                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Response not HTTP fetching user info")))
-                        return
-                    }
-                    guard let data = data else {
-                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: No data fetching user info")))
-                        return
+                        throw self.error(reason: "ITMOIDCAuthorizationClient: Response not HTTP fetching user info")
                     }
                     guard let jsonDictionaryOrArray = try? JSONSerialization.jsonObject(with: data, options: []) else {
-                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")))
-                        return
+                        throw self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")
                     }
                     guard let jsonDictionary = jsonDictionaryOrArray as? [AnyHashable: Any] else {
-                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")))
-                        return
+                        throw self.error(reason: "ITMOIDCAuthorizationClient: Error parsing response as JSON")
                     }
                     if httpResponse.statusCode != 200 {
                         // Server replied with an error
@@ -341,22 +328,26 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                             let oauthError = OIDErrorUtilities.resourceServerAuthorizationError(withCode: 0, errorResponse: jsonDictionary, underlyingError: error)
                             authState.update(withAuthorizationError: oauthError)
                             ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient: Authorization error: \(oauthError)")
-                            completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Authorization error")))
+                            throw self.error(reason: "ITMOIDCAuthorizationClient: Authorization error")
                         } else {
                             if let error = error {
-                                completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Unknown error: \(error)")))
+                                throw self.error(reason: "ITMOIDCAuthorizationClient: Unknown error: \(error)")
                             } else {
-                                completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: Unknown error")))
+                                throw self.error(reason: "ITMOIDCAuthorizationClient: Unknown error")
                             }
                         }
-                        return
                     }
                     // Success response
                     self.userInfo = jsonDictionary as NSDictionary
                     completion(.success(()))
+                } catch let error as NSError {
+                    if error.userInfo[ITMAuthorizationClientErrorKey] as? Bool == true {
+                        completion(.failure(error))
+                    } else {
+                        completion(.failure(self.error(reason: "ITMOIDCAuthorizationClient: HTTP Request failed fetching user info: \(error)")))
+                    }
                 }
             }
-            postDataTask.resume()
         }
     }
     

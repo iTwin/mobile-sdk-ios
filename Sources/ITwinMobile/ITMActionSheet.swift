@@ -26,7 +26,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         guard let viewController = self.viewController else {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
-        let alertActions = try ITMAlert.extractActions(params: params, errorPrefix: "ITMActionSheet")
+        let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")
         // It shouldn't be possible to get here with activeContinuation non-nil, but trigger a cancel of
         // any previous continuation just in case.
         resume(returning: nil)
@@ -57,10 +57,8 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                 assert(false)
                 alert.popoverPresentationController?.sourceRect = CGRect()
             }
-            for action in alertActions {
-                alert.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in
-                    self.resume(returning: action.name)
-                })
+            ITMAlertAction.addActions(alertActions, to: alert) { _, action in
+                self.resume(returning: action.name)
             }
             viewController.present(alert, animated: true)
         }

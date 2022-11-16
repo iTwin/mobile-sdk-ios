@@ -155,9 +155,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     deinit {
-        for queryHandler in queryHandlers {
-            itmMessenger.unregisterQueryHandler(queryHandler)
-        }
+        itmMessenger.unregisterQueryHandlers(queryHandlers)
         queryHandlers.removeAll()
         if reachabilityObserver != nil {
             NotificationCenter.default.removeObserver(reachabilityObserver!)

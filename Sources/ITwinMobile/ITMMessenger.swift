@@ -368,6 +368,14 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
+    /// Unregister a query handlers registered with ``registerQueryHandler(_:_:)`` or ``registerQueryHandler(_:)``.
+    /// - Parameter handlers: array of query handlers to unregister.
+    public func unregisterQueryHandlers(_ handlers: [ITMQueryHandler]) {
+        for handler in handlers {
+            unregisterQueryHandler(handler)
+        }
+    }
+
     /// Evaluate a JavaScript string in this ITMMessenger's WKWebView. Note that this uses a queue, and only one JavaScript string is evaluated at a time.
     /// WKWebView doesn't work right when multiple evaluateJavaScript calls are active at the same time. This function returns immediately, while the
     /// JavaScript is scheduled for later evaluation.

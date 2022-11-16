@@ -440,6 +440,12 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    private func enumWatchers(_ handler: (Int64) throws -> Void) rethrows {
+        for positionId in watchIds {
+            try handler(positionId)
+        }
+    }
+
     private func sendLocationUpdates() async {
         if !isUpdatingPosition {
             return
@@ -453,12 +459,12 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 } catch let ex {
                     ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
                     let errorJson = self.positionUnavailableError
-                    for positionId in self.watchIds {
+                    self.enumWatchers { positionId in
                         self.sendError("watchPosition", positionId: positionId, errorJson: errorJson)
                     }
                 }
                 if let positionJson = positionJson {
-                    for positionId in self.watchIds {
+                    self.enumWatchers { positionId in
                         let message: [String: Any] = [
                             "positionId": positionId,
                             "position": positionJson
@@ -470,7 +476,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             }
         } catch {
             let errorJson = self.notAuthorizedError
-            for positionId in self.watchIds {
+            self.enumWatchers { positionId in
                 self.sendError("watchPosition", positionId: positionId, errorJson: errorJson)
             }
         }
@@ -504,7 +510,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 // to POSITION_UNAVAILABLE.
                 errorJson = positionUnavailableError
             }
-            for positionId in watchIds {
+            enumWatchers { positionId in
                 sendError("watchPosition", positionId: positionId, errorJson: errorJson)
             }
         }

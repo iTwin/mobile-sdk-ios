@@ -374,6 +374,12 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         let js = "window.Bentley_ITMGeolocationResponse('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
         itmMessenger.evaluateJavaScript(js)
     }
+    
+    private func sendErrorToWatchers(_ messageName: String, errorJson: [String: Any]) {
+        for positionId in watchIds {
+            sendError(messageName, positionId: positionId, errorJson: errorJson)
+        }
+    }
 
     @MainActor
     private func initAsyncLocationManager() {
@@ -440,12 +446,6 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func enumWatchers(_ handler: (Int64) throws -> Void) rethrows {
-        for positionId in watchIds {
-            try handler(positionId)
-        }
-    }
-
     private func sendLocationUpdates() async {
         if !isUpdatingPosition {
             return
@@ -459,12 +459,10 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 } catch let ex {
                     ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
                     let errorJson = self.positionUnavailableError
-                    self.enumWatchers { positionId in
-                        self.sendError("watchPosition", positionId: positionId, errorJson: errorJson)
-                    }
+                    self.sendErrorToWatchers("watchPosition", errorJson: errorJson)
                 }
                 if let positionJson = positionJson {
-                    self.enumWatchers { positionId in
+                    for positionId in self.watchIds {
                         let message: [String: Any] = [
                             "positionId": positionId,
                             "position": positionJson
@@ -476,9 +474,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             }
         } catch {
             let errorJson = self.notAuthorizedError
-            self.enumWatchers { positionId in
-                self.sendError("watchPosition", positionId: positionId, errorJson: errorJson)
-            }
+            self.sendErrorToWatchers("watchPosition", errorJson: errorJson)
         }
     }
 
@@ -510,9 +506,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 // to POSITION_UNAVAILABLE.
                 errorJson = positionUnavailableError
             }
-            enumWatchers { positionId in
-                sendError("watchPosition", positionId: positionId, errorJson: errorJson)
-            }
+            sendErrorToWatchers("watchPosition", errorJson: errorJson)
         }
     }
 

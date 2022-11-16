@@ -10,7 +10,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
-      "args": ["bump"]
+      "args": ["bump", "--force"]
     },
     {
       "name": "Python: newVersion.py bumpall",

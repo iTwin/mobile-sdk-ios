@@ -13,9 +13,13 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base version to search for. 3.3.x for now.
-itwin_base_version_search = "3\\.2\\."
-itwin_base_version_search2 = "3\\.3\\."
+# iTwin base versions to search for. 3.2.x - 3.5.x for now.
+itwin_base_version_search_list = [
+    "3\\.2\\.",
+    "3\\.3\\.",
+    "3\\.4\\.",
+    "3\\.5\\.",
+]
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
 # iTwin Mobile SDK base version to search for. 0.10.x for now.
@@ -95,19 +99,30 @@ def replace_all(filename, replacements):
         sys.stdout.write(newline)
     return num_found
 
+def itwin_base_version_search_tuples(firstFormatString, secondValue):
+    result = []
+    for itwin_base_version_search in itwin_base_version_search_list:
+        result.append((firstFormatString.format(itwin_base_version_search), secondValue))
+    return result
+
 def modify_package_json(args, dir):
     filename = os.path.join(dir, 'package.json')
     if os.path.exists(filename):
         print("Processing: " + filename)
         # IMPORTANT: The @itwin/mobile-sdk-core and @itwin/mobile-ui-react replacements must
         # come last.
-        if replace_all(filename, [
-            ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
-            ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
-            ('("' + itwin_scope + '/[0-9a-z-]+"): "' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\1: "' + args.new_itwin),
-            ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
-            ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
-        ]) < 2:
+        if replace_all(
+            filename,
+            [
+                ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
+            ] + itwin_base_version_search_tuples(
+                '("' + itwin_scope + '/[0-9a-z-]+"): "{0}[.0-9a-z-]+',
+                '\\1: "' + args.new_itwin
+            ) + [
+                ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
+                ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
+            ]
+        ) < 2:
             raise Exception("Not enough replacements")
 
 def modify_readme_md(args, dir):
@@ -115,22 +130,31 @@ def modify_readme_md(args, dir):
     if not os.path.exists(filename):
         raise Exception("Error: Cannot find " + filename)
     print("Processing: " + filename)
-    if replace_all(filename, [
-        ('(' + js_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
-        ('(' + js_package_search + ')' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_itwin),
-    ]) < 1:
+    if replace_all(
+        filename,
+        itwin_base_version_search_tuples(
+            '(' + js_package_search + '){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_itwin
+        )
+    ) < 1:
         raise Exception("Not enough replacements")
 
     # Replacements specific to the mobile-sdk-ios/README.md
-    if dir == sdk_dirs.sdk_ios and replace_all(filename, [
-        ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-        ('(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/)' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-        ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ('(' + native_package_search + ')' + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-        ('(' + native_package_search + ')' + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-    ]) < 5:
+    if dir == sdk_dirs.sdk_ios and replace_all(
+        filename,
+        [
+            ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+            ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
+        ] + itwin_base_version_search_tuples(
+            '(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_add_on
+        ) + [
+            ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile)
+        ] + itwin_base_version_search_tuples(
+            '(' + native_package_search + '){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_add_on
+        )
+    ) < 5:
         raise Exception("Not enough replacements")
 
 def modify_package_swift(args, filename):
@@ -179,28 +203,26 @@ def modify_package_resolved(args, filename):
 
 def modify_build_gradle(args, filename):
     print("Processing: " + os.path.realpath(filename))
-    if replace_all(filename, [
-        ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-        ("(version = ')((?!-debug'$)[.0-9a-z-])+", "\\g<1>" + args.new_mobile),
-        ("(api 'com.github.itwin:mobile-native-android:)[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
-    ]) != 4:
+    if replace_all(
+        filename,
+        [
+            ("(versionName ')[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+            ("(version = ')((?!-debug'$)[.0-9a-z-])+", "\\g<1>" + args.new_mobile),
+            ("(api 'com.github.itwin:mobile-native-android:)[.0-9a-z-]+", "\\g<1>" + args.new_add_on),
+        ]
+    ) != 4:
         raise Exception("Wrong number of replacements")
 
 def modify_sample_build_gradle(args, filename):
     print("Processing: " + os.path.realpath(filename))
-    if replace_all(filename, [
-        ("(implementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-        # ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
-    ]) != 1:
+    if replace_all(
+        filename,
+        [
+            ("(implementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+            # ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
+        ]
+    ) != 1:
         raise Exception("Wrong number of replacements")
-
-# def modify_android_yml(args, filename):
-#     print("Processing: " + os.path.realpath(filename))
-#     if replace_all(filename, [
-#         ("( +ref: ')" + itwin_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-#         ("( +ref: ')" + itwin_base_version_search2 + '[.0-9a-z-]+', '\\g<1>' + args.new_add_on),
-#     ]) != 1:
-#         raise Exception("Wrong number of replacements")
 
 def change_command(args):
     if not args.force:

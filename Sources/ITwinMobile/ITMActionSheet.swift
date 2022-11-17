@@ -23,7 +23,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
 
     @MainActor
     private func handleQuery(params: [String: Any]) async throws -> String? {
-        guard let viewController = self.viewController else {
+        guard let viewController = viewController else {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")
@@ -31,7 +31,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         // any previous continuation just in case.
         resume(returning: nil)
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
-            self.activeContinuation = continuation
+            activeContinuation = continuation
             let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
             alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
             alert.onClose = {
@@ -40,15 +40,15 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                 // after the handler has had a chance to execute.
                 // NOTE: Task { @MainActor won't work below, because we're already on the UI thread when
                 // we get here; using DispatchQueue.main.async forces the code inside to run later.
-                DispatchQueue.main.async {
+                DispatchQueue.main.async { [self] in
                     // If no action has been selected, then the user tapped outside the popover on
                     // an iPad, OR an orientation change or window resize trigerred a cancel. This
                     // cancels the action sheet without calling any of the actions. When the action
-                    // is selected, it sets self.activeContinuation to nil, which makes this do nothing.
-                    self.resume(returning: nil)
+                    // is selected, it sets activeContinuation to nil, which makes this do nothing.
+                    resume(returning: nil)
                 }
             }
-            alert.popoverPresentationController?.sourceView = self.itmMessenger.webView
+            alert.popoverPresentationController?.sourceView = itmMessenger.webView
             if let sourceRectDict = params["sourceRect"] as? [String: Any],
                let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
                 alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
@@ -57,8 +57,8 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                 assert(false)
                 alert.popoverPresentationController?.sourceRect = CGRect()
             }
-            ITMAlertAction.addActions(alertActions, to: alert) { _, action in
-                self.resume(returning: action.name)
+            ITMAlertAction.addActions(alertActions, to: alert) { [self] _, action in
+                resume(returning: action.name)
             }
             viewController.present(alert, animated: true)
         }

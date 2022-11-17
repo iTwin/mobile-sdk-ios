@@ -383,18 +383,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // It's highly unlikely we could get here with backendLoadedContinuation nil,
             // but if we do, we need to wait for it to be initialized before continuing, or
             // nothing will work.
-            await ITMMessenger.waitUntilReady({ self.backendLoadedContinuation != nil })
+            await ITMMessenger.waitUntilReady({ [self] in backendLoadedContinuation != nil })
             await itmMessenger.waitUntilReady()
             IModelJsHost.sharedInstance().loadBackend(
                 backendUrl,
                 withAuthClient: authorizationClient,
                 withInspect: allowInspectBackend
-            ) { _ in
+            ) { [self] _ in
                 // This callback gets called each time the app returns to the foreground. That is
                 // probably a bug in iModelJS, but clearing backendLoadedContinuation avoids having
                 // that cause problems.
-                self.backendLoadedContinuation?.resume(returning: ())
-                self.backendLoadedContinuation = nil
+                backendLoadedContinuation?.resume(returning: ())
+                backendLoadedContinuation = nil
             }
             IModelJsHost.sharedInstance().register(webView)
         }
@@ -441,7 +441,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // we wait for the execution to complete before loading the main page. So we
         // can't use itmMessenger.evaluateJavaScript here, even though we use it
         // everywhere else in this file.
-        self.webView.evaluateJavaScript("navigator.userAgent") { [weak webView = self.webView] result, error in
+        webView.evaluateJavaScript("navigator.userAgent") { [self, weak webView = self.webView] result, error in
             if let webView = webView {
                 if let userAgent = result as? String {
                     var customUserAgent: String
@@ -455,20 +455,20 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                         // append /Mobile to the end so that UIFramework.isMobile() will work.
                         customUserAgent = userAgent + " Mobile"
                     }
-                    customUserAgent += self.getUserAgentSuffix()
+                    customUserAgent += getUserAgentSuffix()
                     webView.customUserAgent = customUserAgent
                 }
                 _ = webView.load(request)
-                if self.usingRemoteServer {
-                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { _ in
-                        if !self.fullyLoaded {
+                if usingRemoteServer {
+                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [self] _ in
+                        if !fullyLoaded {
                             Task {
-                                await self.showFrontendLoadError(request: request)
+                                await showFrontendLoadError(request: request)
                             }
                         }
                     }
                 }
-                self.reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
+                reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
                     self?.updateReachability()
                 }
             }
@@ -484,7 +484,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     open func loadFrontend() {
         Task {
             await backendLoaded
-            let url = self.getBaseUrl() + self.getUrlHashParams().toString()
+            let url = getBaseUrl() + getUrlHashParams().toString()
             let request = URLRequest(url: URL(string: url)!)
             await loadFrontend(request: request)
         }
@@ -498,7 +498,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Always add dormant application to ``topViewController``'s view to ensure it appears in presented view hierarchy
     /// - Returns: The top view.
     public class var topView: UIView? {
-        guard let topViewController = self.topViewController else { return nil }
+        guard let topViewController = topViewController else { return nil }
         return topViewController.view
     }
 
@@ -684,7 +684,7 @@ public extension ITMApplication.HashParams {
     /// Converts the receiver into a URL hash string, encoding values so that they are valid for use in a URL.
     /// - Returns: The hash parameters converted to a URL hash string.
     func toString() -> String {
-        if self.count == 0 {
+        if count == 0 {
             return ""
         }
         // Note: URL strings probably allow other characters, but we know for sure that these all work.
@@ -693,7 +693,7 @@ public extension ITMApplication.HashParams {
         // Similarly, `CharacterSet.decimalDigits` includes the Unicode category Number, Decimal Digit,
         // which contains 660 characters.
         let allowedCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.")
-        let encoded = self.map { "\($0.name)=\($0.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters)!)" }
+        let encoded = map { "\($0.name)=\($0.value.addingPercentEncoding(withAllowedCharacters: allowedCharacters)!)" }
         return "#" + encoded.joined(separator: "&")
     }
 }

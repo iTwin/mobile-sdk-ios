@@ -108,8 +108,8 @@ open class ITMDevicePermissionsHelper {
             actionSelected?(action)
             ITMAlertController.doneWithAlertWindow()
         })
-        alert.addAction(UIAlertAction(title: settingStr, style: .default) { action in
-            self.openApplicationSettings()
+        alert.addAction(UIAlertAction(title: settingStr, style: .default) { [self] action in
+            openApplicationSettings()
             actionSelected?(action)
             ITMAlertController.doneWithAlertWindow()
         })

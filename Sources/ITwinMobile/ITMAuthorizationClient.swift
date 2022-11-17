@@ -18,7 +18,7 @@ public protocol ITMAuthorizationClient: AuthorizationClient {
     ///   - code: The code to use for the NSError, defaults 200.
     ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
     /// - Returns: An NSError object with the specified values.
-    func error(domain: String?, code: Int, reason: String) -> NSError
+    func createError(domain: String?, code: Int, reason: String) -> NSError
     /// Call the `onAccessTokenChanged` callback from `AuthorizationClient`, if that callback is set.
     /// - Note: This also calls `getAccessToken` to get the current token and expirationDate in order to call `onAccessTokenChanged`.
     func raiseOnAccessTokenChanged()
@@ -37,14 +37,14 @@ public extension ITMAuthorizationClient {
     ///   - code: The code to use for the NSError, defaults 200.
     ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
     /// - Returns: An NSError object with the specified values. Along with the other settings, the `userInfo` dictionary of the return value will contain a value of `true` for `ITMAuthorizationClientErrorKey`.
-    func error(domain: String? = nil, code: Int = 200, reason: String) -> NSError {
+    func createError(domain: String? = nil, code: Int = 200, reason: String) -> NSError {
         return NSError(domain: domain ?? errorDomain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason, ITMAuthorizationClientErrorKey: true])
     }
 
     /// Calls the onAccessTokenChanged callback, if that callback is set.
     func raiseOnAccessTokenChanged() {
         if let onAccessTokenChanged = onAccessTokenChanged {
-            self.getAccessToken() { token, expirationDate, error in
+            getAccessToken() { token, expirationDate, error in
                 if let token = token,
                    let expirationDate = expirationDate {
                     onAccessTokenChanged(token, expirationDate)

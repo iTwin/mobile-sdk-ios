@@ -307,23 +307,23 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true {
-                await ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
-                    self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
+                await ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
+                    sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
                 }
             } else {
-                self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
+                sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
             }
             return
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
         do {
             try await checkAuth()
-            self.watchIds.insert(positionId)
-            if self.watchIds.count == 1 {
-                self.startUpdatingPosition()
+            watchIds.insert(positionId)
+            if watchIds.count == 1 {
+                startUpdatingPosition()
             }
         } catch {
-            self.sendError("watchPosition", positionId: positionId, errorJson: self.notAuthorizedError)
+            sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
         }
     }
 
@@ -392,7 +392,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     public var asyncLocationManager: AsyncLocationManager {
         get async {
             await initAsyncLocationManager()
-            return self._asyncLocationManager!
+            return _asyncLocationManager!
         }
     }
 
@@ -411,11 +411,11 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true {
-                await ITMDevicePermissionsHelper.openLocationAccessDialog() { _ in
-                    self.sendError("getCurrentPosition", positionId: positionId, errorJson: self.notAuthorizedError)
+                await ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
+                    sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError)
                 }
             } else {
-                self.sendError("getCurrentPosition", positionId: positionId, errorJson: self.notAuthorizedError)
+                sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError)
             }
             return
         }
@@ -427,16 +427,16 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 "positionId": positionId,
                 "position": position
             ]
-            let js = "window.Bentley_ITMGeolocationResponse('getCurrentPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
-            self.itmMessenger.evaluateJavaScript(js)
+            let js = "window.Bentley_ITMGeolocationResponse('getCurrentPosition', '\(itmMessenger.jsonString(message).toBase64())')"
+            itmMessenger.evaluateJavaScript(js)
         } catch {
             var errorJson: [String: Any]
-            self.stopUpdatingPosition()
+            stopUpdatingPosition()
             // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
             // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
             // to POSITION_UNAVAILABLE.
-            errorJson = self.positionUnavailableError
-            self.sendError("getCurrentPosition", positionId: positionId, errorJson: errorJson)
+            errorJson = positionUnavailableError
+            sendError("getCurrentPosition", positionId: positionId, errorJson: errorJson)
         }
     }
 
@@ -452,29 +452,29 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         do {
             try await checkAuth()
-            if let lastLocation = self.locationManager.location {
+            if let lastLocation = locationManager.location {
                 var positionJson: [String: Any]?
                 do {
-                    positionJson = try lastLocation.geolocationPosition(self.locationManager.heading?.trueHeading)
+                    positionJson = try lastLocation.geolocationPosition(locationManager.heading?.trueHeading)
                 } catch let ex {
                     ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
-                    let errorJson = self.positionUnavailableError
-                    self.sendErrorToWatchers("watchPosition", errorJson: errorJson)
+                    let errorJson = positionUnavailableError
+                    sendErrorToWatchers("watchPosition", errorJson: errorJson)
                 }
                 if let positionJson = positionJson {
-                    for positionId in self.watchIds {
+                    for positionId in watchIds {
                         let message: [String: Any] = [
                             "positionId": positionId,
                             "position": positionJson
                         ]
-                        let js = "window.Bentley_ITMGeolocationResponse('watchPosition', '\(self.itmMessenger.jsonString(message).toBase64())')"
-                        self.itmMessenger.evaluateJavaScript(js)
+                        let js = "window.Bentley_ITMGeolocationResponse('watchPosition', '\(itmMessenger.jsonString(message).toBase64())')"
+                        itmMessenger.evaluateJavaScript(js)
                     }
                 }
             }
         } catch {
-            let errorJson = self.notAuthorizedError
-            self.sendErrorToWatchers("watchPosition", errorJson: errorJson)
+            let errorJson = notAuthorizedError
+            sendErrorToWatchers("watchPosition", errorJson: errorJson)
         }
     }
 

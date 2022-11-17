@@ -52,11 +52,11 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         true;
         """
 
-        webView.evaluateJavaScript(js, completionHandler: { value, error in
+        webView.evaluateJavaScript(js, completionHandler: { [self] value, error in
             if error == nil {
                 return
             }
-            self.log("error", "ITMWebViewLogger: failed to init: \(error!)")
+            log("error", "ITMWebViewLogger: failed to init: \(error!)")
         })
     }
 

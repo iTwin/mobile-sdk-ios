@@ -100,10 +100,10 @@ open class ITMAlertController: UIAlertController {
         if let deviceOrientation = deviceOrientation, deviceOrientation != UIDevice.current.orientation {
             dismiss(animated: true)
         }
-        coordinator.animate(alongsideTransition: nil) { _ in
-            if let rootBounds = self.rootBounds, let deviceOrientation = self.deviceOrientation {
-                if rootBounds != self.view.window?.rootViewController?.view.bounds || deviceOrientation != UIDevice.current.orientation {
-                    self.dismiss(animated: true)
+        coordinator.animate(alongsideTransition: nil) { [self] _ in
+            if let rootBounds = rootBounds, let deviceOrientation = deviceOrientation {
+                if rootBounds != view.window?.rootViewController?.view.bounds || deviceOrientation != UIDevice.current.orientation {
+                    dismiss(animated: true)
                 }
             }
         }

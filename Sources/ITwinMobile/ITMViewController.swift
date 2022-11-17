@@ -62,10 +62,10 @@ open class ITMViewController: UIViewController {
 
     /// Call to load the backend and frontend of the iTwin Mobile app. Repeat calls are ignored.
     public func loadWebApplication() {
-        if !self.loadedOnce {
+        if !loadedOnce {
             ITMViewController.application.loadBackend(true)
             ITMViewController.application.loadFrontend();
-            self.loadedOnce = true
+            loadedOnce = true
         }
     }
 

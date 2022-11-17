@@ -175,8 +175,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                     itmMessenger.respondToQuery(queryId, nil, ITMError(json: ["message": "Invalid input"]))
                     return true
                 }
-                let responseString = self.itmMessenger.jsonString(response)
-                self.itmMessenger.respondToQuery(queryId, responseString)
+                let responseString = itmMessenger.jsonString(response)
+                itmMessenger.respondToQuery(queryId, responseString)
             } catch {
                 itmMessenger.respondToQuery(queryId, nil, error)
             }
@@ -275,7 +275,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         // It's highly unlikely we could get here with frontendLaunchContinuation nil,
         // but if we do, we need to wait for it to be initialized before continuing, or
         // nothing will work.
-        await ITMMessenger.waitUntilReady({ self.frontendLaunchContinuation != nil })
+        await ITMMessenger.waitUntilReady({ [self] in frontendLaunchContinuation != nil })
     }
     
     /// Wait until the given `isReady` predicate returns true.
@@ -385,19 +385,19 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             // Calling evaluateJavascript multiple times in a row before the prior
             // evaluation completes results in loss of all but one. Either the first
             // or last is called, and the rest disappear.
-            if self.jsBusy {
-                self.jsQueue.append(js)
+            if jsBusy {
+                jsQueue.append(js)
                 return
             }
-            self.jsBusy = true
-            self.webView.evaluateJavaScript(js, completionHandler: { _, _ in
-                self.jsBusy = false
-                if self.jsQueue.isEmpty {
+            jsBusy = true
+            webView.evaluateJavaScript(js, completionHandler: { [self] _, _ in
+                jsBusy = false
+                if jsQueue.isEmpty {
                     return
                 }
-                let js = self.jsQueue[0]
-                self.jsQueue.remove(at: 0)
-                self.evaluateJavaScript(js)
+                let js = jsQueue[0]
+                jsQueue.remove(at: 0)
+                evaluateJavaScript(js)
             })
         }
     }
@@ -455,7 +455,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                     messageJson = "{\"error\":\(itmError.jsonString)}"
                 }
             } else if let error = error {
-                let errorString = self.jsonString("\(error)")
+                let errorString = jsonString("\(error)")
                 messageJson = "{\"error\":\(errorString)}"
             } else {
                 // If we get here, the JS code sent a query that we don't handle. That should never
@@ -534,11 +534,11 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     private func internalQuery(_ type: String, dataString: String) async throws -> String {
         let queryId = ITMMessenger.queryId
-        self.logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
+        logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
         ITMMessenger.queryId += 1
         return try await withCheckedThrowingContinuation { continuation in
             Task {
-                await self.responseHandlers.set(queryId, { result in
+                await responseHandlers.set(queryId, { result in
                     switch result {
                     case .success(let resultString):
                         continuation.resume(returning: resultString)
@@ -547,7 +547,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                     }
                 })
                 let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
-                self.evaluateJavaScript(js)
+                evaluateJavaScript(js)
             }
         }
     }
@@ -614,7 +614,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     private func internalQuery<T>(_ type: String, _ data: Any? = nil) async throws -> T {
         try await frontendLaunched
         let dataString = try await internalQuery(type, dataString: JSONSerialization.string(withITMJSONObject: data) ?? "")
-        return try self.convertResult(type, dataString)
+        return try convertResult(type, dataString)
     }
 
     private func internalQueryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {

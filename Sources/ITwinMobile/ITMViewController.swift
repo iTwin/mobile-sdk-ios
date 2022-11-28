@@ -15,6 +15,8 @@ open class ITMViewController: UIViewController {
     public static var autoLoadWebApplication = true
     /// Whether or not to delay loading the web application the first time the view loads.
     public static var delayedAutoLoad = false
+    /// Whether or not a Chrome debugger can be attached to the backend.
+    public static var allowInspectBackend = false
     public private(set) var itmNativeUI: ITMNativeUI?
     private var loadedOnce = false
     private var willEnterForegroundObserver: Any? = nil
@@ -63,7 +65,7 @@ open class ITMViewController: UIViewController {
     /// Call to load the backend and frontend of the iTwin Mobile app. Repeat calls are ignored.
     public func loadWebApplication() {
         if !loadedOnce {
-            ITMViewController.application.loadBackend(true)
+            ITMViewController.application.loadBackend(ITMViewController.allowInspectBackend)
             ITMViewController.application.loadFrontend();
             loadedOnce = true
         }

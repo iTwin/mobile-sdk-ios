@@ -108,6 +108,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The `CheckedContinuation` that when resolved causes ``backendLoadedTask`` to be resolved.
     public var backendLoadedContinuation: CheckedContinuation<Void, Never>?
     private var backendLoadStarted = false
+    /// A Task whose value resolves (to `Void`) once the frontend has loaded.
+    public var frontendLoadedTask: Task<Void, Never>!
+    /// The `CheckedContinuation` that when resolved causes ``frontendLoadedTask`` to be resolved.
+    public var frontendLoadedContinuation: CheckedContinuation<Void, Never>?
     /// The MobileUi.preferredColorScheme value set by the TypeScript code, default is automatic.
     static public var preferredColorScheme = PreferredColorScheme.automatic
 
@@ -132,6 +136,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         backendLoadedTask = Task {
             await withCheckedContinuation { continuation in
                 backendLoadedContinuation = continuation
+            }
+        }
+        frontendLoadedTask = Task {
+            await withCheckedContinuation { continuation in
+                frontendLoadedContinuation = continuation
             }
         }
         webView.uiDelegate = self
@@ -380,10 +389,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
         authorizationClient = createAuthClient()
         Task {
-            // It's highly unlikely we could get here with backendLoadedContinuation nil,
-            // but if we do, we need to wait for it to be initialized before continuing, or
-            // nothing will work.
+            // It's highly unlikely we could get here with backendLoadedContinuation or
+            // frontendLoadedContinuation nil, but if we do, we need to wait for them to
+            // be initialized before continuing, or nothing will work.
             await ITMMessenger.waitUntilReady({ [self] in backendLoadedContinuation != nil })
+            await ITMMessenger.waitUntilReady({ [self] in frontendLoadedContinuation != nil })
             await itmMessenger.waitUntilReady()
             IModelJsHost.sharedInstance().loadBackend(
                 backendUrl,
@@ -411,6 +421,13 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public var backendLoaded: Void {
         get async {
             await backendLoadedTask.value
+        }
+    }
+    
+    /// Async property that resolves when the frontend has finished loading.
+    public var frontendLoaded: Void {
+        get async {
+            await frontendLoadedTask.value
         }
     }
 
@@ -471,6 +488,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
                     self?.updateReachability()
                 }
+                frontendLoadedContinuation?.resume(returning: ())
+                frontendLoadedContinuation = nil
             }
         }
     }

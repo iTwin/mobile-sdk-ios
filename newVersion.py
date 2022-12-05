@@ -528,23 +528,24 @@ def get_last_remote_commit_id(repo, tag_filter):
 def get_versions(args, current = False):
     found_all = False
     populate_mobile_versions(args, current)
-
     print("New release: " + args.new_mobile)
-    itwin_version = get_latest_itwin_version()
-    print("iTwin version: " + itwin_version)
-    add_on_version = get_latest_native_version(itwin_version)
-    if add_on_version:
+
+    if not hasattr(args, 'new_itwin') or not args.new_itwin:
+        args.new_itwin = get_latest_itwin_version()
+    print("iTwin version: " + args.new_itwin)
+
+    if not hasattr(args, 'new_add_on') or not args.new_add_on:
+        args.new_add_on = get_latest_native_version(args.new_itwin)
+
+    if args.new_add_on:
         found_all = True
-        print("mobile-native-ios version: " + add_on_version)
-        add_on_commit_id = get_last_remote_commit_id('https://github.com/iTwin/mobile-native-ios.git', add_on_version)
-        print("mobile-native-ios revision: " + add_on_commit_id)
+        print("mobile-native-ios version: " + args.new_add_on)
+        if not hasattr(args, 'new_add_on_commit_id') or not args.new_add_on_commit_id:
+            args.new_add_on_commit_id = get_last_remote_commit_id('https://github.com/iTwin/mobile-native-ios.git', args.new_add_on)
+        print("mobile-native-ios revision: " + args.new_add_on_commit_id)
 
     if not found_all:
         raise Exception("Error: Unable to determine all versions.")
-    if not hasattr(args, 'new_itwin') or not args.new_itwin:
-        args.new_itwin = itwin_version
-    args.new_add_on = add_on_version
-    args.new_add_on_commit_id = add_on_commit_id
 
 def do_command(args):
     if args.strings:

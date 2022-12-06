@@ -615,7 +615,7 @@ if __name__ == '__main__':
 
     parser_bumpitwin = sub_parsers.add_parser('bumpitwin', help='Update all locally for new iTwin version')
     parser_bumpitwin.set_defaults(func=bumpitwin_command)
-    add_new_mobile_argument(parser_bumpitwin)
+    add_common_change_arguments(parser_bumpitwin, False)
     add_force_argument(parser_bumpitwin)
 
     parser_changeui = sub_parsers.add_parser('changeui', help='Change version for mobile-ui-react (alternative to bumpui, specify versions)')

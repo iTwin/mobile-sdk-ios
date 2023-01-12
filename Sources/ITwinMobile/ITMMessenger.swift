@@ -187,12 +187,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Wrapper for a dictionary that uses an actor to ensure that all modifications happen in the same thread.
     private actor ResponseHandlers {
         private var responseHandlers: [Int64: ITMResponseHandler] = [:]
-        
-        // NOTE: subscript set is not supported for actors in Swift. :-/
-        subscript(key: Int64) -> ITMResponseHandler? { responseHandlers[key] }
 
         func set(_ key: Int64, _ value: @escaping ITMResponseHandler) { responseHandlers[key] = value }
-        func removeValue(forKey key: Int64) { responseHandlers.removeValue(forKey: key) }
+        func getAndRemoveValue(forKey key: Int64) -> ITMResponseHandler? {
+            let result = responseHandlers[key]
+            responseHandlers.removeValue(forKey: key)
+            return result
+        }
     }
 
     private struct WeakWKWebView: Equatable {
@@ -577,7 +578,10 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     private func processQueryResponse(_ response: Any?, queryId: Int64, error: Any?) {
         Task {
-            guard let handler = await responseHandlers[queryId] else { return }
+            guard let handler = await responseHandlers.getAndRemoveValue(forKey: queryId) else {
+                logError("Query response with invalid or repeat queryId: \(queryId)")
+                return
+            }
             let responseString = jsonString(response)
             if let error = error {
                 logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: error)
@@ -588,7 +592,6 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 logQuery("Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: response)
                 handler(.success(responseString))
             }
-            await responseHandlers.removeValue(forKey: queryId)
         }
     }
 

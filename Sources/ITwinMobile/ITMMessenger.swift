@@ -120,25 +120,59 @@ public class ITMWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - ITMError class
 
-/// Error with a JSON-encoded string with information about what went wrong.
-open class ITMError: Error {
+/// Error with a JSON data containing information about what went wrong.
+open class ITMError: Error, CustomStringConvertible {
+    /// The string version of ``jsonValue`` (Empty string if jsonValue is `null`).
     public let jsonString: String
-    
-    /// Create an ITMError with an empty jsonString.
+    /// The JSON data associated with this ``ITMError``.
+    public let jsonValue: [String: Any]?
+
+    /// Create an ITMError with a null ``jsonValue`` and empty ``jsonString``.
     public init() {
+        self.jsonValue = nil
         self.jsonString = ""
     }
     
     /// Create an ITMError with the given JSON string.
-    /// - Parameter jsonString: The jsonString for this ITMError.
+    /// - Parameter jsonString: The ``jsonString`` for this ITMError. This will be parsed to generate
+    ///                         ``jsonValue``, and must contain an object value in order to be valid. If
+    ///                         it contains an array value or a primitive value, ``jsonValue`` will be `null`.
     public init(jsonString: String) {
         self.jsonString = jsonString
+        self.jsonValue = JSONSerialization.jsonObject(withString: jsonString) as? [String: Any]
     }
     
     /// Create an ITMError with a JSON string created from the given dictionary.
-    /// - Parameter json: A dictionary that will be converted to a JSON string for this ITMError.
-    public init(json: [String: Any]) {
+    /// - Parameter json: A dictionary that will stored in ``jsonValue`` and converted to a string that will be stored
+    ///                   in ``jsonString``.
+    public init(json: [String: Any]?) {
+        self.jsonValue = json
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
+    }
+    
+    /// Indicates if this is a "not implemented" error, meaning that the web app received a message for which it does
+    /// not have a handler.
+    /// - Note: This will return `true` if ``jsonValue`` contains a `true` value for its "MessageNotImplemented" field.
+    public var isNotImplemented: Bool {
+        return jsonValue?["MessageNotImplemented"] as? Bool == true
+    }
+    
+    /// The value of the "Description" property in ``jsonValue``, if present, otherwise null.
+    public var errorDescription: String? {
+        jsonValue?["Description"] as? String
+    }
+
+    /// Provides a description for this ``ITMError``.
+    public var description: String {
+        if let description = errorDescription {
+            return description
+        }
+        if let jsonObject = JSONSerialization.jsonObject(withString: jsonString),
+           let prettyString = JSONSerialization.string(withITMJSONObject: jsonObject, prettyPrint: true) {
+            return "ITMError jsonString:\n\(prettyString)"
+        } else {
+            return "ITMError jsonString:\n\(jsonString)"
+        }
     }
 }
 
@@ -329,12 +363,23 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Send message with no response.
-    /// - Throws: Throws an error if there is a problem.
+    /// - Note: Since this function returns without waiting for the message to finish sending or the Void response to
+    ///         be returned from the web app, there is no way to know if a failure occurs. (An error will be logged
+    ///         using `ITMMessenger.logger`.)
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    public func query(_ type: String, _ data: Any? = nil) async throws -> Void {
-        return try await internalQuery(type, data)
+    public func query(_ type: String, _ data: Any? = nil) -> Void {
+        Task {
+            do {
+                let _: () = try await internalQuery(type, data)
+            } catch {
+                guard let itmError = error as? ITMError, !itmError.isNotImplemented else {
+                    return
+                }
+                logError("Error with one-way query \"\(type)\": \(error)")
+            }
+        }
     }
 
     /// Send message and receive an async parsed typed response.
@@ -594,7 +639,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             if let error = error {
                 logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: error)
                 if !handleNotImplementedError(error: error, handler: handler) {
-                    handler(.failure(ITMError(jsonString: jsonString(error))))
+                    handler(.failure(ITMError(json: error as? [String: Any])))
                 }
             } else {
                 logQuery("Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: response)
@@ -614,11 +659,11 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     private func handleNotImplementedError(error: Any, handler: ITMResponseHandler) -> Bool {
-        guard let errorDict = error as? [String: Any] else { return false }
-        guard let notImplemented = errorDict["MessageNotImplemented"] as? Bool, notImplemented else { return false }
-        let description = errorDict["Description"] as? String ?? "No handler for <Unknown> query."
+        let itmError = ITMError(json: error as? [String: Any])
+        guard itmError.isNotImplemented else { return false }
+        let description = itmError.errorDescription ?? "No handler for <Unknown> query."
         logError("ModelWebApp \(description)")
-        handler(.failure(ITMError(jsonString: jsonString(error))))
+        handler(.failure(itmError))
         return true
     }
 
@@ -665,7 +710,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             assert(false, reason)
         #endif
 
-        throw ITMError(jsonString: jsonString(["REASON": reason, "Internal": true]))
+        throw ITMError(json: ["REASON": reason, "Internal": true])
     }
 
     private static func parseMessageJsonString(_ jsonStr: String) -> Any? {

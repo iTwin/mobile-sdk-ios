@@ -195,6 +195,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             return result
         }
     }
+    
+    private actor QueryId {
+        private var queryId: Int64 = 0
+        
+        func next() -> Int64 {
+            queryId += 1
+            return queryId
+        }
+    }
 
     private struct WeakWKWebView: Equatable {
         weak var webView: WKWebView?
@@ -220,7 +229,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     // same WKWebView will work properly. You cannot have two WKMessageSenders refer to
     // the same WKWebView at the same time, but you can create one, destroy it, then
     // create another.
-    private static var queryId: Int64 = 0
+    private static var queryId = QueryId()
     private static var weakWebViews: [WeakWKWebView] = []
     /// Whether or not to log messages.
     public static var isLoggingEnabled = false;
@@ -534,9 +543,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     private func internalQuery(_ type: String, dataString: String) async throws -> String {
-        let queryId = ITMMessenger.queryId
+        let queryId = await ITMMessenger.queryId.next()
         logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
-        ITMMessenger.queryId += 1
         return try await withCheckedThrowingContinuation { continuation in
             Task {
                 await responseHandlers.set(queryId, { result in

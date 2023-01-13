@@ -121,7 +121,7 @@ public class ITMWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 // MARK: - ITMError class
 
 /// Error with a JSON-encoded string with information about what went wrong.
-open class ITMError: Error {
+open class ITMError: Error, CustomStringConvertible {
     public let jsonString: String
     
     /// Create an ITMError with an empty jsonString.
@@ -139,6 +139,16 @@ open class ITMError: Error {
     /// - Parameter json: A dictionary that will be converted to a JSON string for this ITMError.
     public init(json: [String: Any]) {
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
+    }
+    
+    /// Provides a description for this ``ITMError``.
+    public var description: String {
+        if let jsonObject = JSONSerialization.jsonObject(withString: jsonString),
+           let prettyString = JSONSerialization.string(withITMJSONObject: jsonObject, prettyPrint: true) {
+            return "ITMError jsonString:\n\(prettyString)"
+        } else {
+            return "ITMError jsonString:\n\(jsonString)"
+        }
     }
 }
 
@@ -329,12 +339,29 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Send message with no response.
-    /// - Throws: Throws an error if there is a problem.
+    /// - Note: Since this function returns without waiting for the message to finish sending or the Void response to
+    ///         be returned from the web app, there is no way to know if a failure occurs. (An error will be logged
+    ///         using `ITMMessenger.logger`.)
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    public func query(_ type: String, _ data: Any? = nil) async throws -> Void {
-        return try await internalQuery(type, data)
+    public func query(_ type: String, _ data: Any? = nil) -> Void {
+        Task {
+            do {
+                let _: () = try await internalQuery(type, data)
+            } catch {
+                var isNotImplemented = false
+                if let itmError = error as? ITMError {
+                    let errorJSON = JSONSerialization.jsonObject(withString: itmError.jsonString)
+                    if let json = errorJSON as? [String: Any], json["MessageNotImplemented"] as? Bool == true {
+                        isNotImplemented = true
+                    }
+                }
+                if !isNotImplemented {
+                    logError("Error with one-way message \"\(type)\": \(error)")
+                }
+            }
+        }
     }
 
     /// Send message and receive an async parsed typed response.

@@ -319,10 +319,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// code to work. You must include those values if you override this function to return other values.
     /// - Returns: The hash params required by every iTwin Mobile app.
     open func getUrlHashParams() -> HashParams {
-        return [
+        var hashParams = [
             HashParam(name: "port", value: "\(IModelJsHost.sharedInstance().getPort())"),
             HashParam(name: "platform", value: "ios")
         ]
+        if let apiPrefix = configData?["ITMAPPLICATION_API_PREFIX"] as? String {
+            hashParams.append(HashParam(name: "apiPrefix", value: apiPrefix))
+        }
+        return hashParams
     }
 
     /// Creates the `AuthorizationClient` to be used for this iTwin Mobile web app.

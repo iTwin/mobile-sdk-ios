@@ -61,7 +61,7 @@ open class ITMDevicePermissionsHelper {
     /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
     @MainActor
     public static func openLocationAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
-        openMissingPermisionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, actionSelected: actionSelected)
+        openMissingPermissionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, actionSelected: actionSelected)
     }
 
     /// Show a dialog telling the user that their action requires microphone access, which has been denied, and allowing them to
@@ -70,7 +70,7 @@ open class ITMDevicePermissionsHelper {
     /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
     @MainActor
     public static func openMicrophoneAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
-        openMissingPermisionsDialog(message: noMicrophonePermissionsStr, actionSelected: actionSelected)
+        openMissingPermissionsDialog(message: noMicrophonePermissionsStr, actionSelected: actionSelected)
     }
 
     /// Show a dialog telling the user that their action requires photo gallery access, which has been denied, and allowing them to
@@ -79,7 +79,7 @@ open class ITMDevicePermissionsHelper {
     /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
     @MainActor
     public static func openPhotoGalleryAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
-        openMissingPermisionsDialog(message: noPhotoGalleryPermissionsStr, actionSelected: actionSelected)
+        openMissingPermissionsDialog(message: noPhotoGalleryPermissionsStr, actionSelected: actionSelected)
     }
 
     /// Show a dialog telling the user that their action requires video capture access, which has been denied, and allowing them to
@@ -88,7 +88,7 @@ open class ITMDevicePermissionsHelper {
     /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
     @MainActor
     public static func openVideoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
-        openMissingPermisionsDialog(message: noVideoCapturePermissionsStr, actionSelected: actionSelected)
+        openMissingPermissionsDialog(message: noVideoCapturePermissionsStr, actionSelected: actionSelected)
     }
 
     /// Show a dialog telling the user that their action requires photo capture access, which has been denied, and allowing them to
@@ -97,11 +97,11 @@ open class ITMDevicePermissionsHelper {
     /// Note: this will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
     @MainActor
     public static func openPhotoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
-        openMissingPermisionsDialog(message: noPhotoCapturePermissionsStr, actionSelected: actionSelected)
+        openMissingPermissionsDialog(message: noPhotoCapturePermissionsStr, actionSelected: actionSelected)
     }
 
     @MainActor
-    private static func openMissingPermisionsDialog(message: String, title: String? = nil, actionSelected: ((UIAlertAction) -> Void)? = nil) {
+    private static func openMissingPermissionsDialog(message: String, title: String? = nil, actionSelected: ((UIAlertAction) -> Void)? = nil) {
         let viewController = ITMAlertController.getAlertVC()
         let alert = UIAlertController(title: title == nil ? accesRequiredStr : title, message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: cancelStr, style: .cancel) { action in

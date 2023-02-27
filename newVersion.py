@@ -19,6 +19,7 @@ itwin_base_version_search_list = [
     "3\\.3\\.",
     "3\\.4\\.",
     "3\\.5\\.",
+    "3\\.6\\.",
 ]
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."

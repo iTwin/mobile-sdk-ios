@@ -27,14 +27,13 @@ final public class ITMActionSheet: ITMNativeUIComponent {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")
-        // It shouldn't be possible to get here with activeContinuation non-nil, but trigger a cancel of
-        // any previous continuation just in case.
+        // If a previous query hasn't fully resolved yet, resolve it now with nil.
         resume(returning: nil)
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             activeContinuation = continuation
             let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .actionSheet)
             alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
-            alert.onClose = {
+            alert.onDeinit = {
                 // When an action is selected, this gets called before the action's handler.
                 // By running async in the main event queue, we delay processing this until
                 // after the handler has had a chance to execute.
@@ -48,6 +47,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
                     resume(returning: nil)
                 }
             }
+            alert.onClose = alert.onDeinit
             alert.popoverPresentationController?.sourceView = itmMessenger.webView
             if let sourceRectDict = params["sourceRect"] as? [String: Any],
                let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {

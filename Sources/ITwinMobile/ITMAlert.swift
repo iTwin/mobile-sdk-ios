@@ -74,6 +74,7 @@ public struct ITMAlertAction: Codable, Equatable {
 /// ``ITMNativeUIComponent`` that presents a `UIAlertController` with a style of `.alert`.
 /// This class is used by the `presentAlert` TypeScript function in @itwin/mobile-core.
 final public class ITMAlert: ITMNativeUIComponent {
+    var activeContinuation: CheckedContinuation<String?, Never>? = nil
     /// - Parameters:
     ///   - itmNativeUI: The ``ITMNativeUI`` used to present the alert.
     override init(itmNativeUI: ITMNativeUI) {
@@ -81,17 +82,30 @@ final public class ITMAlert: ITMNativeUIComponent {
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentAlert", handleQuery)
     }
 
+    private func resume(returning value: String?) {
+        activeContinuation?.resume(returning: value)
+        activeContinuation = nil
+    }
+
     @MainActor
-    private func handleQuery(params: [String: Any]) async throws -> String {
+    private func handleQuery(params: [String: Any]) async throws -> String? {
         guard let viewController = viewController else {
             throw ITMError(json: ["message": "ITMAlert: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMAlert")
-        return await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+        // If a previous query hasn't fully resolved yet, resolve it now with nil.
+        resume(returning: nil)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            activeContinuation = continuation
             let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
             alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
             ITMAlertAction.addActions(alertActions, to: alert) { _, action in
-                continuation.resume(returning: action.name)
+                self.resume(returning: action.name)
+            }
+            alert.onDeinit = {
+                DispatchQueue.main.async {
+                    self.resume(returning: nil)
+                }
             }
             alert.modalPresentationCapturesStatusBarAppearance = true
             viewController.present(alert, animated: true)

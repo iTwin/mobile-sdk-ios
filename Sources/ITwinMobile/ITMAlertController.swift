@@ -27,6 +27,7 @@ open class ITMAlertController: UIAlertController {
     /// Called from viewDidDisappear. Note that when an action is selected in an action sheet, this will be called
     /// before the action's handler.
     var onClose: (() -> Void)?
+    var onDeinit: (() -> Void)?
     var rootBounds: CGRect?
     var deviceOrientation: UIDeviceOrientation?
     /// Set this to true to not hide the status bar.
@@ -51,6 +52,14 @@ open class ITMAlertController: UIAlertController {
         // However, resetting the frame after the makeKeyAndVisible call fixes the problem.
         alertWindow!.frame = UIScreen.main.bounds
         return alertWindow!.rootViewController!
+    }
+    
+    deinit {
+        // If an ITMAlertController is presented in a view that has been asked to present a different
+        // one but hasn't had time to yet, the viewDidAppear and viewDidDisappear functions never get
+        // called, which means that onClose never gets called. This call to onDeinit makes sure that
+        // this sequence can still be dealt with.
+        onDeinit?()
     }
 
     /// Override to allow for the app to force light or dark mode.

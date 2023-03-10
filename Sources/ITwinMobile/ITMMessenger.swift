@@ -180,6 +180,7 @@ open class ITMError: Error, CustomStringConvertible {
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
 open class ITMMessenger: NSObject, WKScriptMessageHandler {
+    private static var unloggedQueryTypes = Set<String>()
     private class ITMWKQueryHandler<T, U>: NSObject, ITMQueryHandler {
         private var itmMessenger: ITMMessenger
         private var type: String
@@ -206,13 +207,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 } else if let typedBody = body as? T {
                     response = try await handler(typedBody)
                 } else {
-                    itmMessenger.respondToQuery(queryId, nil, ITMError(json: ["message": "Invalid input"]))
+                    itmMessenger.respondToQuery(queryId, type, nil, ITMError(json: ["message": "Invalid input"]))
                     return true
                 }
                 let responseString = itmMessenger.jsonString(response)
-                itmMessenger.respondToQuery(queryId, responseString)
+                itmMessenger.respondToQuery(queryId, type, responseString)
             } catch {
-                itmMessenger.respondToQuery(queryId, nil, error)
+                itmMessenger.respondToQuery(queryId, type, nil, error)
             }
             return true
         }
@@ -221,12 +222,19 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Wrapper for a dictionary that uses an actor to ensure that all modifications happen in the same thread.
     private actor ResponseHandlers {
         private var responseHandlers: [Int64: ITMResponseHandler] = [:]
+        private var types: [Int64: String] = [:]
 
-        func set(_ key: Int64, _ value: @escaping ITMResponseHandler) { responseHandlers[key] = value }
-        func getAndRemoveValue(forKey key: Int64) -> ITMResponseHandler? {
-            let result = responseHandlers[key]
+        func set(_ key: Int64, _ type: String, _ value: @escaping ITMResponseHandler) {
+            responseHandlers[key] = value
+            types[key] = type
+        }
+        func getAndRemoveValue(forKey key: Int64) -> (String, ITMResponseHandler)? {
+            guard let type = types[key], let responseHandler = responseHandlers[key] else {
+                return nil
+            }
             responseHandlers.removeValue(forKey: key)
-            return result
+            types.removeValue(forKey: key)
+            return (type, responseHandler)
         }
     }
     
@@ -257,6 +265,25 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// The default handler simply logs the error using ITMApplication.logger.
     public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> Void in
         ITMApplication.logger.log(.error, baseError.localizedDescription)
+    }
+
+    /// Add a query type to the list of unlogged queries.
+    ///
+    /// Unlogged queries are ignored by ``logQuery(_:_:_:prettyDataString:)``. This is useful (for example)
+    /// for queries that are themselves intended to produce log output, to prevent double log output.
+    ///
+    /// - Parameter type: The type of the query for which logging is disabled.
+    open class func addUnloggedQueryType(_ type: String) {
+        unloggedQueryTypes.insert(type)
+    }
+
+    /// Remove a query type from the list of unlogged queries.
+    ///
+    /// See ``addUnloggedQueryType(_:)``
+    ///
+    /// - Parameter type: The type of the query to remove.
+    open class func removeUnloggedQueryType(_ type: String) {
+        unloggedQueryTypes.remove(type)
     }
 
     // Note: queryId is static so that sequential WKMessageSenders that make use of the
@@ -491,10 +518,11 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Send query response to WKWebView.
     /// - Parameters:
     ///   - queryId: The queryId for the query. This must be the queryId passed into `ITMQueryHandler.handleQuery`.
+    ///   - type: The type of the query that is being responded to.
     ///   - responseJson: The JSON-encoded response string. If this is nil, it indicates an error. To indicate "no response" without triggering an
     ///                   error, use an empty string.
-    open func respondToQuery(_ queryId: Int64, _ responseJson: String?, _ error: Error? = nil) {
-        logQuery("Response SWIFT -> JS", "WKID\(queryId)", nil, dataString: responseJson)
+    open func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
+        logQuery("Response SWIFT -> JS", "WKID\(queryId)", type, dataString: responseJson)
         let messageJson: String
         if let responseJson = responseJson {
             if responseJson.isEmpty {
@@ -533,15 +561,17 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Log the given query using ``logInfo(_:)``.
+    ///
+    /// - Note: If  ``isLoggingEnabled`` is false or `type` has been passed to
+    ///         ``addUnloggedQueryType(_:)``, the query will not be logged.
     /// - Parameters:
     ///   - title: A title to show along with the logged message.
     ///   - queryId: The queryId of the query.
     ///   - type: The type of the query.
     ///   - prettyDataString: The pretty-printed JSON representation of the query data.
-    open func logQuery(_ title: String, _ queryId: String, _ type: String?, prettyDataString: String?) {
-        guard ITMMessenger.isLoggingEnabled else {return}
-        let typeString = type != nil ? "'\(type!)'" : "(Match ID from Request above)"
-        var message = "ITMMessenger [\(title)] \(queryId): \(typeString)"
+    open func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?) {
+        guard ITMMessenger.isLoggingEnabled, !ITMMessenger.unloggedQueryTypes.contains(type) else {return}
+        var message = "ITMMessenger [\(title)] \(queryId): \(type)"
         if ITMMessenger.isFullLoggingEnabled, let prettyDataString = prettyDataString {
             message.append("\n\(prettyDataString)")
         }
@@ -592,7 +622,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
         return try await withCheckedThrowingContinuation { continuation in
             Task {
-                await responseHandlers.set(queryId, { result in
+                await responseHandlers.set(queryId, type, { result in
                     switch result {
                     case .success(let resultString):
                         continuation.resume(returning: resultString)
@@ -606,53 +636,53 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
-    private func processQuery(_ name: String, withBody body: Any?, queryId: Int64) async {
-        if let queryHandler = queryHandlerDict[name] {
+    private func processQuery(_ type: String, withBody body: Any?, queryId: Int64) async {
+        if let queryHandler = queryHandlerDict[type] {
             // All entries in queryHandlerDict are of type ITMWKQueryHandler.
             // ITMWKQueryHandler's implementation of ITMQueryHandler.handleQuery
             // always returns true. If you register to handle a specific query
             // you must handle it. Since there can be only one handler for any
             // particular query, return if we find one.
-            _ = await queryHandler.handleQuery(queryId, name, body)
+            _ = await queryHandler.handleQuery(queryId, type, body)
             return
         }
         for queryHandler in queryHandlers {
             // These query handlers don't indicate what queries they handle.
             // So iterate through all of them until one indicates that it has
             // handled the query.
-            if await queryHandler.handleQuery(queryId, name, body) {
+            if await queryHandler.handleQuery(queryId, type, body) {
                 return
             }
         }
         // If we get this far, nothing handled the query. Send an error response back.
-        logError("ITMMessenger no SWIFT handler for WKID\(queryId) '\(name)'")
-        respondToQuery(queryId, nil)
+        logError("ITMMessenger no SWIFT handler for WKID\(queryId) '\(type)'")
+        respondToQuery(queryId, type, nil)
     }
 
     private func processQueryResponse(_ response: Any?, queryId: Int64, error: Any?) {
         Task {
-            guard let handler = await responseHandlers.getAndRemoveValue(forKey: queryId) else {
+            guard let (type, handler) = await responseHandlers.getAndRemoveValue(forKey: queryId) else {
                 logError("Query response with invalid or repeat queryId: \(queryId)")
                 return
             }
             let responseString = jsonString(response)
             if let error = error {
-                logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: error)
+                logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", type, messageData: error)
                 if !handleNotImplementedError(error: error, handler: handler) {
                     handler(.failure(ITMError(json: error as? [String: Any])))
                 }
             } else {
-                logQuery("Response JS -> SWIFT", "SWID\(queryId)", nil, messageData: response)
+                logQuery("Response JS -> SWIFT", "SWID\(queryId)", type, messageData: response)
                 handler(.success(responseString))
             }
         }
     }
 
-    private func logQuery(_ title: String, _ queryId: String, _ type: String?, messageData: Any?) {
+    private func logQuery(_ title: String, _ queryId: String, _ type: String, messageData: Any?) {
         logQuery(title, queryId, type, prettyDataString: messageData != nil && ITMMessenger.isFullLoggingEnabled ? JSONSerialization.string(withITMJSONObject: messageData, prettyPrint: true) : nil)
     }
 
-    private func logQuery(_ title: String, _ queryId: String, _ type: String?, dataString: String?) {
+    private func logQuery(_ title: String, _ queryId: String, _ type: String, dataString: String?) {
         // Note: the original string is not pretty-printed, so convert it into an object here, then
         // logMessage(,,,messageData:) will convert it to a pretty-printed JSON string.
         logQuery(title, queryId, type, messageData: dataString != nil && ITMMessenger.isFullLoggingEnabled ? JSONSerialization.jsonObject(withString: dataString!) : nil)

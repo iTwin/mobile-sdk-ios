@@ -44,10 +44,18 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             newValue?.stateChangeDelegate = self
             newValue?.errorDelegate = self
         }
+        didSet {
+            saveState()
+        }
     }
     /// The service configuration from the issuer URL.
-    public var serviceConfig: OIDServiceConfiguration?
+    public var serviceConfig: OIDServiceConfiguration? {
+        didSet {
+            saveState()
+        }
+    }
     private var currentAuthorizationFlow: OIDExternalUserAgentSession?
+    private var loadStateActive = false
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter itmApplication: The ``ITMApplication`` in which this ``ITMOIDCAuthorizationClient`` is being used.
@@ -61,7 +69,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         let issuerUrl = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/"
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
         let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
-        let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs"
+        let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs offline_access"
         authSettings = ITMOIDCAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
         
         do {
@@ -131,23 +139,26 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     
     /// Loads the ITMOIDCAuthorizationClient's state data from the keychain.
     open func loadState() {
+        loadStateActive = true
         authState = nil
         serviceConfig = nil
         if let archivedKeychainData = loadFromKeychain(),
            let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: archivedKeychainData) {
             unarchiver.requiresSecureCoding = false
             if let keychainDict = unarchiver.decodeObject(of: NSDictionary.self, forKey: NSKeyedArchiveRootObjectKey) {
-                authState = keychainDict["access-token"] as? OIDAuthState
+                authState = keychainDict["auth-state"] as? OIDAuthState
                 serviceConfig = keychainDict["service-config"] as? OIDServiceConfiguration
             }
         }
+        loadStateActive = false
     }
     
     /// Saves the ITMOIDCAuthorizationClient's state data to the keychain.
     open func saveState() {
+        if loadStateActive { return }
         var keychainDict: [String: Any] = [:]
         if let authState = authState {
-            keychainDict["access-token"] = authState
+            keychainDict["auth-state"] = authState
         }
         if let serviceConfig = serviceConfig {
             keychainDict["service-config"] = serviceConfig
@@ -278,22 +289,6 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         serviceConfig = nil
     }
 
-    // MARK: - OIDAuthStateChangeDelegate Protocol implementation
-
-    /// Called when the authorization state changes and any backing storage needs to be updated.
-    /// - Parameter state: The OIDAuthState that changed.
-    /// - Note: If you are storing the authorization state, you should update the storage when the state changes.
-    public func didChange(_ state: OIDAuthState) {
-        stateChanged()
-        raiseOnAccessTokenChanged()
-    }
-
-    // MARK: - OIDAuthStateErrorDelegate Protocol implementation
-
-    public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
-        ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
-    }
-    
     public var isAuthorized: Bool {
         get {
             return authState?.isAuthorized ?? false
@@ -323,7 +318,6 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                     return
                 }
                 self.serviceConfig = serviceConfig
-                saveState()
                 signIn(completion)
             }
             return
@@ -356,6 +350,23 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         innerSignOut()
         raiseOnAccessTokenChanged()
         completion(nil)
+    }
+
+    // MARK: - OIDAuthStateChangeDelegate Protocol implementation
+
+    /// Called when the authorization state changes and any backing storage needs to be updated.
+    /// - Parameter state: The OIDAuthState that changed.
+    /// - Note: If you are storing the authorization state, you should update the storage when the state changes.
+    public func didChange(_ state: OIDAuthState) {
+        self.authState = state
+        stateChanged()
+        raiseOnAccessTokenChanged()
+    }
+
+    // MARK: - OIDAuthStateErrorDelegate Protocol implementation
+
+    public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
+        ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
 
     // MARK: - AuthorizationClient Protocol implementation

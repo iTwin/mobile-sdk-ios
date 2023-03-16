@@ -323,9 +323,8 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return
         }
         if authState == nil {
-            doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { [self] error in
+            doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
                 completion(error)
-                raiseOnAccessTokenChanged()
             }
         } else {
             refreshAccessToken() { [self] error in
@@ -348,8 +347,25 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return
         }
         innerSignOut()
-        raiseOnAccessTokenChanged()
+        raiseOnAccessTokenChanged(nil, nil)
         completion(nil)
+    }
+    
+    /// Returns the access token from the given `OIDTokenResponse`, if present, with the appropriate token type prefix.
+    /// - Parameter response: The `OIDTokenResponse` containing the token.
+    /// - Returns: The access token from `response`, or nil if it is not present or if `response` is nil.
+    open class func getToken(response: OIDTokenResponse?) -> String? {
+        if let accessToken = response?.accessToken {
+            return "\(response?.tokenType ?? "Bearer") \(accessToken)"
+        }
+        return nil
+    }
+    
+    /// Returns the access token from the given `OIDAuthState`, if present, with the appropriate token type prefix.
+    /// - Parameter authState: `OIDAuthState` value possibly containing a token in its `lastTokenResponse` field.
+    /// - Returns: The access token from `authState`, or nil if there isn't one.
+    open class func getToken(authState: OIDAuthState) -> String? {
+        getToken(response: authState.lastTokenResponse)
     }
 
     // MARK: - OIDAuthStateChangeDelegate Protocol implementation
@@ -360,7 +376,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public func didChange(_ state: OIDAuthState) {
         self.authState = state
         stateChanged()
-        raiseOnAccessTokenChanged()
+        raiseOnAccessTokenChanged(Self.getToken(authState: state), state.lastTokenResponse?.accessTokenExpirationDate)
     }
 
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
@@ -391,7 +407,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                 completion(nil, nil, createError(reason: "No token after refresh"))
                 return
             }
-            guard let tokenString = lastTokenResponse.accessToken else {
+            guard let token = Self.getToken(authState: authState) else {
                 completion(nil, nil, createError(reason: "Invalid token after refresh"))
                 return
             }
@@ -399,7 +415,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                 completion(nil, nil, createError(reason: "Invalid expiration date after refresh"))
                 return
             }
-            completion("Bearer \(tokenString)", expirationDate, nil)
+            completion(token, expirationDate, nil)
         }
     }
 }

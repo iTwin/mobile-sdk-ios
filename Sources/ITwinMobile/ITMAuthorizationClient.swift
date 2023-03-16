@@ -9,7 +9,7 @@ import IModelJsNative
 
 /// Protocol that extends `AuthorizationClient` with convenience functionality. A default extension to this protocol implements both of the provided functions.
 public protocol ITMAuthorizationClient: AuthorizationClient {
-    /// The default domain to use in the ``error(domain:code:reason:)-7jgxz`` function.
+    /// The default domain to use in the ``createError(domain:code:reason:)-9oi8h``  function.
     var errorDomain: String { get }
 
     /// Creates and returns an NSError object with the specified settings.
@@ -20,8 +20,10 @@ public protocol ITMAuthorizationClient: AuthorizationClient {
     /// - Returns: An NSError object with the specified values.
     func createError(domain: String?, code: Int, reason: String) -> NSError
     /// Call the `onAccessTokenChanged` callback from `AuthorizationClient`, if that callback is set.
-    /// - Note: This also calls `getAccessToken` to get the current token and expirationDate in order to call `onAccessTokenChanged`.
-    func raiseOnAccessTokenChanged()
+    /// - Parameters:
+    ///   - token: The current access token, or nil
+    ///   - expirationDate: The expiration date for the current access token, or nil
+    func raiseOnAccessTokenChanged(_ token: String?, _ expirationDate: Date?)
 }
 
 // MARK: - ITMAuthorizationClient extension with default implementations
@@ -42,15 +44,17 @@ public extension ITMAuthorizationClient {
     }
 
     /// Calls the onAccessTokenChanged callback, if that callback is set.
-    func raiseOnAccessTokenChanged() {
+    /// - Note: If either `token` or `expirationDate` is nil, it will be treated as if both are nil.
+    /// - Parameters:
+    ///   - token: The current access token, or nil
+    ///   - expirationDate: The expiration date for the current access token, or nil
+    func raiseOnAccessTokenChanged(_ token: String?, _ expirationDate: Date?) {
         if let onAccessTokenChanged = onAccessTokenChanged {
-            getAccessToken() { token, expirationDate, error in
-                if let token = token,
-                   let expirationDate = expirationDate {
-                    onAccessTokenChanged(token, expirationDate)
-                } else {
-                    onAccessTokenChanged(nil, nil)
-                }
+            if let token = token,
+               let expirationDate = expirationDate {
+                onAccessTokenChanged(token, expirationDate)
+            } else {
+                onAccessTokenChanged(nil, nil)
             }
         }
     }

@@ -367,7 +367,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             } else {
                 refreshAccessToken() { [self] error in
                     if error == nil {
-                        completion(error)
+                        completion(nil)
                     } else {
                         // Refresh failed; sign out and try again from scratch.
                         Task {

@@ -14,7 +14,7 @@ import AppAuthCore
 
 /// A struct to hold the settings used by ITMOIDCAuthorizationClient
 public struct ITMOIDCAuthSettings {
-    public var issuerUrl: String
+    public var issuerUrl: URL
     public var clientId: String
     public var redirectUrl: String
     public var scope: String
@@ -32,7 +32,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public let errorDomain = "com.bentley.itwin-mobile-sdk"
 
     /// The AuthSettings object from imodeljs.
-    public var authSettings: ITMOIDCAuthSettings?
+    public var authSettings: ITMOIDCAuthSettings
     public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
@@ -64,14 +64,16 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public init?(itmApplication: ITMApplication, viewController: UIViewController? = nil, configData: JSON) {
         self.itmApplication = itmApplication
         self.viewController = viewController
-        super.init()
         let apiPrefix = configData["ITMAPPLICATION_API_PREFIX"] as? String ?? ""
-        let issuerUrl = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/"
+        guard let issuerUrl = URL(string: configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/") else {
+            return nil
+        }
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
         let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
         let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs offline_access"
         authSettings = ITMOIDCAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
-        
+        super.init()
+
         do {
             try checkSettings()
         } catch {
@@ -83,14 +85,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// Creates a mutable dictionary populated with the common keys and values needed for every keychain query.
     /// - Returns: An NSMutableDictionary with the common query items, or nil if issuerUrl and clientId are not set in authSettings.
     public func commonKeychainQuery() -> NSMutableDictionary? {
-        guard let issuerUrl = authSettings?.issuerUrl,
-              let clientId = authSettings?.clientId else {
-            return nil
-        }
         return (([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "ITMOIDCAuthorizationClient",
-            kSecAttrAccount as String: "\(issuerUrl)@\(clientId)",
+            kSecAttrAccount as String: "\(authSettings.issuerUrl)@\(authSettings.clientId)",
         ] as NSDictionary).mutableCopy() as! NSMutableDictionary)
     }
     
@@ -201,8 +199,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             if let error = error as? NSError {
                 ITMApplication.logger.log(.error, "Error fetching fresh tokens: \(error)")
                 if isInvalidGrantError(error) || isTokenRefreshError(error) {
-                    innerSignOut()
-                    signIn(completion)
+                    Task {
+                        try? await innerSignOut() // If innerSignOut fails, ignore the failure.
+                        signIn(completion)
+                    }
                 } else {
                     completion(error)
                 }
@@ -219,10 +219,6 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     ///   - clientSecret: The optional clientSecret.
     ///   - completion: The callback to call upon success or error.
     open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        guard let authSettings = authSettings else {
-            completion(createError(reason: "ITMOIDCAuthorizationClient: not initialized"))
-            return
-        }
         guard let redirectUrl = URL(string: authSettings.redirectUrl) else {
             completion(createError(reason: "ITMOIDCAuthorizationClient: invalid or empty redirectUrl"))
             return
@@ -266,9 +262,6 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// Check to see if the authSettings member variable contains valid data.
     /// - Throws: an error if the settings aren't valid
     open func checkSettings() throws {
-        guard let authSettings = authSettings else {
-            throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was never called")
-        }
         if authSettings.clientId.count == 0 {
             throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty clientId")
         }
@@ -278,15 +271,78 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         guard let _ = URL(string: authSettings.redirectUrl) else {
             throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty redirectUrl")
         }
-        guard let _ = URL(string: authSettings.issuerUrl) else {
-            throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty issuerUrl")
+    }
+
+    @discardableResult
+    private func requireServiceConfig() async throws -> OIDServiceConfiguration {
+        if let serviceConfig = serviceConfig {
+            return serviceConfig
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            OIDAuthorizationService.discoverConfiguration(forIssuer: authSettings.issuerUrl) { [self] serviceConfig, error in
+                if let error = error {
+                    ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(authSettings.issuerUrl): Error \(error)")
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let serviceConfig = serviceConfig else {
+                    continuation.resume(throwing: createError(reason: "No service config"))
+                    return
+                }
+                self.serviceConfig = serviceConfig
+                continuation.resume(returning: serviceConfig)
+            }
         }
     }
 
-    private func innerSignOut() {
-        deleteFromKeychain()
-        authState = nil
-        serviceConfig = nil
+    open class func revokeToken(_ revokeURL: URL, _ clientId: String, _ token: String) async throws {
+        var request = URLRequest(url: revokeURL)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("Basic \("\(clientId):".toBase64())", forHTTPHeaderField: "Authorization")
+        request.httpBody = "token=\(token)".data(using: .utf8)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            print("Response revoking token is not http.")
+            return
+        }
+        if response.statusCode != 200 {
+            throw NSError(domain: "com.bentley.itwin-mobile-sdk", code: 200, userInfo: [NSLocalizedFailureReasonErrorKey: "Wrong status code in revoke token response: \(response.statusCode)", ITMAuthorizationClientErrorKey: true])
+        }
+    }
+    
+    private func revokeTokens() async throws {
+        let serviceConfig = try await requireServiceConfig()
+        if let revokeURLString = serviceConfig.discoveryDocument?.discoveryDictionary["revocation_endpoint"] as? String,
+           let revokeURL = URL(string: revokeURLString) {
+            let clientId = authSettings.clientId
+            var errors: [String] = []
+            var tokens = Set<String>()
+            _ = authState?.lastTokenResponse?.idToken.map { tokens.insert($0) }
+            _ = authState?.lastTokenResponse?.accessToken.map { tokens.insert($0) }
+            _ = authState?.refreshToken.map { tokens.insert($0) }
+            for token in tokens {
+                do {
+                    try await Self.revokeToken(revokeURL, clientId, token)
+                } catch {
+                    errors.append("\(error)")
+                }
+            }
+            if !errors.isEmpty {
+                throw createError(reason: errors.joined(separator: "\n"))
+            }
+        } else {
+            throw createError(reason: "Unknown error revoking tokens.")
+        }
+    }
+
+    private func innerSignOut() async throws {
+        defer {
+            authState = nil
+            serviceConfig = nil
+            deleteFromKeychain()
+        }
+        try await revokeTokens()
     }
 
     public var isAuthorized: Bool {
@@ -295,47 +351,40 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
     }
 
-    open func signIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
+    private func innerSignIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) async {
         do {
             try checkSettings()
         } catch {
             completion(error)
             return
         }
-        guard let authSettings = authSettings else {
-            completion(createError(reason: "ITMOIDCAuthorizationClient not initialized"))
-            return
-        }
-        guard let issuerUrl = URL(string: authSettings.issuerUrl) else {
-            completion(createError(reason: "AuthSettings provided issuer URL that is invalid"))
-            return
-        }
-        if serviceConfig == nil {
-            OIDAuthorizationService.discoverConfiguration(forIssuer: issuerUrl) { [self] serviceConfig, error in
-                if let error = error {
-                    ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(issuerUrl): Error \(error)")
+        do {
+            let serviceConfig = try await requireServiceConfig()
+            if authState == nil {
+                doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
                     completion(error)
-                    return
                 }
-                self.serviceConfig = serviceConfig
-                signIn(completion)
-            }
-            return
-        }
-        if authState == nil {
-            doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
-                completion(error)
-            }
-        } else {
-            refreshAccessToken() { [self] error in
-                if error == nil {
-                    completion(error)
-                } else {
-                    // Refresh failed; sign out and try again from scratch.
-                    innerSignOut()
-                    signIn(completion)
+            } else {
+                refreshAccessToken() { [self] error in
+                    if error == nil {
+                        completion(error)
+                    } else {
+                        // Refresh failed; sign out and try again from scratch.
+                        Task {
+                            try? await innerSignOut() // If innerSignOut fails, ignore the failure.
+                            signIn(completion)
+                        }
+                    }
                 }
             }
+        } catch {
+            completion(error)
+        }
+    }
+
+    open func signIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
+        Task {
+            await innerSignIn(completion)
         }
     }
 
@@ -346,9 +395,15 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             completion(error)
             return
         }
-        innerSignOut()
-        raiseOnAccessTokenChanged(nil, nil)
-        completion(nil)
+        Task {
+            do {
+                try await innerSignOut()
+                raiseOnAccessTokenChanged(nil, nil)
+                completion(nil)
+            } catch {
+                completion(error)
+            }
+        }
     }
     
     /// Returns the access token from the given `OIDTokenResponse`, if present, with the appropriate token type prefix.

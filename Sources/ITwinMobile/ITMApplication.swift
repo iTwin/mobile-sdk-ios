@@ -334,6 +334,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// If your application handles authorization on its own, create a class that implements the `AuthorizationClient` protocol
     /// to handle authorization.
     /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using ``configData``.
+    @MainActor
     open func createAuthClient() -> AuthorizationClient? {
         guard let viewController = Self.topViewController else {
             return nil
@@ -520,6 +521,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// Always add dormant application to ``topViewController``'s view to ensure it appears in presented view hierarchy
     /// - Returns: The top view.
+    @MainActor
     public class var topView: UIView? {
         guard let topViewController = topViewController else { return nil }
         return topViewController.view
@@ -529,6 +531,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view controller.
+    @MainActor
     public class var topViewController: UIViewController? {
         let keyWindow = UIApplication
             .shared
@@ -550,6 +553,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// If the view is nil, iTwin Mobile app is hidden and set as dormant.
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hid the iTwin Mobile app.
+    @MainActor
     open func addApplicationToView(_ view: UIView?) {
         guard let parentView = view ?? Self.topView else {
             return
@@ -583,16 +587,22 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Present the iTwin Mobile app in the given view, filling it completely.
     ///
     /// Override this function in a subclass in order to add custom behavior.
+    /// - Note: The actual presentation happens in MainActor, so this may return before that is done.
     /// - Parameter view: View in which to present the iTiwn Mobile app.
     open func presentInView(_ view: UIView) {
-        addApplicationToView(view)
+        Task { @MainActor in
+            addApplicationToView(view)
+        }
     }
 
     /// Hide the iTwin Mobile app and set it as dormant.
     ///
     /// Override this function in a subclass in order to add custom behavior.
+    /// - Note: The actual hiding happens in MainActor, so this may return before that is done.
     open func presentHidden() {
-        addApplicationToView(nil)
+        Task { @MainActor in
+            addApplicationToView(nil)
+        }
     }
 
     // MARK: WKUIDelegate Methods

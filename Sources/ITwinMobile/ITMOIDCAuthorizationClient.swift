@@ -14,20 +14,69 @@ import AppAuthCore
 
 /// A struct to hold the settings used by ITMOIDCAuthorizationClient
 public struct ITMOIDCAuthSettings {
-    public var issuerUrl: URL
+    public var issuerURL: URL
     public var clientId: String
-    public var redirectUrl: String
+    public var redirectURL: URL
     public var scope: String
 }
 
 public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> Void
 
+/// Extension to add async wrappers to `OIDAuthState` functions that don't get them automatically.
+///
+/// See here for automatic wrapper rules:
+/// https://developer.apple.com/documentation/swift/calling-objective-c-apis-asynchronously
+public extension OIDAuthState {
+    /// async wrapper for `-performActionWithFreshTokens:` Objective-C function.
+    /// - Returns: A tuple containing the optional authorizationToken and idToken.
+    /// - Throws: If the `OIDAuthStateAction` callback has a non-nil `error`, that error is thrown.
+    func performAction() async throws -> (String?, String?) {
+        // The action parameter of -performActionWithFreshTokens: doesn't trigger an automatic async wrapper.
+        return try await withCheckedThrowingContinuation { continuation in
+            self.performAction() { accessToken, idToken, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                }
+                continuation.resume(returning: (accessToken, idToken))
+            }
+        }
+    }
+    
+    /// async wrapper for `+authStateByPresentingAuthorizationRequest:presentingViewController:callback:`
+    /// Objective-C function.
+    /// - Note: Because the return value for the original function is not used with the app delegate in iOS 11 and later, that is hidden by this function.
+    /// - Returns: The auth state, if the authorization request succeeded.
+    /// - Throws: If the `OIDAuthStateAuthorizationCallback` has a non-nil `error`, that error is thrown. Also, if
+    ///           `OIDAuthStateAuthorizationCallback` produces a nil `authState`, an exception is thrown.
+    @MainActor
+    static func authState(byPresenting request: (OIDAuthorizationRequest), presenting viewController: UIViewController) async throws -> OIDAuthState {
+        // +authStateByPresentingAuthorizationRequest:presentingViewController:callback: returns a value,
+        // so isn't eligible for an automatic async wrapper.
+        return try await withCheckedThrowingContinuation { continuation in
+            // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
+            // However, even though we require an iOS version later than 11, if we ignore the value, it gets
+            // deleted by Swift, which prevents everything from working. So, store the value in a static member
+            // variable.
+            ITMOIDCAuthorizationClient.currentAuthorizationFlow = Self.authState(byPresenting: request, presenting: viewController) { authState, error in
+                ITMOIDCAuthorizationClient.currentAuthorizationFlow = nil
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let authState = authState else {
+                    continuation.resume(throwing: NSError.authorizationClientError(domain: "com.bentley.itwin-mobile-sdk", reason: "Unknown authorization error"))
+                    return
+                }
+                continuation.resume(returning: authState)
+            }
+        }
+    }
+}
+
 // MARK: - ITMOIDCAuthorizationClient class
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
-    /// Instance for `onAccessTokenChanged` property from the `AuthorizationClient` protocol.
-    public var onAccessTokenChanged: AccessTokenChangedCallback?
     /// Instance for `errorDomain` property from the `ITMAuthorizationClient` protocol.
     public let errorDomain = "com.bentley.itwin-mobile-sdk"
 
@@ -54,7 +103,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             saveState()
         }
     }
-    private var currentAuthorizationFlow: OIDExternalUserAgentSession?
+    internal static var currentAuthorizationFlow: OIDExternalUserAgentSession?
     private var loadStateActive = false
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
@@ -65,30 +114,28 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         self.itmApplication = itmApplication
         self.viewController = viewController
         let apiPrefix = configData["ITMAPPLICATION_API_PREFIX"] as? String ?? ""
-        guard let issuerUrl = URL(string: configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/") else {
-            return nil
-        }
+        let issuerURLString = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/"
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
-        let redirectUrl = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
+        let redirectURLString = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
         let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs offline_access"
-        authSettings = ITMOIDCAuthSettings(issuerUrl: issuerUrl, clientId: clientId, redirectUrl: redirectUrl, scope: scope)
-        super.init()
-
-        do {
-            try checkSettings()
-        } catch {
+        guard let issuerURL = URL(string: issuerURLString),
+              let redirectURL = URL(string: redirectURLString),
+              !clientId.isEmpty,
+              !scope.isEmpty else {
             return nil
         }
+        authSettings = ITMOIDCAuthSettings(issuerURL: issuerURL, clientId: clientId, redirectURL: redirectURL, scope: scope)
+        super.init()
         loadState()
     }
 
     /// Creates a mutable dictionary populated with the common keys and values needed for every keychain query.
-    /// - Returns: An NSMutableDictionary with the common query items, or nil if issuerUrl and clientId are not set in authSettings.
+    /// - Returns: An NSMutableDictionary with the common query items, or nil if issuerURL and clientId are not set in authSettings.
     public func commonKeychainQuery() -> NSMutableDictionary? {
         return (([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "ITMOIDCAuthorizationClient",
-            kSecAttrAccount as String: "\(authSettings.issuerUrl)@\(authSettings.clientId)",
+            kSecAttrAccount as String: "\(authSettings.issuerURL)@\(authSettings.clientId)",
         ] as NSDictionary).mutableCopy() as! NSMutableDictionary)
     }
     
@@ -174,127 +221,128 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         saveState()
     }
     
-    private func isInvalidGrantError(_ error: NSError) -> Bool {
+    private func isInvalidGrantError(_ error: Error) -> Bool {
+        let error = error as NSError
         return error.code == OIDErrorCodeOAuth.invalidGrant.rawValue && error.domain == OIDOAuthTokenErrorDomain
     }
 
-    private func isTokenRefreshError(_ error: NSError) -> Bool {
+    private func isTokenRefreshError(_ error: Error) -> Bool {
+        let error = error as NSError
         return error.code == OIDErrorCode.tokenRefreshError.rawValue && error.domain == OIDGeneralErrorDomain
     }
 
-    /// Refreshes the user's access token.
-    /// - Parameter completion: Callback to call upon success or error.
-    open func refreshAccessToken(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        guard let authState = authState else {
-            signIn() { [self] error in
-                if let error = error {
-                    completion(error)
-                } else {
-                    refreshAccessToken(completion)
-                }
-            }
-            return
+    /// Gets the access token and expiration date from the last token request.
+    /// - Returns: A tuple containing an access token (with token type prefix) and its expiration date.
+    /// - Throws: If a token request has not been made, or the last token request does not contain an access token and
+    ///           expiration date, this will throw an exception.
+    open func getLastAccessToken() throws -> (String, Date) {
+        guard let lastTokenResponse = authState?.lastTokenResponse,
+              let accessToken = Self.getToken(response: lastTokenResponse),
+              let expirationDate = lastTokenResponse.accessTokenExpirationDate else {
+            throw createError(reason: "Access token or expiration date not available")
         }
-        authState.performAction() { [self] accessToken, idToken, error in
-            if let error = error as? NSError {
-                ITMApplication.logger.log(.error, "Error fetching fresh tokens: \(error)")
-                if isInvalidGrantError(error) || isTokenRefreshError(error) {
-                    Task {
-                        try? await innerSignOut() // If innerSignOut fails, ignore the failure.
-                        signIn(completion)
-                    }
-                } else {
-                    completion(error)
-                }
-                return
-            }
-            completion(error)
-        }
+        return (accessToken, expirationDate)
     }
-    
-    /// Presents a Safari WebView to the user to sign in.
-    /// - Parameters:
-    ///   - serviceConfig: The service configuration for the issuer URL.
-    ///   - clientID: The imodeljs app's clientID.
-    ///   - clientSecret: The optional clientSecret.
-    ///   - completion: The callback to call upon success or error.
-    open func doAuthCodeExchange(serviceConfig: OIDServiceConfiguration?, clientID: String?, clientSecret: String?, onComplete completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        guard let redirectUrl = URL(string: authSettings.redirectUrl) else {
-            completion(createError(reason: "ITMOIDCAuthorizationClient: invalid or empty redirectUrl"))
-            return
+
+    /// Refreshes the user's access token if needed.
+    /// - Returns: A tuple containg an access token (with token type prefix) and its expiration date.
+    /// - Throws: If there are any problems refreshing the access token, this will throw an exception.
+    open func refreshAccessToken() async throws -> (String, Date) {
+        let authState: OIDAuthState
+        if self.authState == nil {
+            // The reason that this is an if/then/else is that it's illegal to put try OR async on
+            // the right hand side of a ?? operator.
+            authState = try await signIn()
+        } else {
+            authState = self.authState!
         }
-        guard let serviceConfig = serviceConfig else {
-            completion(createError(reason: "ITMOIDCAuthorizationClient: missing server config"))
-            return
-        }
-        guard let clientID = clientID else {
-            completion(createError(reason: "ITMOIDCAuthorizationClient: missing clientID"))
-            return
-        }
-        let scopes = NSString(string: authSettings.scope).components(separatedBy: " ")
-        let request = OIDAuthorizationRequest(configuration: serviceConfig,
-                                              clientId: clientID,
-                                              clientSecret: clientSecret,
-                                              scopes: scopes,
-                                              redirectURL: redirectUrl,
-                                              responseType: OIDResponseTypeCode,
-                                              additionalParameters: nil)
-        Task { @MainActor in
-            if let viewController = ITMApplication.topViewController {
-                // Note: The return value below is only really used by AppAuth in versions of iOS prior to iOS 11.
-                // However, even though we require iOS 12.2, if we ignore the value, it gets deleted by the system,
-                // which prevents everything from working. So, store the value in our member variable.
-                currentAuthorizationFlow = OIDAuthState.authState(byPresenting: request, presenting: viewController) { authState, error in
-                    self.authState = authState
-                    if authState == nil {
-                        if let error = error {
-                            ITMApplication.logger.log(.warning, "Authorization error: \(error.localizedDescription)")
-                        } else {
-                            ITMApplication.logger.log(.error, "Unknown authorization error")
-                        }
-                    }
-                    completion(error)
+        do {
+            let _ = try await authState.performAction()
+            return try getLastAccessToken()
+        } catch {
+            if self.isInvalidGrantError(error) || self.isTokenRefreshError(error) {
+                do {
+                    try? await self.signOut() // If signOut fails, ignore the failure.
+                    _ = try await signIn()
+                    return try getLastAccessToken()
+                } catch {
+                    ITMApplication.logger.log(.error, "Error refreshing tokens: \(error)")
+                    throw error
                 }
+            } else {
+                ITMApplication.logger.log(.error, "Error refreshing tokens: \(error)")
+                throw error
             }
-        }
-    }
-    
-    /// Check to see if the authSettings member variable contains valid data.
-    /// - Throws: an error if the settings aren't valid
-    open func checkSettings() throws {
-        if authSettings.clientId.count == 0 {
-            throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty clientId")
-        }
-        if authSettings.scope.count == 0 {
-            throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty scope")
-        }
-        guard let _ = URL(string: authSettings.redirectUrl) else {
-            throw createError(reason: "ITMOIDCAuthorizationClient: initialize() was called with invalid or empty redirectUrl")
         }
     }
 
-    @discardableResult
-    private func requireServiceConfig() async throws -> OIDServiceConfiguration {
+    /// Ensure that a view controller is available.
+    /// - Returns: ``viewController`` if that is non, nil, otherwise `ITMApplication.topViewController`.
+    /// - Throws: If both ``viewController`` and `ITMApplication.topViewController` are nil, throws an exception.
+    open func requireViewController() async throws -> UIViewController {
+        guard let viewController = viewController else {
+            guard let viewController = await ITMApplication.topViewController else {
+                throw createError(reason: "No view controller is available.")
+            }
+            return viewController
+        }
+        return viewController
+    }
+
+    /// Presents a Safari WebView to the user to sign in.
+    /// - Throws: Anything preventing the sign in (including user cancel and lack of internet) will throw an exception.
+    open func doAuthCodeExchange() async throws -> OIDAuthState {
+        let serviceConfig = try await requireServiceConfig()
+        let scopes = authSettings.scope.components(separatedBy: " ")
+        // NOTE: Bentley IMS sometimes doesn't give the user a chance to specify who they
+        // are logging in as when prompt:login is missing. Due to the inability to truly
+        // sign out, stuff gets left in the Safari cookies (or somewhere) that cause it to
+        // just login again as the same user as before, even if the program called the
+        // signout() function in this class. That would make it so that a user who signed
+        // out and signed back in wasn't ask who they wanted to sign in as.
+        let request = OIDAuthorizationRequest(configuration: serviceConfig,
+                                              clientId: authSettings.clientId,
+                                              clientSecret: nil,
+                                              scopes: scopes,
+                                              redirectURL: authSettings.redirectURL,
+                                              responseType: OIDResponseTypeCode,
+                                              additionalParameters: ["prompt": "login"])
+        let viewController = try await requireViewController()
+        do {
+            let authState = try await OIDAuthState.authState(byPresenting: request, presenting: viewController)
+            self.authState = authState
+            return authState
+        } catch {
+            authState = nil
+            ITMApplication.logger.log(.warning, "Authorization error: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Ensure that a service configuration is available.
+    /// - Returns: The `OIDServiceConfiguration` fetched from the OIDC server.
+    /// - Throws: If there are any problems fetching the service configuration, an exception is thrown.
+    open func requireServiceConfig() async throws -> OIDServiceConfiguration {
         if let serviceConfig = serviceConfig {
             return serviceConfig
         }
-        return try await withCheckedThrowingContinuation { continuation in
-            OIDAuthorizationService.discoverConfiguration(forIssuer: authSettings.issuerUrl) { [self] serviceConfig, error in
-                if let error = error {
-                    ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(authSettings.issuerUrl): Error \(error)")
-                    continuation.resume(throwing: error)
-                    return
-                }
-                guard let serviceConfig = serviceConfig else {
-                    continuation.resume(throwing: createError(reason: "No service config"))
-                    return
-                }
-                self.serviceConfig = serviceConfig
-                continuation.resume(returning: serviceConfig)
-            }
+        do {
+            let serviceConfig = try await OIDAuthorizationService.discoverConfiguration(forIssuer: authSettings.issuerURL)
+            self.serviceConfig = serviceConfig
+            return serviceConfig
+        } catch {
+            self.serviceConfig = nil
+            ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(authSettings.issuerURL): Error \(error)")
+            throw error
         }
     }
 
+    /// Revoke the given token.
+    /// - Parameters:
+    ///   - revokeURL: The OIDC server's token revocation URL.
+    ///   - clientId: The clientId of the token being revoked.
+    ///   - token: The token to revoke.
+    /// - Throws: If anything prevents the token from being revoked, an exception is thrown.
     open class func revokeToken(_ revokeURL: URL, _ clientId: String, _ token: String) async throws {
         var request = URLRequest(url: revokeURL)
         request.httpMethod = "POST"
@@ -303,107 +351,75 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         request.httpBody = "token=\(token)".data(using: .utf8)
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse else {
-            print("Response revoking token is not http.")
-            return
+            throw NSError.authorizationClientError(domain: "com.bentley.itwin-mobile-sdk", reason: "Response revoking token is not http.")
         }
         if response.statusCode != 200 {
-            throw NSError(domain: "com.bentley.itwin-mobile-sdk", code: 200, userInfo: [NSLocalizedFailureReasonErrorKey: "Wrong status code in revoke token response: \(response.statusCode)", ITMAuthorizationClientErrorKey: true])
-        }
-    }
-    
-    private func revokeTokens() async throws {
-        let serviceConfig = try await requireServiceConfig()
-        if let revokeURLString = serviceConfig.discoveryDocument?.discoveryDictionary["revocation_endpoint"] as? String,
-           let revokeURL = URL(string: revokeURLString) {
-            let clientId = authSettings.clientId
-            var errors: [String] = []
-            var tokens = Set<String>()
-            _ = authState?.lastTokenResponse?.idToken.map { tokens.insert($0) }
-            _ = authState?.lastTokenResponse?.accessToken.map { tokens.insert($0) }
-            _ = authState?.refreshToken.map { tokens.insert($0) }
-            for token in tokens {
-                do {
-                    try await Self.revokeToken(revokeURL, clientId, token)
-                } catch {
-                    errors.append("\(error)")
-                }
-            }
-            if !errors.isEmpty {
-                throw createError(reason: errors.joined(separator: "\n"))
-            }
-        } else {
-            throw createError(reason: "Unknown error revoking tokens.")
+            throw NSError.authorizationClientError(domain: "com.bentley.itwin-mobile-sdk", reason: "Wrong status code in revoke token response: \(response.statusCode)")
         }
     }
 
-    private func innerSignOut() async throws {
+    private func revokeTokens() async throws {
+        guard let authState = authState else { return }
+        var tokens = Set<String>()
+        _ = authState.lastTokenResponse?.idToken.map { tokens.insert($0) }
+        _ = authState.lastTokenResponse?.accessToken.map { tokens.insert($0) }
+        _ = authState.refreshToken.map { tokens.insert($0) }
+        if tokens.isEmpty { return }
+        let serviceConfig = try await requireServiceConfig()
+        guard let revokeURLString = serviceConfig.discoveryDocument?.discoveryDictionary["revocation_endpoint"] as? String,
+              let revokeURL = URL(string: revokeURLString) else {
+            throw createError(reason: "Could not find valid revocation URL.")
+        }
+        guard let scheme = revokeURL.scheme,
+              scheme.localizedCompare("https") == .orderedSame else {
+            throw createError(reason: "Token revocation URL is not https.")
+        }
+        var errors: [String] = []
+        for token in tokens {
+            do {
+                try await Self.revokeToken(revokeURL, authSettings.clientId, token)
+            } catch {
+                errors.append("\(error)")
+            }
+        }
+        if !errors.isEmpty {
+            throw createError(reason: "Error\(errors.count > 1 ? "s" : "") revoking tokens:\n\(errors.joined(separator: "\n"))")
+        }
+    }
+
+    /// Sign in to OIDC and fetch ``serviceConfig`` and ``authState`` if necessary.
+    /// - Returns: The `OIDAuthState` object generated by the sign in.
+    /// - Throws: Anything preventing the sign in (including user cancel and lack of internet) will throw an exception.
+    open func signIn() async throws -> OIDAuthState {
+        if authState == nil {
+            return try await doAuthCodeExchange()
+        } else {
+            do {
+                _ = try await refreshAccessToken()
+                guard let authState = authState else {
+                    throw createError(reason: "No auth state after refreshAccessToken")
+                }
+                return authState
+            } catch {
+                // Refresh failed; sign out and try again from scratch.
+                try? await signOut() // If signOut fails, ignore the failure.
+                return try await signIn()
+            }
+        }
+    }
+    
+    /// Sign out of OIDC.
+    /// - Note: Since Bentley's default OIDC servers don't properly handle sign out, this instead revokes all the current tokens
+    ///         and deletes them from the iOS keychain.
+    /// - Throws: If there are any problems with token revocation, an exception is thrown.
+    open func signOut() async throws {
         defer {
             authState = nil
             serviceConfig = nil
             deleteFromKeychain()
+            raiseOnAccessTokenChanged(nil, nil)
         }
         try await revokeTokens()
-    }
-
-    public var isAuthorized: Bool {
-        get {
-            return authState?.isAuthorized ?? false
-        }
-    }
-
-    private func innerSignIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) async {
-        do {
-            try checkSettings()
-        } catch {
-            completion(error)
-            return
-        }
-        do {
-            let serviceConfig = try await requireServiceConfig()
-            if authState == nil {
-                doAuthCodeExchange(serviceConfig: serviceConfig, clientID: authSettings.clientId, clientSecret: nil) { error in
-                    completion(error)
-                }
-            } else {
-                refreshAccessToken() { [self] error in
-                    if error == nil {
-                        completion(nil)
-                    } else {
-                        // Refresh failed; sign out and try again from scratch.
-                        Task {
-                            try? await innerSignOut() // If innerSignOut fails, ignore the failure.
-                            signIn(completion)
-                        }
-                    }
-                }
-            }
-        } catch {
-            completion(error)
-        }
-    }
-
-    open func signIn(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        Task {
-            await innerSignIn(completion)
-        }
-    }
-
-    open func signOut(_ completion: @escaping ITMOIDCAuthorizationClientCallback) {
-        do {
-            try checkSettings()
-        } catch {
-            completion(error)
-            return
-        }
-        Task {
-            do {
-                try await innerSignOut()
-                raiseOnAccessTokenChanged(nil, nil)
-                completion(nil)
-            } catch {
-                completion(error)
-            }
-        }
     }
     
     /// Returns the access token from the given `OIDTokenResponse`, if present, with the appropriate token type prefix.
@@ -423,6 +439,14 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         getToken(response: authState.lastTokenResponse)
     }
 
+    /// Get the access token and expiration date. This is an async wrapper around the `AuthorizationClient` protocol's
+    /// completion-based `getAccessToken()` function.
+    /// - Returns: Tuple containing the access token (with token type prefix) and expiration date
+    /// - Throws: If token refresh is necessary and fails, this throws an exception.
+    open func getAccessToken() async throws -> (String, Date) {
+        return try await refreshAccessToken()
+    }
+
     // MARK: - OIDAuthStateChangeDelegate Protocol implementation
 
     /// Called when the authorization state changes and any backing storage needs to be updated.
@@ -439,38 +463,24 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
         ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
-
+    
     // MARK: - AuthorizationClient Protocol implementation
+
+    /// Instance for `onAccessTokenChanged` property from the `AuthorizationClient` protocol.
+    public var onAccessTokenChanged: AccessTokenChangedCallback?
+
     open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
-        do {
-            try checkSettings()
-        } catch {
-            completion(nil, nil, error)
-            return
-        }
-        if !itmApplication.itmMessenger.frontendLaunchDone {
+        guard itmApplication.itmMessenger.frontendLaunchDone else {
             completion(nil, nil, nil)
             return
         }
-        refreshAccessToken() { [self] error in
-            if let error = error {
+        Task {
+            do {
+                let (accessToken, expirationDate) = try await getAccessToken()
+                completion(accessToken, expirationDate, nil)
+            } catch {
                 completion(nil, nil, error)
-                return
             }
-            guard let authState = authState,
-                  let lastTokenResponse = authState.lastTokenResponse else {
-                completion(nil, nil, createError(reason: "No token after refresh"))
-                return
-            }
-            guard let token = Self.getToken(authState: authState) else {
-                completion(nil, nil, createError(reason: "Invalid token after refresh"))
-                return
-            }
-            guard let expirationDate = lastTokenResponse.accessTokenExpirationDate else {
-                completion(nil, nil, createError(reason: "Invalid expiration date after refresh"))
-                return
-            }
-            completion(token, expirationDate, nil)
         }
     }
 }

@@ -12,6 +12,14 @@ import AppAuthCore
 
 // MARK: - Helpers
 
+internal extension Set {
+    mutating func insertIfNotNull(_ element: Element?) {
+        if let element = element {
+            insert(element)
+        }
+    }
+}
+
 /// A struct to hold the settings used by ITMOIDCAuthorizationClient
 public struct ITMOIDCAuthSettings {
     public var issuerURL: URL
@@ -349,6 +357,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("Basic \("\(clientId):".toBase64())", forHTTPHeaderField: "Authorization")
         request.httpBody = "token=\(token)".data(using: .utf8)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         let (_, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse else {
             throw NSError.authorizationClientError(domain: "com.bentley.itwin-mobile-sdk", reason: "Response revoking token is not http.")
@@ -361,9 +370,12 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     private func revokeTokens() async throws {
         guard let authState = authState else { return }
         var tokens = Set<String>()
-        _ = authState.lastTokenResponse?.idToken.map { tokens.insert($0) }
-        _ = authState.lastTokenResponse?.accessToken.map { tokens.insert($0) }
-        _ = authState.refreshToken.map { tokens.insert($0) }
+        tokens.insertIfNotNull(authState.lastTokenResponse?.idToken)
+        tokens.insertIfNotNull(authState.lastAuthorizationResponse.idToken)
+        tokens.insertIfNotNull(authState.lastTokenResponse?.accessToken)
+        tokens.insertIfNotNull(authState.lastAuthorizationResponse.accessToken)
+        tokens.insertIfNotNull(authState.refreshToken)
+        tokens.insertIfNotNull(authState.lastTokenResponse?.refreshToken)
         if tokens.isEmpty { return }
         let serviceConfig = try await requireServiceConfig()
         guard let revokeURLString = serviceConfig.discoveryDocument?.discoveryDictionary["revocation_endpoint"] as? String,

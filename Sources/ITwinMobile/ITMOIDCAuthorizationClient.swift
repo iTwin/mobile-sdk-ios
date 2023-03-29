@@ -20,14 +20,6 @@ internal extension Set {
     }
 }
 
-/// A struct to hold the settings used by ITMOIDCAuthorizationClient
-public struct ITMOIDCAuthSettings {
-    public var issuerURL: URL
-    public var clientId: String
-    public var redirectURL: URL
-    public var scope: String
-}
-
 public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> Void
 
 /// Extension to add async wrappers to `OIDAuthState` functions that don't get them automatically.
@@ -85,11 +77,21 @@ public extension OIDAuthState {
 
 /// An implementation of the AuthorizationClient protocol that uses the AppAuth library to prompt the user.
 open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuthStateChangeDelegate, OIDAuthStateErrorDelegate {
+    /// A struct to hold the settings used by ``ITMOIDCAuthorizationClient``
+    public struct Settings {
+        public var issuerURL: URL
+        public var clientId: String
+        public var redirectURL: URL
+        public var scopes: [String]
+    }
+
     /// Instance for `errorDomain` property from the `ITMAuthorizationClient` protocol.
     public let errorDomain = "com.bentley.itwin-mobile-sdk"
 
-    /// The AuthSettings object from imodeljs.
-    public var authSettings: ITMOIDCAuthSettings
+    /// The settings for this ``ITMOIDCAuthorizationClient``. These are initialized using the contents of the `configData`
+    /// parameter to ``init(itmApplication:viewController:configData:)``.
+    public var settings: Settings
+    /// The ``ITMApplication`` using this authorization client.
     public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
     public let viewController: UIViewController?
@@ -117,7 +119,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter itmApplication: The ``ITMApplication`` in which this ``ITMOIDCAuthorizationClient`` is being used.
     /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
-    /// - Parameter configData: A JSON object containing at least an `ITMAPPLICATION_CLIENT_ID` value, and optionally `ITMAPPLICATION_ISSUER_URL`, `ITMAPPLICATION_REDIRECT_URI`, `ITMAPPLICATION_SCOPE`, and/or `ITMAPPLICATION_API_PREFIX` values. If `ITMAPPLICATION_CLIENT_ID` is not present this initializer will fail.
+    /// - Parameter configData: A JSON object containing at least an `ITMAPPLICATION_CLIENT_ID` value, and optionally `ITMAPPLICATION_ISSUER_URL`, `ITMAPPLICATION_REDIRECT_URI`, `ITMAPPLICATION_SCOPE`, and/or `ITMAPPLICATION_API_PREFIX` values. If `ITMAPPLICATION_CLIENT_ID` is not present or empty, this initializer will fail. If the values in `ITMAPPLICATION_ISSUER_URL` or `ITMAPPLICATION_REDIRECT_URI` are not valid URLs, this initializer will fail. If the value in `ITMAPPLICATION_SCOPE` is empty, this initializer will fail.
     public init?(itmApplication: ITMApplication, viewController: UIViewController? = nil, configData: JSON) {
         self.itmApplication = itmApplication
         self.viewController = viewController
@@ -132,7 +134,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
               !scope.isEmpty else {
             return nil
         }
-        authSettings = ITMOIDCAuthSettings(issuerURL: issuerURL, clientId: clientId, redirectURL: redirectURL, scope: scope)
+        settings = Settings(issuerURL: issuerURL, clientId: clientId, redirectURL: redirectURL, scopes: scope.components(separatedBy: " "))
         super.init()
         loadState()
     }
@@ -143,7 +145,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         return (([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "ITMOIDCAuthorizationClient",
-            kSecAttrAccount as String: "\(authSettings.issuerURL)@\(authSettings.clientId)",
+            kSecAttrAccount as String: "\(settings.issuerURL)@\(settings.clientId)",
         ] as NSDictionary).mutableCopy() as! NSMutableDictionary)
     }
     
@@ -301,7 +303,6 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// - Throws: Anything preventing the sign in (including user cancel and lack of internet) will throw an exception.
     open func doAuthCodeExchange() async throws -> OIDAuthState {
         let serviceConfig = try await requireServiceConfig()
-        let scopes = authSettings.scope.components(separatedBy: " ")
         // NOTE: Bentley IMS sometimes doesn't give the user a chance to specify who they
         // are logging in as when prompt:login is missing. Due to the inability to truly
         // sign out, stuff gets left in the Safari cookies (or somewhere) that cause it to
@@ -309,10 +310,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         // signout() function in this class. That would make it so that a user who signed
         // out and signed back in wasn't ask who they wanted to sign in as.
         let request = OIDAuthorizationRequest(configuration: serviceConfig,
-                                              clientId: authSettings.clientId,
+                                              clientId: settings.clientId,
                                               clientSecret: nil,
-                                              scopes: scopes,
-                                              redirectURL: authSettings.redirectURL,
+                                              scopes: settings.scopes,
+                                              redirectURL: settings.redirectURL,
                                               responseType: OIDResponseTypeCode,
                                               additionalParameters: ["prompt": "login"])
         let viewController = try await requireViewController()
@@ -335,12 +336,12 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return serviceConfig
         }
         do {
-            let serviceConfig = try await OIDAuthorizationService.discoverConfiguration(forIssuer: authSettings.issuerURL)
+            let serviceConfig = try await OIDAuthorizationService.discoverConfiguration(forIssuer: settings.issuerURL)
             self.serviceConfig = serviceConfig
             return serviceConfig
         } catch {
             self.serviceConfig = nil
-            ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(authSettings.issuerURL): Error \(error)")
+            ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(settings.issuerURL): Error \(error)")
             throw error
         }
     }
@@ -389,7 +390,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         var errors: [String] = []
         for token in tokens {
             do {
-                try await Self.revokeToken(revokeURL, authSettings.clientId, token)
+                try await Self.revokeToken(revokeURL, settings.clientId, token)
             } catch {
                 errors.append("\(error)")
             }

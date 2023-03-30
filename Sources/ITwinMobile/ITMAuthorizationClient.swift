@@ -5,6 +5,26 @@
 
 import IModelJsNative
 
+// Mark: - NSError extension
+/// Extension that provides creation and checking of `NSError` values for use with ``ITMAuthorizationClient``.
+public extension NSError {
+    /// Create an `NSError` value from an ``ITMAuthorizationClient``.
+    /// - Parameters:
+    ///   - domain: The domain to use for the NSError.
+    ///   - code: The code to use for the NSError, defaults 200.
+    ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
+    /// - Returns: An NSError object with the specified values that will return true from `isAuthorizationClientError`.
+    static func authorizationClientError(domain: String, code: Int = 200, reason: String) -> NSError {
+        return NSError(domain: domain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason, ITMAuthorizationClientErrorKey: true])
+    }
+
+    /// Determine if the receiver is an ``ITMAuthorizationClient`` error.
+    /// - Returns: true if the receiver is an ``ITMAuthorizationClient`` error, false otherwise.
+    func isAuthorizationClientError() -> Bool {
+        return (userInfo[ITMAuthorizationClientErrorKey] as? Bool) ?? false
+    }
+}
+
 // MARK: - ITMAuthorizationClient protocol
 
 /// Protocol that extends `AuthorizationClient` with convenience functionality. A default extension to this protocol implements both of the provided functions.
@@ -40,7 +60,7 @@ public extension ITMAuthorizationClient {
     ///   - reason: The reason to use for the NSError's NSLocalizedFailureReasonErrorKey userInfo value
     /// - Returns: An NSError object with the specified values. Along with the other settings, the `userInfo` dictionary of the return value will contain a value of `true` for `ITMAuthorizationClientErrorKey`.
     func createError(domain: String? = nil, code: Int = 200, reason: String) -> NSError {
-        return NSError(domain: domain ?? errorDomain, code: code, userInfo: [NSLocalizedFailureReasonErrorKey: reason, ITMAuthorizationClientErrorKey: true])
+        return NSError.authorizationClientError(domain: domain ?? errorDomain, code: code, reason: reason)
     }
 
     /// Calls the onAccessTokenChanged callback, if that callback is set.

@@ -13,13 +13,14 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 3.5.x for now.
+# iTwin base versions to search for. 3.2.x - 3.7.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
     "3\\.4\\.",
     "3\\.5\\.",
     "3\\.6\\.",
+    "3\\.7\\.",
 ]
 # iTwin Mobile SDK base version. 0.10.x for now.
 mobile_base_version = "0.10."
@@ -185,6 +186,11 @@ def modify_project_pbxproj(args, filename):
                 repository = None
         sys.stdout.write(line)
 
+# Note: the "itwin-mobile-sdk" Swift Package is now showing up as "mobile-sdk-ios" inside the
+# Package.resolved files. I don't know if this is due to an Xcode update or some other change
+# that I'm unaware of. Because of that uncertainty, this code recognizes both package names as
+# being valid. The same thing is done for the 'itwin-mobile-native" package. In that case,
+# both names are definitely used (one here in mobile-sdk-ios, and another in mobile-samples).
 def modify_package_resolved(args, filename):
     print("Processing: " + os.path.realpath(filename))
     package = None
@@ -192,11 +198,11 @@ def modify_package_resolved(args, filename):
         match = re.search('"package": "(.*)"', line)
         if match and len(match.groups()) == 1:
             package = match.group(1)
-        if package == 'itwin-mobile-native':
+        if package == 'itwin-mobile-native' or package == 'mobile-native-ios':
             line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
             if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
-        elif package == 'itwin-mobile-sdk' and not skip_commit_id(args):
+        elif (package == 'itwin-mobile-sdk' or package == 'mobile-sdk-ios') and not skip_commit_id(args):
             line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
             if hasattr(args, 'new_commit_id') and args.new_commit_id:
                 line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)

@@ -121,8 +121,8 @@ def modify_package_json(args, dir):
                 '("' + itwin_scope + '/[0-9a-z-]+"): "{0}[.0-9a-z-]+',
                 '\\1: "' + args.new_itwin
             ) + [
-                ('("@itwin/mobile-sdk-core"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
-                ('("@itwin/mobile-ui-react"): "[.0-9a-z-]+', '\\1: "' + args.current_mobile),
+                ('("@itwin/mobile-sdk-core"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
+                ('("@itwin/mobile-ui-react"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ]
         ) < 2:
             raise Exception("Not enough replacements")

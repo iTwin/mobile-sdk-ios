@@ -208,7 +208,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         updateWebViewConfiguration(configuration)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-#if DEBUG
+#if DEBUG && compiler(>=5.8)
         if #available(iOS 16.4, *) {
             webView.isInspectable = true
         }

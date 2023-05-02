@@ -14,6 +14,27 @@ extension String {
     }
 }
 
+extension WKWebView {
+    @discardableResult
+    /// Workaround for Swift Compiler bug.
+    /// The Swift compiler gives a warning if the completion-based evaluateJavaScript is used in a place where the async version could be used.
+    /// Unfortunately, using the async version results in a run-time crash, because its return type is Any instead of Any?. This works around that bug.
+    /// This bug has been reported to Apple.
+    func evaluateJavaScriptAsync(_ str: String) async throws -> Any? {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any?, Error>) in
+            DispatchQueue.main.async {
+                self.evaluateJavaScript(str) { data, error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(returning: data)
+                    }
+                }
+            }
+        }
+    }
+}
+
 internal extension JSONSerialization {
     static func string(withITMJSONObject object: Any?) -> String? {
         return string(withITMJSONObject: object, prettyPrint: false)
@@ -472,15 +493,16 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 return
             }
             jsBusy = true
-            webView.evaluateJavaScript(js, completionHandler: { [self] _, _ in
-                jsBusy = false
-                if jsQueue.isEmpty {
-                    return
-                }
-                let js = jsQueue[0]
-                jsQueue.remove(at: 0)
-                evaluateJavaScript(js)
-            })
+            do {
+                try await webView.evaluateJavaScriptAsync(js)
+            } catch {} // Ignore
+            jsBusy = false
+            if jsQueue.isEmpty {
+                return
+            }
+            let js = jsQueue[0]
+            jsQueue.remove(at: 0)
+            evaluateJavaScript(js)
         }
     }
 

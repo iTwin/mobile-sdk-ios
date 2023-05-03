@@ -195,17 +195,21 @@ def modify_package_resolved(args, filename):
     print("Processing: " + os.path.realpath(filename))
     package = None
     for line in fileinput.input(filename, inplace=1):
-        match = re.search('"package": "(.*)"', line)
+        match = re.search('"package"\s*: "(.*)"', line)
         if match and len(match.groups()) == 1:
             package = match.group(1)
+        else:
+            match = re.search('"identity"\s*:\s*"(.*)"', line)
+            if match and len(match.groups()) == 1:
+                package = match.group(1)
         if package == 'itwin-mobile-native' or package == 'mobile-native-ios':
-            line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
+            line = re.sub('("version"\s*:\s*)"[0-9].*"', '\\1"' + args.new_add_on + '"', line)
             if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
-                line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
+                line = re.sub('("revision"\s*:\s*)"[0-9A-Fa-f]*"', '\\1"' + args.new_add_on_commit_id + '"', line)
         elif (package == 'itwin-mobile-sdk' or package == 'mobile-sdk-ios') and not skip_commit_id(args):
-            line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
+            line = re.sub('("version"\s*:\s*)"[0-9].*"', '\\1"' + args.new_mobile + '"', line)
             if hasattr(args, 'new_commit_id') and args.new_commit_id:
-                line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
+                line = re.sub('("revision"\s*:\s*)"[0-9A-Fa-f]"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
 def modify_build_gradle(args, filename):

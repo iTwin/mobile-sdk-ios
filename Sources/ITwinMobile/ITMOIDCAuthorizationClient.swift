@@ -36,6 +36,7 @@ public extension OIDAuthState {
             self.performAction() { accessToken, idToken, error in
                 if let error = error {
                     continuation.resume(throwing: error)
+                    return
                 }
                 continuation.resume(returning: (accessToken, idToken))
             }

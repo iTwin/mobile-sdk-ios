@@ -195,17 +195,21 @@ def modify_package_resolved(args, filename):
     print("Processing: " + os.path.realpath(filename))
     package = None
     for line in fileinput.input(filename, inplace=1):
-        match = re.search('"package": "(.*)"', line)
+        match = re.search('"package"\s*: "(.*)"', line)
         if match and len(match.groups()) == 1:
             package = match.group(1)
+        else:
+            match = re.search('"identity"\s*:\s*"(.*)"', line)
+            if match and len(match.groups()) == 1:
+                package = match.group(1)
         if package == 'itwin-mobile-native' or package == 'mobile-native-ios':
-            line = re.sub('("version": )".*"', '\\1"' + args.new_add_on + '"', line)
+            line = re.sub('("version"\s*:\s*)"[0-9].*"', '\\1"' + args.new_add_on + '"', line)
             if hasattr(args, 'new_add_on_commit_id') and args.new_add_on_commit_id:
-                line = re.sub('("revision": )".*"', '\\1"' + args.new_add_on_commit_id + '"', line)
+                line = re.sub('("revision"\s*:\s*)"[0-9A-Fa-f]*"', '\\1"' + args.new_add_on_commit_id + '"', line)
         elif (package == 'itwin-mobile-sdk' or package == 'mobile-sdk-ios') and not skip_commit_id(args):
-            line = re.sub('("version": )".*"', '\\1"' + args.new_mobile + '"', line)
+            line = re.sub('("version"\s*:\s*)"[0-9].*"', '\\1"' + args.new_mobile + '"', line)
             if hasattr(args, 'new_commit_id') and args.new_commit_id:
-                line = re.sub('("revision": )".*"', '\\1"' + args.new_commit_id + '"', line)
+                line = re.sub('("revision"\s*:\s*)"[0-9A-Fa-f]*"', '\\1"' + args.new_commit_id + '"', line)
         sys.stdout.write(line)
 
 def modify_build_gradle(args, filename):
@@ -447,6 +451,13 @@ def stage3_command(args):
     push3_command(args)
     release_dir(args, sdk_dirs.samples)
 
+def changesamplestest_command(args):
+    args.new_commit_id = 'new_commit_id'
+    args.new_add_on_commit_id = 'new_add_on_commit_id'
+    args.new_mobile = 'new_mobile'
+    args.new_add_on = 'new_add_on'
+    modify_samples_package_resolved(args)
+
 def test_command(args):
     show_node_version()
     get_versions(args, True)
@@ -667,7 +678,11 @@ if __name__ == '__main__':
     parser_checkversions = sub_parsers.add_parser('checkversions', help='Check versions for next release.')
     parser_checkversions.set_defaults(func=checkversions_command)
 
+    parser_changesamplestest = sub_parsers.add_parser('changesamplestest', help='Test command')
+    parser_changesamplestest.set_defaults(func=changesamplestest_command)
+
     args = parser.parse_args()
+
     process_environment(args)
     sdk_dirs = MobileSdkDirs(args)
 

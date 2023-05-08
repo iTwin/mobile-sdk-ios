@@ -92,6 +92,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// The settings for this ``ITMOIDCAuthorizationClient``. These are initialized using the contents of the `configData`
     /// parameter to ``init(itmApplication:viewController:configData:)``.
     public var settings: Settings
+    /// Whether or not to include `prompt: login` in the additional parameters passed to the OIDC authorization request.
+    ///
+    /// By default, this is set to `true` in the constructor if `offline_access` is present in scopes.
+    public var promptForLogin: Bool
     /// The ``ITMApplication`` using this authorization client.
     public let itmApplication: ITMApplication
     /// The UIViewController into which to display the sign in Safari WebView.
@@ -116,6 +120,8 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     }
     internal static var currentAuthorizationFlow: OIDExternalUserAgentSession?
     private var loadStateActive = false
+    private let defaultScopes = "projects:read imodelaccess:read itwinjs organization profile email imodels:read realitydata:read savedviews:read savedviews:modify itwins:read openid offline_access"
+    private let defaultRedirectUri = "imodeljs://app/signin-callback"
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
     /// - Parameter itmApplication: The ``ITMApplication`` in which this ``ITMOIDCAuthorizationClient`` is being used.
@@ -127,8 +133,8 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         let apiPrefix = configData["ITMAPPLICATION_API_PREFIX"] as? String ?? ""
         let issuerURLString = configData["ITMAPPLICATION_ISSUER_URL"] as? String ?? "https://\(apiPrefix)ims.bentley.com/"
         let clientId = configData["ITMAPPLICATION_CLIENT_ID"] as? String ?? ""
-        let redirectURLString = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? "imodeljs://app/signin-callback"
-        let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? "email openid profile organization itwinjs offline_access"
+        let redirectURLString = configData["ITMAPPLICATION_REDIRECT_URI"] as? String ?? defaultRedirectUri
+        let scope = configData["ITMAPPLICATION_SCOPE"] as? String ?? defaultScopes
         guard let issuerURL = URL(string: issuerURLString),
               let redirectURL = URL(string: redirectURLString),
               !clientId.isEmpty,
@@ -136,6 +142,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return nil
         }
         settings = Settings(issuerURL: issuerURL, clientId: clientId, redirectURL: redirectURL, scopes: scope.components(separatedBy: " "))
+        promptForLogin = settings.scopes.contains("offline_access")
         super.init()
         loadState()
     }
@@ -309,14 +316,16 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         // sign out, stuff gets left in the Safari cookies (or somewhere) that cause it to
         // just login again as the same user as before, even if the program called the
         // signout() function in this class. That would make it so that a user who signed
-        // out and signed back in wasn't ask who they wanted to sign in as.
+        // out and signed back in wasn't ask who they wanted to sign in as. I think that
+        // this problem does not occur when offline_access is not present in scopes, so
+        // by default promptForLogin is only true if offline_access is present in scopes.
         let request = OIDAuthorizationRequest(configuration: serviceConfig,
                                               clientId: settings.clientId,
                                               clientSecret: nil,
                                               scopes: settings.scopes,
                                               redirectURL: settings.redirectURL,
                                               responseType: OIDResponseTypeCode,
-                                              additionalParameters: ["prompt": "login"])
+                                              additionalParameters: promptForLogin ? ["prompt": "login"] : nil)
         let viewController = try await requireViewController()
         do {
             let authState = try await OIDAuthState.authState(byPresenting: request, presenting: viewController)

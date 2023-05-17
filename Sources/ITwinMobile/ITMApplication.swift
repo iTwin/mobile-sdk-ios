@@ -126,7 +126,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public var configData: JSON?
     
     /// Creates an ``ITMApplication``
-    required public override init() {
+    @objc required public override init() {
         // Self (capital S) is equivalent to type(of: self)
         webView = Self.createEmptyWebView()
         webViewLogger = Self.createWebViewLogger(webView)
@@ -174,7 +174,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Must be called from the `viewWillAppear` function of the `UIViewController` that is presenting
     /// the iTwin app's `UIWebView`. Please note that ``ITMViewController`` calls this function automatically.
     /// - Parameter viewController: The `UIViewController` that contains the `UIWebView`.
-    open func viewWillAppear(viewController: ITMViewController) {
+    open func viewWillAppear(viewController: UIViewController) {
         for (key, value) in keyboardNotifications {
             keyboardObservers.append(NotificationCenter.default.addObserver(forName: key, object: nil, queue: nil, using: { [weak self] notification in
                 if let messenger = self?.itmMessenger,
@@ -191,13 +191,13 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
     }
     
-    /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.
-    /// Override this function in a subclass in order to add custom behavior.
-    /// - Returns: A `WKWebView` configured for use by iTwin Mobile.
-    open class func createEmptyWebView() -> WKWebView {
-        let configuration = WKWebViewConfiguration()
-        let contentController = WKUserContentController()
-        configuration.userContentController = contentController
+    /// Set up the given `WKWebViewConfiguration` value so it can successfully be used with a `WKWebView` object
+    /// being used by iTwin Mobile.
+    /// - Note: This __must__ be done on the `WKWebViewConfiguration` object that is passed into the `WKWebView`
+    /// constructor __before__ the web view is created. The `configuration` property of `WKWebView` returns a copy of
+    /// the configuration, so it is not possible to change the configuation after the `WKWebView` is initially created.
+    /// - Parameter configuration: the `WKWebViewConfiguration` to set up.
+    @objc open class func setupWebViewConfiguration(_ configuration: WKWebViewConfiguration) {
         configuration.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
 
@@ -206,6 +206,15 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let handler = createAssetHandler(assetPath: frontendFolder.absoluteString)
         configuration.setURLSchemeHandler(handler, forURLScheme: "imodeljs")
         updateWebViewConfiguration(configuration)
+    }
+
+    /// Creates an empty `WKWebView` and configures it to run an iTwin Mobile web app. The web view starts out hidden.
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: A `WKWebView` configured for use by iTwin Mobile.
+    open class func createEmptyWebView() -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController = WKUserContentController()
+        Self.setupWebViewConfiguration(configuration)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
 #if DEBUG && compiler(>=5.8)

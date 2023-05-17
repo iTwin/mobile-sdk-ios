@@ -52,7 +52,7 @@ public extension CGRect {
 // MARK: - ITMNativeUI class
 
 /// Container class for all ``ITMNativeUIComponent`` objects.
-open class ITMNativeUI {
+open class ITMNativeUI: NSObject {
     private var components: [ITMNativeUIComponent] = []
     /// The `UIViewController` that components display in.
     public weak var viewController: UIViewController?
@@ -62,12 +62,12 @@ open class ITMNativeUI {
     /// - Parameters:
     ///   - viewController: The `UIViewController` to display the native UI components in.
     ///   - itmMessenger: The ``ITMMessenger`` to communicate with the iTwin Mobile app's frontend.
-    public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
+    @objc public init(viewController: UIViewController, itmMessenger: ITMMessenger) {
         self.viewController = viewController
         self.itmMessenger = itmMessenger
+        super.init()
         components.append(ITMActionSheet(itmNativeUI: self))
         components.append(ITMAlert(itmNativeUI: self))
-//        components.append(ITMDatePicker(viewController: viewController, itmMessenger: itmMessenger))
     }
 
     /// Add a component to the ``ITMNativeUI``.
@@ -95,7 +95,7 @@ open class ITMNativeUIComponent: NSObject {
 
     /// - Parameters:
     ///   - itmNativeUI: The ``ITMNativeUI`` used to present the component.
-    public init(itmNativeUI: ITMNativeUI) {
+    @objc public init(itmNativeUI: ITMNativeUI) {
         self.itmNativeUI = itmNativeUI
         super.init()
     }

@@ -53,7 +53,11 @@ ios_sample_names = [
 android_sample_names = [
     'CameraSample',
     'iTwinStarter',
-    'ThirdPartyAuth'
+    'ThirdPartyAuth',
+]
+# The names of the React Native sample apps
+react_native_sample_names = [
+    'iTwinRNStarter',
 ]
 
 # ===================================================================================
@@ -342,6 +346,8 @@ def get_xcodeproj_dirs():
     for sample_name in ios_sample_names:
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, sample_name + '.xcodeproj'))
         xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'iOS', sample_name, 'LocalSDK_' + sample_name + '.xcodeproj'))
+    for sample_name in react_native_sample_names:
+        xcodeproj_dirs.append(os.path.join(sdk_dirs.samples, 'ReactNative', sample_name, 'ios', sample_name + '.xcodeproj'))
     return xcodeproj_dirs
 
 def modify_samples_project_pbxproj(args):
@@ -360,6 +366,8 @@ def modify_samples_package_resolved(args):
 def modify_samples_build_gradle(args):
     for sample_name in android_sample_names:
         modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'Android', sample_name, 'app/build.gradle'))
+    for sample_name in react_native_sample_names:
+        modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'ReactNative', sample_name, 'android', 'app/build.gradle'))
 
 def populate_mobile_versions(args, current = False):
     args.current_mobile = get_last_release()
@@ -457,6 +465,8 @@ def changesamplestest_command(args):
     args.new_mobile = 'new_mobile'
     args.new_add_on = 'new_add_on'
     modify_samples_package_resolved(args)
+    modify_samples_project_pbxproj(args)
+    modify_samples_build_gradle(args)
 
 def test_command(args):
     show_node_version()

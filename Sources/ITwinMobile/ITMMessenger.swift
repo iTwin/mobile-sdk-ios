@@ -413,14 +413,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Send message with no response.
     /// - Note: Since this function returns without waiting for the message to finish sending or the Void response to
     ///         be returned from the web app, there is no way to know if a failure occurs. (An error will be logged
-    ///         using `ITMMessenger.logger`.)
+    ///         using `ITMMessenger.logger`.) Use ``query(_:_:)-447in`` if you need to wait for the
+    ///         message to finish or handle errors.
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
-    public func query(_ type: String, _ data: Any? = nil) -> Void {
+    public func send(_ type: String, _ data: Any? = nil) -> Void {
         Task {
             do {
-                let _: () = try await internalQuery(type, data)
+                let _: Void = try await internalQuery(type, data)
             } catch {
                 guard let itmError = error as? ITMError, !itmError.isNotImplemented else {
                     return
@@ -430,13 +431,25 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
+    /// Send message without a return value and wait for it to complete.
+    ///
+    /// This is a convenience function to avoid requiring the following:
+    ///
+    ///     let _: Void = try await itMessenger.query("blah")
+    /// - Throws: Throws an error if there is a problem.
+    /// - Parameters:
+    ///   - type: query type.
+    ///   - data: optional request data to send.
+    public func query(_ type: String, _ data: Any? = nil) async throws {
+        let _: Void = try await internalQuery(type, data)
+    }
+
     /// Send message and receive an async parsed typed response.
     /// - Throws: Throws an error if there is a problem.
     /// - Parameters:
     ///   - type: query type.
     ///   - data: optional request data to send.
     /// - Returns: The value returned by the TypeScript code.
-    @discardableResult
     public func query<T>(_ type: String, _ data: Any? = nil) async throws -> T {
         return try await internalQuery(type, data)
     }

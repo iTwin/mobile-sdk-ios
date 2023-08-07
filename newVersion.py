@@ -492,10 +492,11 @@ def checkversions_command(args):
     print("new_add_on: " + args.new_add_on)
     print("new_add_on_commit_id: " + args.new_add_on_commit_id)
 
-def fetch_arg_from_environment(args, arg_name):
-    value = os.getenv(arg_name)
+def fetch_arg_from_environment(args, env_name):
+    value = os.getenv(env_name)
     if not value is None:
-        setattr(args, arg_name.lower()[4:], value)
+        setattr(args, env_name.lower()[4:], value)
+        print("Using version from env: " + env_name + "=" + value)
 
 def process_environment(args):
     fetch_arg_from_environment(args, 'ITM_NEW_MOBILE')

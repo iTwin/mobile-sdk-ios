@@ -531,8 +531,12 @@ def get_next_release(last_release):
     raise Exception("Error: Could not parse last release: " + last_release)
 
 def get_latest_itwin_version():
-    versions_json = subprocess.check_output(['npm', 'view', '--json', f'{itwin_version_package}@{itwin_version_prefix}', 'version'])
-    return json.loads(versions_json)[-1]
+    version_json = subprocess.check_output(['npm', 'view', '--json', f'{itwin_version_package}@{itwin_version_prefix}', 'version'])
+    version = json.loads(version_json)
+    if isinstance(version, str):
+        return version
+    else:
+        return version[-1]
 
 def get_latest_native_version(itwin_version):
     deps = subprocess.check_output(['npm', 'show', native_version_package + '@' + itwin_version, 'dependencies'], encoding='UTF-8')

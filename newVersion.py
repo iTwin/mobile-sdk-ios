@@ -6,6 +6,7 @@ import subprocess
 import sys
 import os
 import textwrap
+import json
 import traceback
 
 # ===================================================================================
@@ -34,6 +35,8 @@ native_package_search = "`itwin-mobile-native` CocoaPod to version "
 react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
+# The version prefix when determining the latest iTwin version.
+itwin_version_prefix = '3.7'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The package used to determine the current version of iTwin
@@ -492,10 +495,11 @@ def checkversions_command(args):
     print("new_add_on: " + args.new_add_on)
     print("new_add_on_commit_id: " + args.new_add_on_commit_id)
 
-def fetch_arg_from_environment(args, arg_name):
-    value = os.getenv(arg_name)
+def fetch_arg_from_environment(args, env_name):
+    value = os.getenv(env_name)
     if not value is None:
-        setattr(args, arg_name.lower()[4:], value)
+        setattr(args, env_name.lower()[4:], value)
+        print("Using version from env: " + env_name + "=" + value)
 
 def process_environment(args):
     fetch_arg_from_environment(args, 'ITM_NEW_MOBILE')
@@ -527,10 +531,8 @@ def get_next_release(last_release):
     raise Exception("Error: Could not parse last release: " + last_release)
 
 def get_latest_itwin_version():
-    dist_tags = subprocess.check_output(['npm', 'dist-tag', itwin_version_package], encoding='UTF-8')
-    match = re.search('latest: ([.0-9]+)', dist_tags)
-    if match and len(match.groups()) == 1:
-        return match.group(1)
+    versions_json = subprocess.check_output(['npm', 'view', '--json', f'{itwin_version_package}@{itwin_version_prefix}', 'version'])
+    return json.loads(versions_json)[-1]
 
 def get_latest_native_version(itwin_version):
     deps = subprocess.check_output(['npm', 'show', native_version_package + '@' + itwin_version, 'dependencies'], encoding='UTF-8')

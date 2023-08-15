@@ -350,7 +350,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using ``configData``.
     @MainActor
     open func createAuthClient() -> AuthorizationClient? {
-        guard let viewController = Self.topViewController else {
+        guard let viewController = Self.topViewController,
+              configData?.isYes("ITMAPPLICATION_DISABLE_AUTH") != true else {
             return nil
         }
         return ITMOIDCAuthorizationClient(itmApplication: self, viewController: viewController, configData: configData ?? [:])

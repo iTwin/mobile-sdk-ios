@@ -23,10 +23,10 @@ itwin_base_version_search_list = [
     "3\\.6\\.",
     "3\\.7\\.",
 ]
-# iTwin Mobile SDK base version. 0.10.x for now.
-mobile_base_version = "0.10."
-# iTwin Mobile SDK base version to search for. 0.10.x for now.
-mobile_base_version_search = "0\\.10\\."
+# iTwin Mobile SDK base version. 0.20.x for now.
+mobile_base_version = "0.20."
+# iTwin Mobile SDK base version to search for. 0.20.x for now.
+mobile_base_version_search = "0\\.20\\."
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
 # The search string for itwin-mobile-native
@@ -520,7 +520,7 @@ def get_last_release():
                     last_patch = this_patch
     if last_patch > 0:
         return mobile_base_version + str(last_patch)
-    raise Exception("Error: could not determine last release.")
+    return f'{mobile_base_version}0'
 
 def get_next_release(last_release):
     parts = last_release.split('.')
@@ -608,11 +608,11 @@ def add_common_stage_arguments(parser, new_mobile=True):
 # We always want to publish our packages using Node 16 (>= 16.11), so check for that.
 # This insures that our package-lock.json files are conistent for npm.
 def check_node_version():
-    print("Verifying that node version is 16.x, with minimum of 16.11.")
+    print("Verifying that node version is 18.x, with minimum of 18.16.")
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
-    match = re.search('^v16\\.([0-9]+)\\.', results)
-    if not match or int(match.group(1)) < 11:
-        raise Exception("Error: Node 16.x required, with minimum of 16.11. You have " + results.rstrip('\n') + ".")
+    match = re.search('^v18\\.([0-9]+)\\.', results)
+    if not match or int(match.group(1)) < 16:
+        raise Exception("Error: Node 18.x required, with minimum of 18.16. You have " + results.rstrip('\n') + ".")
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
 

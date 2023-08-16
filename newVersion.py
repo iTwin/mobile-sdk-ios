@@ -22,6 +22,8 @@ itwin_base_version_search_list = [
     "3\\.5\\.",
     "3\\.6\\.",
     "3\\.7\\.",
+    "4\\.0\\.",
+    "4\\.1\\.",
 ]
 # iTwin Mobile SDK base version. 0.20.x for now.
 mobile_base_version = "0.20."
@@ -39,6 +41,22 @@ token_server_subdir = 'cross-platform/token-server'
 itwin_version_prefix = '4.1'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
+# The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
+itwin_non_core_packages = [
+    "appui-layout-react",
+    "appui-react",
+    "components-react"
+    "core-react",
+    "eslint-plugin",
+    "imodel-components-react",
+    "imodels-access-backend",
+    "imodels-access-frontend",
+    "imodels-client-management",
+    "itwins-client",
+    "measure-tools-react",
+    "mobile-sdk-core",
+    "mobile-ui-react",
+]
 # The package used to determine the current version of iTwin
 itwin_version_package = '@itwin/core-common'
 # The package whose dependencies determine the current add-on version.
@@ -97,21 +115,35 @@ class MobileSdkDirs:
     def __iter__(self):
         return iter(self.dirs)
 
+def is_itwin_non_core_project_line(line, is_itwin):
+    if not is_itwin: return False
+    for itwin_non_core_package in itwin_non_core_packages:
+        if line.find(f'@itwin/{itwin_non_core_package}') != -1:
+            return True
+    return False
+
+def parse_replacement_tuple(tuple):
+    if len(tuple) == 2:
+        return (tuple[0], tuple[1], False)
+    else:
+        return (tuple[0], tuple[1], tuple[2])
+
 def replace_all(filename, replacements):
     num_found = 0
     for line in fileinput.input(filename, inplace=1):
         newline = line
-        for (search_exp, replace_exp) in replacements:
-            if re.search(search_exp, newline):
+        for tuple in replacements:
+            (search_exp, replace_exp, is_itwin) = parse_replacement_tuple(tuple)
+            if re.search(search_exp, newline) and not is_itwin_non_core_project_line(newline, is_itwin):
                 num_found += 1
                 newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
     return num_found
 
-def itwin_base_version_search_tuples(firstFormatString, secondValue):
+def itwin_base_version_search_tuples(first_format_string, second_value, is_itwin = False):
     result = []
     for itwin_base_version_search in itwin_base_version_search_list:
-        result.append((firstFormatString.format(itwin_base_version_search), secondValue))
+        result.append((first_format_string.format(itwin_base_version_search), second_value, is_itwin))
     return result
 
 def modify_package_json(args, dir):
@@ -126,7 +158,8 @@ def modify_package_json(args, dir):
                 ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
             ] + itwin_base_version_search_tuples(
                 '("' + itwin_scope + '/[0-9a-z-]+"): "{0}[.0-9a-z-]+',
-                '\\1: "' + args.new_itwin
+                '\\1: "' + args.new_itwin,
+                True
             ) + [
                 ('("@itwin/mobile-sdk-core"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
                 ('("@itwin/mobile-ui-react"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
@@ -552,8 +585,14 @@ def get_first_entry_of_last_line(results):
         return entries[0]
 
 def get_last_commit_id(dir, tag_filter):
-    results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
-    return get_first_entry_of_last_line(results)
+    try:
+        results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
+        return get_first_entry_of_last_line(results)
+    except Exception as e:
+        if dir == sdk_dirs.sdk_ios:
+            # On the first 0.20 release, we need to use the ID from the last 0.10 release.
+            return "3135ae431fb9db9c45fe91739dd98044ab257a92"
+        raise(e)
 
 def get_last_remote_commit_id(repo, tag_filter):
     results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tag_filter], encoding='UTF-8')

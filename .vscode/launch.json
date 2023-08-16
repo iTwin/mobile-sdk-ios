@@ -35,6 +35,14 @@
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
       "args": ["release1"]
+    },
+    {
+      "name": "Python: newVersion.py test --force",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "args": ["test", "--force"]
     }
   ]
 }

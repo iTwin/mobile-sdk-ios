@@ -22,11 +22,13 @@ itwin_base_version_search_list = [
     "3\\.5\\.",
     "3\\.6\\.",
     "3\\.7\\.",
+    "4\\.0\\.",
+    "4\\.1\\.",
 ]
-# iTwin Mobile SDK base version. 0.10.x for now.
-mobile_base_version = "0.10."
-# iTwin Mobile SDK base version to search for. 0.10.x for now.
-mobile_base_version_search = "0\\.10\\."
+# iTwin Mobile SDK base version. 0.20.x for now.
+mobile_base_version = "0.20."
+# iTwin Mobile SDK base version to search for. 0.20.x for now.
+mobile_base_version_search = "0\\.20\\."
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
 # The search string for itwin-mobile-native
@@ -36,9 +38,25 @@ react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '3.7'
+itwin_version_prefix = '4.1'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
+# The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
+itwin_non_core_packages = [
+    "appui-layout-react",
+    "appui-react",
+    "components-react"
+    "core-react",
+    "eslint-plugin",
+    "imodel-components-react",
+    "imodels-access-backend",
+    "imodels-access-frontend",
+    "imodels-client-management",
+    "itwins-client",
+    "measure-tools-react",
+    "mobile-sdk-core",
+    "mobile-ui-react",
+]
 # The package used to determine the current version of iTwin
 itwin_version_package = '@itwin/core-common'
 # The package whose dependencies determine the current add-on version.
@@ -97,21 +115,35 @@ class MobileSdkDirs:
     def __iter__(self):
         return iter(self.dirs)
 
+def is_itwin_non_core_project_line(line, is_itwin):
+    if not is_itwin: return False
+    for itwin_non_core_package in itwin_non_core_packages:
+        if line.find(f'@itwin/{itwin_non_core_package}') != -1:
+            return True
+    return False
+
+def parse_replacement_tuple(tuple):
+    if len(tuple) == 2:
+        return (tuple[0], tuple[1], False)
+    else:
+        return (tuple[0], tuple[1], tuple[2])
+
 def replace_all(filename, replacements):
     num_found = 0
     for line in fileinput.input(filename, inplace=1):
         newline = line
-        for (search_exp, replace_exp) in replacements:
-            if re.search(search_exp, newline):
+        for tuple in replacements:
+            (search_exp, replace_exp, is_itwin) = parse_replacement_tuple(tuple)
+            if re.search(search_exp, newline) and not is_itwin_non_core_project_line(newline, is_itwin):
                 num_found += 1
                 newline = re.sub(search_exp, replace_exp, newline)
         sys.stdout.write(newline)
     return num_found
 
-def itwin_base_version_search_tuples(firstFormatString, secondValue):
+def itwin_base_version_search_tuples(first_format_string, second_value, is_itwin = False):
     result = []
     for itwin_base_version_search in itwin_base_version_search_list:
-        result.append((firstFormatString.format(itwin_base_version_search), secondValue))
+        result.append((first_format_string.format(itwin_base_version_search), second_value, is_itwin))
     return result
 
 def modify_package_json(args, dir):
@@ -126,7 +158,8 @@ def modify_package_json(args, dir):
                 ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
             ] + itwin_base_version_search_tuples(
                 '("' + itwin_scope + '/[0-9a-z-]+"): "{0}[.0-9a-z-]+',
-                '\\1: "' + args.new_itwin
+                '\\1: "' + args.new_itwin,
+                True
             ) + [
                 ('("@itwin/mobile-sdk-core"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
                 ('("@itwin/mobile-ui-react"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
@@ -520,7 +553,7 @@ def get_last_release():
                     last_patch = this_patch
     if last_patch > 0:
         return mobile_base_version + str(last_patch)
-    raise Exception("Error: could not determine last release.")
+    return f'{mobile_base_version}0'
 
 def get_next_release(last_release):
     parts = last_release.split('.')
@@ -552,6 +585,7 @@ def get_first_entry_of_last_line(results):
         return entries[0]
 
 def get_last_commit_id(dir, tag_filter):
+    # Todo: Handle first release with a new prefix
     results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
     return get_first_entry_of_last_line(results)
 
@@ -608,11 +642,11 @@ def add_common_stage_arguments(parser, new_mobile=True):
 # We always want to publish our packages using Node 16 (>= 16.11), so check for that.
 # This insures that our package-lock.json files are conistent for npm.
 def check_node_version():
-    print("Verifying that node version is 16.x, with minimum of 16.11.")
+    print("Verifying that node version is 18.x, with minimum of 18.16.")
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
-    match = re.search('^v16\\.([0-9]+)\\.', results)
-    if not match or int(match.group(1)) < 11:
-        raise Exception("Error: Node 16.x required, with minimum of 16.11. You have " + results.rstrip('\n') + ".")
+    match = re.search('^v18\\.([0-9]+)\\.', results)
+    if not match or int(match.group(1)) < 16:
+        raise Exception("Error: Node 18.x required, with minimum of 18.16. You have " + results.rstrip('\n') + ".")
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
 

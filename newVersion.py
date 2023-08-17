@@ -585,14 +585,9 @@ def get_first_entry_of_last_line(results):
         return entries[0]
 
 def get_last_commit_id(dir, tag_filter):
-    try:
-        results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
-        return get_first_entry_of_last_line(results)
-    except Exception as e:
-        if dir == sdk_dirs.sdk_ios:
-            # On the first 0.20 release, we need to use the ID from the last 0.10 release.
-            return "3135ae431fb9db9c45fe91739dd98044ab257a92"
-        raise(e)
+    # Todo: Handle first release with a new prefix
+    results = subprocess.check_output(['git', 'show-ref', '--tags', tag_filter], cwd=dir, encoding='UTF-8')
+    return get_first_entry_of_last_line(results)
 
 def get_last_remote_commit_id(repo, tag_filter):
     results = subprocess.check_output(['git', 'ls-remote', '--tags', repo, tag_filter], encoding='UTF-8')

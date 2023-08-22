@@ -67,4 +67,4 @@ end
 
 - If you are using this package via CocoaPods, make sure to set the `itwin-mobile-native` CocoaPod to version 4.1.8
 
-- You will get two warnings relating to `IPHONEOS_DEPLOYMENT_TARGET` when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable those warnings. They can be ignored, though.
+- You may get a warning from AppAuth's OIDExternalUserAgentIOS.h when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable that warning. It can be ignored, though.

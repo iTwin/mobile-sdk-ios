@@ -43,20 +43,33 @@ itwin_version_prefix = '4.1'
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
 itwin_non_core_packages = [
-    "appui-layout-react",
-    "appui-react",
-    "components-react"
-    "core-react",
     "eslint-plugin",
-    "imodel-components-react",
-    "imodels-access-backend",
-    "imodels-access-frontend",
-    "imodels-client-management",
     "itwins-client",
     "measure-tools-react",
     "mobile-sdk-core",
     "mobile-ui-react",
 ]
+appui_packages = [
+    "appui-layout-react",
+    "appui-react",
+    "components-react",
+    "core-react",
+    "imodel-components-react",
+]
+imodels_access_packages = [
+    "imodels-access-backend",
+    "imodels-access-frontend",
+]
+imodels_client_packages = [
+    "imodels-client-management",
+]
+presentation_packages = [
+    "presentation-components",
+]
+itwin_non_core_packages.extend(appui_packages)
+itwin_non_core_packages.extend(imodels_access_packages)
+itwin_non_core_packages.extend(imodels_client_packages)
+itwin_non_core_packages.extend(presentation_packages)
 # The package used to determine the current version of iTwin
 itwin_version_package = '@itwin/core-common'
 # The package whose dependencies determine the current add-on version.
@@ -564,7 +577,10 @@ def get_next_release(last_release):
     raise Exception("Error: Could not parse last release: " + last_release)
 
 def get_latest_itwin_version():
-    version_json = subprocess.check_output(['npm', 'view', '--json', f'{itwin_version_package}@{itwin_version_prefix}', 'version'])
+    return get_latest_version(itwin_version_package, itwin_version_prefix)
+
+def get_latest_version(package, prefix):
+    version_json = subprocess.check_output(['npm', 'view', '--json', f'{package}@{prefix}', 'version'])
     version = json.loads(version_json)
     if isinstance(version, str):
         return version

@@ -33,9 +33,9 @@ public struct GeolocationPosition: Codable {
     var coords: GeolocationCoordinates
     var timestamp: TimeInterval
 
-    func jsonObject() throws -> [String: Any] {
+    func jsonObject() throws -> JSON {
         let jsonData = try JSONEncoder().encode(self)
-        return try JSONSerialization.jsonObject(with: jsonData) as! [String: Any]
+        return try JSONSerialization.jsonObject(with: jsonData) as! JSON
     }
 }
 
@@ -54,12 +54,12 @@ public struct GeolocationPositionError: Codable {
     var POSITION_UNAVAILABLE: Code = .POSITION_UNAVAILABLE
     var TIMEOUT: Code = .TIMEOUT
 
-    func jsonObject() -> [String: Any] {
+    func jsonObject() -> JSON {
         // Note: with this struct, it is impossible for the encode or jsonObject calls
         // below to fail, which is why we use try!. Having this function be marked
         // as throws causes unnecessary complications where this function is used.
         let jsonData = try! JSONEncoder().encode(self)
-        return try! JSONSerialization.jsonObject(with: jsonData) as! [String: Any]
+        return try! JSONSerialization.jsonObject(with: jsonData) as! JSON
     }
 }
 
@@ -70,7 +70,7 @@ public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object converted to a JSON-compatible dictionary..
     /// - Throws: Throws if there is anything that prevents the position lookup from working.
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
-    func geolocationPosition() async throws -> [String: Any] {
+    func geolocationPosition() async throws -> JSON {
         let permission = await requestPermission(with: .whenInUsage)
         if permission != .authorizedAlways, permission != .authorizedWhenInUse {
             throw ITMError(json: ["message": "Permission denied."])
@@ -96,7 +96,7 @@ public extension CLLocation {
     /// - Parameter heading: The optional direction that will be stored in the `heading` field of the ``GeolocationCoordinates`` in the ``GeolocationPosition``.
     ///                      Note that this is the device's compass heading, not the motion heading as would normally be expected.
     /// - Returns: A ``GeolocationPosition`` object representing the ``CLLocation`` at the given heading, converted to a JSON-compatible dictionary.
-    func geolocationPosition(_ heading: CLLocationDirection? = nil) throws -> [String: Any] {
+    func geolocationPosition(_ heading: CLLocationDirection? = nil) throws -> JSON {
         let coordinates = GeolocationCoordinates(
             accuracy: horizontalAccuracy,
             altitude: altitude,
@@ -183,6 +183,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     var watchIds: Set<Int64> = []
     var itmMessenger: ITMMessenger
     private var _asyncLocationManager: AsyncLocationManager?
+    private var lastLocationTimeThreshold: Double = 0.0
     var webView: WKWebView
     private var orientationObserver: Any?
     private var isUpdatingPosition = false
@@ -214,12 +215,20 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             NotificationCenter.default.removeObserver(orientationObserver!)
         }
     }
+    
+    /// Sets the threshold when "last location" is used in location requests instead of requesting a
+    /// new location. The default of `0.0` means that all location requests ask for the location (which
+    /// can take time).
+    /// - Parameter value: The threshold value (in seconds)
+    public func setLastLocationTimeThreshold(_ value: Double) {
+        lastLocationTimeThreshold = value
+    }
 
     /// `WKScriptMessageHandler` function for handling messages from the JavaScript side of this polyfill.
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? String,
             let data = body.data(using: .utf8),
-            let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any]
+            let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
         else {
             ITMApplication.logger.log(.error, "ITMGeolocationManager: bad message format")
             return
@@ -293,13 +302,13 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func watchPosition(_ message: [String: Any]) {
+    private func watchPosition(_ message: JSON) {
         Task {
             await watchPosition(message)
         }
     }
 
-    private func watchPosition(_ message: [String: Any]) async {
+    private func watchPosition(_ message: JSON) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "watchPosition error: no Int64 positionId in request.")
@@ -327,7 +336,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func clearWatch(_ message: [String: Any]) {
+    private func clearWatch(_ message: JSON) {
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "clearWatch error: no Int64 positionId in request.")
             return
@@ -358,16 +367,16 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         locationManager.stopUpdatingHeading()
     }
 
-    private var notAuthorizedError: [String: Any] {
+    private var notAuthorizedError: JSON {
         return GeolocationPositionError(code: .PERMISSION_DENIED, message: NSLocalizedString("LocationNotAuthorized", value: "Not authorized", comment: "Location lookup not authorized")).jsonObject()
     }
 
-    private var positionUnavailableError: [String: Any] {
+    private var positionUnavailableError: JSON {
         return GeolocationPositionError(code: .POSITION_UNAVAILABLE, message: NSLocalizedString("LocationPositionUnavailable", value: "Unable to determine position.", comment: "Location lookup could not determine position")).jsonObject()
     }
 
-    private func sendError(_ messageName: String, positionId: Int64, errorJson: [String: Any]) {
-        let message: [String: Any] = [
+    private func sendError(_ messageName: String, positionId: Int64, errorJson: JSON) {
+        let message: JSON = [
             "positionId": positionId,
             "error": errorJson
         ]
@@ -375,7 +384,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         itmMessenger.evaluateJavaScript(js)
     }
     
-    private func sendErrorToWatchers(_ messageName: String, errorJson: [String: Any]) {
+    private func sendErrorToWatchers(_ messageName: String, errorJson: JSON) {
         for positionId in watchIds {
             sendError(messageName, positionId: positionId, errorJson: errorJson)
         }
@@ -396,13 +405,13 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func getCurrentPosition(_ message: [String: Any]) {
+    private func getCurrentPosition(_ message: JSON) {
         Task {
             await getCurrentPosition(message)
         }
     }
 
-    private func getCurrentPosition(_ message: [String: Any]) async {
+    private func getCurrentPosition(_ message: JSON) async {
         // NOTE: this ignores the optional options.
         guard let positionId = message["positionId"] as? Int64 else {
             ITMApplication.logger.log(.error, "getCurrentPosition error: no Int64 positionId in request.")
@@ -421,16 +430,20 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
 
         delegate?.geolocationManager(self, willGetCurrentPosition: positionId)
+
+        if lastLocationTimeThreshold != 0.0, let lastLocation = locationManager.location, abs(lastLocation.timestamp.timeIntervalSinceNow) < lastLocationTimeThreshold {
+            do {
+                let position = try lastLocation.geolocationPosition()
+                sendPosition(position, positionId: positionId)
+                return
+            } catch {} // Ignore and do new lookup below
+        }
+
         do {
             let position = try await asyncLocationManager.geolocationPosition()
-            let message: [String: Any] = [
-                "positionId": positionId,
-                "position": position
-            ]
-            let js = "window.Bentley_ITMGeolocationResponse('getCurrentPosition', '\(itmMessenger.jsonString(message).toBase64())')"
-            itmMessenger.evaluateJavaScript(js)
+            sendPosition(position, positionId: positionId)
         } catch {
-            var errorJson: [String: Any]
+            var errorJson: JSON
             stopUpdatingPosition()
             // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
             // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
@@ -438,6 +451,15 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             errorJson = positionUnavailableError
             sendError("getCurrentPosition", positionId: positionId, errorJson: errorJson)
         }
+    }
+
+    private func sendPosition(_ position: JSON, positionId: Int64, messageName: String? = nil) {
+        let message: JSON = [
+            "positionId": positionId,
+            "position": position
+        ]
+        let js = "window.Bentley_ITMGeolocationResponse('\(messageName ?? "getCurrentPosition")', '\(itmMessenger.jsonString(message).toBase64())')"
+        itmMessenger.evaluateJavaScript(js)
     }
 
     private func sendLocationUpdates() {
@@ -453,7 +475,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         do {
             try await checkAuth()
             if let lastLocation = locationManager.location {
-                var positionJson: [String: Any]?
+                var positionJson: JSON?
                 do {
                     positionJson = try lastLocation.geolocationPosition(locationManager.heading?.trueHeading)
                 } catch let ex {
@@ -463,12 +485,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 }
                 if let positionJson = positionJson {
                     for positionId in watchIds {
-                        let message: [String: Any] = [
-                            "positionId": positionId,
-                            "position": positionJson
-                        ]
-                        let js = "window.Bentley_ITMGeolocationResponse('watchPosition', '\(itmMessenger.jsonString(message).toBase64())')"
-                        itmMessenger.evaluateJavaScript(js)
+                        sendPosition(positionJson, positionId: positionId, messageName: "watchPosition")
                     }
                 }
             }
@@ -496,7 +513,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         if code == CLError.locationUnknown.rawValue, domain == kCLErrorDomain {
             // Apple docs say you should just ignore this error
         } else {
-            let errorJson: [String: Any]
+            let errorJson: JSON
             stopUpdatingPosition()
             if code == CLError.denied.rawValue, domain == kCLErrorDomain {
                 errorJson = notAuthorizedError

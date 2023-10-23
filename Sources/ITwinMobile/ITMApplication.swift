@@ -564,10 +564,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Show or hide the iTwin Mobile app.
     ///
+    /// __Note:__ The mobile backend can only be launched once during each execution of an application. Because
+    /// of this, once an ``ITMApplication`` instance has been created, it must never be deleted. Use this function
+    /// to hide the UI while maintaining the ``ITMApplication`` instance.
+    ///
     /// If the view is valid, iTwin Mobile app is added in active state.
     /// If the view is nil, iTwin Mobile app is hidden and set as dormant.
     /// Override this function in a subclass in order to add custom behavior.
-    /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hid the iTwin Mobile app.
+    /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hide the iTwin Mobile app.
     @MainActor
     open func addApplicationToView(_ view: UIView?) {
         guard let parentView = view ?? Self.topView else {
@@ -596,27 +600,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             // of loading, and as soon as the loading completes, the webView will be
             // shown.
             webView.isHidden = !fullyLoaded
-        }
-    }
-
-    /// Present the iTwin Mobile app in the given view, filling it completely.
-    ///
-    /// Override this function in a subclass in order to add custom behavior.
-    /// - Note: The actual presentation happens in MainActor, so this may return before that is done.
-    /// - Parameter view: View in which to present the iTiwn Mobile app.
-    open func presentInView(_ view: UIView) {
-        Task { @MainActor in
-            addApplicationToView(view)
-        }
-    }
-
-    /// Hide the iTwin Mobile app and set it as dormant.
-    ///
-    /// Override this function in a subclass in order to add custom behavior.
-    /// - Note: The actual hiding happens in MainActor, so this may return before that is done.
-    open func presentHidden() {
-        Task { @MainActor in
-            addApplicationToView(nil)
         }
     }
 

@@ -24,6 +24,7 @@ itwin_base_version_search_list = [
     "3\\.7\\.",
     "4\\.0\\.",
     "4\\.1\\.",
+    "4\\.2\\.",
 ]
 # iTwin Mobile SDK base version. 0.20.x for now.
 mobile_base_version = "0.20."
@@ -38,7 +39,7 @@ react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.1'
+itwin_version_prefix = '4.2'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.

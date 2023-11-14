@@ -26,10 +26,10 @@ itwin_base_version_search_list = [
     "4\\.1\\.",
     "4\\.2\\.",
 ]
-# iTwin Mobile SDK base version. 0.20.x for now.
-mobile_base_version = "0.20."
-# iTwin Mobile SDK base version to search for. 0.20.x for now.
-mobile_base_version_search = "0\\.20\\."
+# iTwin Mobile SDK base version. 0.21.x for now.
+mobile_base_version = "0.21."
+# iTwin Mobile SDK base version to search for. 0.21.x for now.
+mobile_base_version_search = "0\\.21\\."
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
 # The search string for itwin-mobile-native
@@ -45,7 +45,6 @@ itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
 itwin_non_core_packages = [
     "eslint-plugin",
-    "itwins-client",
     "measure-tools-react",
     "mobile-sdk-core",
     "mobile-ui-react",
@@ -61,6 +60,9 @@ imodels_access_packages = [
     "imodels-access-backend",
     "imodels-access-frontend",
 ]
+itwins_client_packages = [
+    "itwins-client",
+]
 imodels_client_packages = [
     "imodels-client-management",
 ]
@@ -69,6 +71,7 @@ presentation_packages = [
 ]
 itwin_non_core_packages.extend(appui_packages)
 itwin_non_core_packages.extend(imodels_access_packages)
+itwin_non_core_packages.extend(itwins_client_packages)
 itwin_non_core_packages.extend(imodels_client_packages)
 itwin_non_core_packages.extend(presentation_packages)
 # The package used to determine the current version of iTwin
@@ -160,14 +163,30 @@ def itwin_base_version_search_tuples(first_format_string, second_value, is_itwin
         result.append((first_format_string.format(itwin_base_version_search), second_value, is_itwin))
     return result
 
+def get_packages_tuples(packages, prefix):
+    version = get_latest_version(f'@itwin/{packages[0]}', prefix)
+    result = []
+    for package in packages:
+        result.append((f'("@itwin/{package}"): "[0-9][.0-9a-z-]+', '\\1: "' + version))
+    return result
+
+def get_itwin_non_core_tuples():
+    result = []
+    result.extend(get_packages_tuples(appui_packages, '4'))
+    result.extend(get_packages_tuples(imodels_access_packages, '4'))
+    result.extend(get_packages_tuples(itwins_client_packages, '1'))
+    result.extend(get_packages_tuples(imodels_client_packages, '4'))
+    result.extend(get_packages_tuples(presentation_packages, '4'))
+    return result
+
 def modify_package_json(args, dir):
     filename = os.path.join(dir, 'package.json')
     if os.path.exists(filename):
         print("Processing: " + filename)
+        tuples = get_itwin_non_core_tuples()
         # IMPORTANT: The @itwin/mobile-sdk-core and @itwin/mobile-ui-react replacements must
         # come last.
-        if replace_all(
-            filename,
+        tuples.extend(
             [
                 ('("version": )"[.0-9a-z-]+', '\\1"' + args.new_mobile),
             ] + itwin_base_version_search_tuples(
@@ -178,7 +197,8 @@ def modify_package_json(args, dir):
                 ('("@itwin/mobile-sdk-core"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
                 ('("@itwin/mobile-ui-react"): "[0-9][.0-9a-z-]+', '\\1: "' + args.current_mobile),
             ]
-        ) < 2:
+        )
+        if replace_all(filename, tuples) < 2:
             raise Exception("Not enough replacements")
 
 def modify_readme_md(args, dir):
@@ -330,11 +350,14 @@ def changeui_command(args):
     args.current_mobile = args.new_mobile
     modify_package_json(args, sdk_dirs.ui_react)
 
-def npm_build_dir(dir, debug = False):
+def npm_build_dir(dir, relativeDeps = False):
     print('Performing npm run build in dir: ' + dir)
+    if relativeDeps:
+        rm_args = ['rm', '-rf', 'node_modules/@itwin/mobile-sdk-core', 'node_modules/@itwin/mobile-ui-react']
+        subprocess.check_call(rm_args, cwd=dir)
+        npx_args = ['npx', 'relative-deps']
+        subprocess.check_call(npx_args, cwd=dir)
     build_args = ['npm', 'run', 'build']
-    if debug:
-        build_args[2] += ':debug'
     subprocess.check_call(build_args, cwd=dir)
 
 def npm_install_dir(dir):
@@ -528,9 +551,9 @@ def test_command(args):
     npm_install_dir(sdk_dirs.ui_react)
     npm_install_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
     npm_install_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
-    npm_build_dir(sdk_dirs.sdk_core, True)
+    npm_build_dir(sdk_dirs.sdk_core)
     npm_build_dir(sdk_dirs.ui_react, True)
-    npm_build_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
+    npm_build_dir(os.path.join(sdk_dirs.samples, react_app_subdir), True)
     npm_build_dir(os.path.join(sdk_dirs.samples, token_server_subdir))
 
 def checkversions_command(args):
@@ -580,13 +603,20 @@ def get_next_release(last_release):
 def get_latest_itwin_version():
     return get_latest_version(itwin_version_package, itwin_version_prefix)
 
+latest_versions = {}
+
 def get_latest_version(package, prefix):
-    version_json = subprocess.check_output(['npm', 'view', '--json', f'{package}@{prefix}', 'version'])
+    key = f'{package}@{prefix}'
+    if key in latest_versions:
+        return latest_versions[key]
+    version_json = subprocess.check_output(['npm', 'view', '--json', key, 'version'])
     version = json.loads(version_json)
     if isinstance(version, str):
-        return version
+        result = version
     else:
-        return version[-1]
+        result = version[-1]
+    latest_versions[key] = result
+    return result
 
 def get_latest_native_version(itwin_version):
     deps = subprocess.check_output(['npm', 'show', native_version_package + '@' + itwin_version, 'dependencies'], encoding='UTF-8')

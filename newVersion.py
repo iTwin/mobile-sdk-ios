@@ -25,11 +25,15 @@ itwin_base_version_search_list = [
     "4\\.0\\.",
     "4\\.1\\.",
     "4\\.2\\.",
+    "4\\.3\\.",
 ]
 # iTwin Mobile SDK base version. 0.21.x for now.
-mobile_base_version = "0.21."
+mobile_base_version = "0.22."
 # iTwin Mobile SDK base version to search for. 0.21.x for now.
-mobile_base_version_search = "0\\.21\\."
+mobile_base_version_search_list = [
+    "0\\.21\\.",
+    "0\\.22\\.",
+]
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
 # The search string for itwin-mobile-native
@@ -39,7 +43,7 @@ react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.2'
+itwin_version_prefix = '4.3'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
@@ -163,6 +167,12 @@ def itwin_base_version_search_tuples(first_format_string, second_value, is_itwin
         result.append((first_format_string.format(itwin_base_version_search), second_value, is_itwin))
     return result
 
+def mobile_base_version_search_tuples(first_format_string, second_value):
+    result = []
+    for mobile_base_version_search in mobile_base_version_search_list:
+        result.append((first_format_string.format(mobile_base_version_search), second_value))
+    return result
+
 def get_packages_tuples(packages, prefix):
     version = get_latest_version(f'@itwin/{packages[0]}', prefix)
     result = []
@@ -218,15 +228,19 @@ def modify_readme_md(args, dir):
     # Replacements specific to the mobile-sdk-ios/README.md
     if dir == sdk_dirs.sdk_ios and replace_all(
         filename,
-        [
-            ('("Dependency Rule" to "Exact Version" and the version to ")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-            ('("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\(")' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile),
-        ] + itwin_base_version_search_tuples(
+        mobile_base_version_search_tuples(
+            '("Dependency Rule" to "Exact Version" and the version to "){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_mobile
+        ) + mobile_base_version_search_tuples(
+            '("https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios", .exact\\("){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_mobile
+        ) + itwin_base_version_search_tuples(
             '(https:\\/\\/github.com\\/iTwin\\/mobile-native-ios\\/releases\\/download\\/){0}[.0-9a-z-]+',
             '\\g<1>' + args.new_add_on
-        ) + [
-            ('(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/)' + mobile_base_version_search + '[.0-9a-z-]+', '\\g<1>' + args.new_mobile)
-        ] + itwin_base_version_search_tuples(
+        ) + mobile_base_version_search_tuples(
+            '(https:\\/\\/github.com\\/iTwin\\/mobile-sdk-ios\\/releases\\/download\\/){0}[.0-9a-z-]+',
+            '\\g<1>' + args.new_mobile
+        ) + itwin_base_version_search_tuples(
             '(' + native_package_search + '){0}[.0-9a-z-]+',
             '\\g<1>' + args.new_add_on
         )
@@ -373,10 +387,10 @@ def changesamples_command(args):
     args.current_mobile = args.new_mobile
     modify_package_json(args, os.path.join(sdk_dirs.samples, react_app_subdir))
     modify_package_json(args, os.path.join(sdk_dirs.samples, token_server_subdir))
-    modify_samples_package_resolved(args)
     modify_samples_project_pbxproj(args)
     modify_samples_build_gradle(args)
     modify_sample_build_gradle(args, os.path.join(sdk_dirs.samples, 'Android/Shared/build.gradle'))
+    modify_samples_package_resolved(args)
 
 def bumpsamples_command(args):
     get_versions(args)
@@ -583,7 +597,7 @@ def get_last_release():
     last_patch = 0
     if isinstance(tags, list):
         for tag in tags:
-            match = re.search('^' + mobile_base_version_search + '([0-9]+)$', tag)
+            match = re.search('^' + mobile_base_version_search_list[-1] + '([0-9]+)$', tag)
             if match and len(match.groups()) == 1:
                 this_patch = int(match.group(1))
                 if this_patch > last_patch:

@@ -701,7 +701,12 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         fullyLoaded = true
         if !dormant {
-            webView.isHidden = false
+            // For some reason, if the user changes orientation during startup, sometimes
+            // the webView gets re-hidden after it is un-hidden when the following async
+            // is missing. I have no idea what causes that, but this fixes it.
+            DispatchQueue.main.async { [self] in
+                self.webView.isHidden = false
+            }
         }
         updateReachability()
         itmMessenger.evaluateJavaScript("window.Bentley_FinishLaunching()")

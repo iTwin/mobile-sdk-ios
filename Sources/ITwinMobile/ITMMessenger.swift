@@ -344,11 +344,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         self.webView = webView
         handlerNames = [queryName, queryResponseName]
         super.init()
-        frontendLaunchTask = Task {
-            try await withCheckedThrowingContinuation { continuation in
-                frontendLaunchContinuation = continuation
-            }
-        }
+        initFrontendLaunch()
         for handlerName in handlerNames {
             webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
         }
@@ -359,6 +355,17 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         ITMMessenger.weakWebViews.removeAll { $0 == weakWebView }
         for handlerName in handlerNames {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
+        }
+    }
+    
+    /// Initializes things in preperation of launching the frontend. This is done automatically from `init`,
+    /// and must be done again if the frontend crashes or is killed by iOS or iPadOS due to lack of memory.
+    open func initFrontendLaunch() {
+        frontendLaunchDone = false
+        frontendLaunchTask = Task {
+            try await withCheckedThrowingContinuation { continuation in
+                frontendLaunchContinuation = continuation
+            }
         }
     }
 

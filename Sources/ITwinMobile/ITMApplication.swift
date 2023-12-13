@@ -89,11 +89,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public var fullyLoaded = false
     /// Tracks whether the web view should be visible in the application, or kept hidden. (Once the web view has been created
     /// it cannot be destroyed. It must instead be hidden.)
+    /// - Warning: You __must__ set ``dormant`` to `false` if you do not call ``addApplicationToView(_:)``.
+    /// Otherwise, the web view will be hidden when the device orientation changes.
     public var dormant = true
     /// Tracks whether the frontend URL is on a remote server (used for debugging via react-scripts).
     public var usingRemoteServer = false
     private var queryHandlers: [ITMQueryHandler] = []
     private var reachabilityObserver: Any?
+    private var orientationObserver: Any?
     /// The ``ITMLogger`` responsible for handling log messages (both from native code and JavaScript code). The default logger
     /// uses `NSLog` for the messages. Replace this object with an ``ITMLogger`` subclass to change the logging behavior.
     public static var logger = ITMLogger()
@@ -166,8 +169,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     deinit {
         itmMessenger.unregisterQueryHandlers(queryHandlers)
         queryHandlers.removeAll()
-        if reachabilityObserver != nil {
-            NotificationCenter.default.removeObserver(reachabilityObserver!)
+        if let reachabilityObserver = reachabilityObserver {
+            NotificationCenter.default.removeObserver(reachabilityObserver)
+        }
+        if let orientationObserver = orientationObserver {
+            NotificationCenter.default.removeObserver(orientationObserver)
         }
     }
 
@@ -290,6 +296,17 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // send a message that can trigger an event that our TS code can listen for.
         let js = "window.Bentley_InternetReachabilityStatus = \(ITMInternetReachability.shared.currentReachabilityStatus().rawValue)"
         itmMessenger.evaluateJavaScript(js)
+    }
+    
+    /// If ``fullyLoaded`` is true, updates the `isHidden` state on ``webView`` to match the value in ``dormant``.
+    /// - Note: This is automatically called every time the orientation changes. This prevents a problem where if the
+    /// web view is shown while the orientation animation is playing, it immediately gets re-hidden at the end of the
+    /// animation. You can override this to perform other tasks, but it is strongly recommended that you call
+    /// `super` if you do so.
+    open func reactToOrientationChange() {
+        if fullyLoaded {
+            webView.isHidden = dormant
+        }
     }
 
     /// Gets the directory name used for the iTwin Mobile web app.
@@ -507,6 +524,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 }
                 reachabilityObserver = NotificationCenter.default.addObserver(forName: NSNotification.Name.reachabilityChanged, object: nil, queue: nil) { [weak self] _ in
                     self?.updateReachability()
+                }
+                orientationObserver = NotificationCenter.default.addObserver(forName: UIDevice.orientationDidChangeNotification, object: nil, queue: nil) { [weak self] _ in
+                    self?.reactToOrientationChange()
                 }
                 frontendLoadedContinuation?.resume(returning: ())
                 frontendLoadedContinuation = nil

@@ -502,9 +502,9 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     @MainActor
     open func showFrontendLoadError(request: URLRequest) {
         let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(request.url?.absoluteString ?? "<Missing URL>").", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
             ITMAlertController.doneWithAlertWindow()
-        }))
+        })
         alert.modalPresentationCapturesStatusBarAppearance = true
         Self.topViewController?.present(alert, animated: true)
     }
@@ -684,10 +684,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             return
         }
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
             completionHandler()
             ITMAlertController.doneWithAlertWindow()
-        }))
+        })
         alert.modalPresentationCapturesStatusBarAppearance = true
         ITMAlertController.getAlertVC().present(alert, animated: true)
     }
@@ -701,14 +701,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             return
         }
         let alert = ITMAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
             completionHandler(true)
             ITMAlertController.doneWithAlertWindow()
-        }))
-        alert.addAction(UIAlertAction(title: "Cancel", style: .default, handler: { _ in
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .default) { _ in
             completionHandler(false)
             ITMAlertController.doneWithAlertWindow()
-        }))
+        })
         alert.modalPresentationCapturesStatusBarAppearance = true
         ITMAlertController.getAlertVC().present(alert, animated: true)
     }
@@ -725,18 +725,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         alert.addTextField { textField in
             textField.text = defaultText
         }
-        alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { _ in
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
             if let text = alert.textFields?.first?.text {
                 completionHandler(text)
             } else {
                 completionHandler(defaultText)
             }
             ITMAlertController.doneWithAlertWindow()
-        }))
-        alert.addAction(UIAlertAction(title: "Cancel", style: .default, handler: { _ in
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .default) { _ in
             completionHandler(nil)
             ITMAlertController.doneWithAlertWindow()
-        }))
+        })
         alert.modalPresentationCapturesStatusBarAppearance = true
         ITMAlertController.getAlertVC().present(alert, animated: true)
     }

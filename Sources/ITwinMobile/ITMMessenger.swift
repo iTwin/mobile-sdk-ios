@@ -198,6 +198,12 @@ open class ITMError: Error, CustomStringConvertible {
 public struct ITMStringError: LocalizedError {
     /// See `LocalizedError` protocol.
     public var errorDescription: String?
+    
+    /// Create an ``ITMStringError`` (needed to use this type outside the framework).
+    /// - Parameter errorDescription: value for ``errorDescription``.
+    public init(errorDescription: String?) {
+        self.errorDescription = errorDescription
+    }
 }
 
 // MARK: - ITMMessenger class

@@ -22,8 +22,13 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         activeContinuation?.resume(returning: value)
         activeContinuation = nil
     }
-
-    private func getSourceRect(from params: JSON) throws -> ITMRect {
+    
+    /// Try to convert the `sourceRect` property of `params` into an ``ITMRect``.
+    /// - Parameter params: JSON data from the web app.
+    /// - Throws: If `params` does not contain a `sourceRect` property that can be converted to an ``ITMRect``,
+    /// an exception is thrown.
+    /// - Returns: The contents of the `sourceRect` property in `params` converted to an ``ITMRect``.
+    public static func getSourceRect(from params: JSON) throws -> ITMRect {
         guard let sourceRectDict = params["sourceRect"] as? JSON,
               let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) else {
             throw ITMError(json: ["message": "ITMActionSheet: no source rect"])
@@ -37,7 +42,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")
-        let sourceRect = try getSourceRect(from: params)
+        let sourceRect = try Self.getSourceRect(from: params)
         // If a previous query hasn't fully resolved yet, resolve it now with nil.
         resume(returning: nil)
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in

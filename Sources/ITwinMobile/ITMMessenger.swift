@@ -603,6 +603,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 } else {
                     messageJson = "{\"error\":\(itmError.jsonString)}"
                 }
+            } else if let stringError = error as? ITMStringError, let errorDescription = stringError.errorDescription {
+                let errorString = jsonString("\(errorDescription)")
+                messageJson = "{\"error\":\(errorString)}"
             } else if let error = error {
                 let errorString = jsonString("\(error)")
                 messageJson = "{\"error\":\(errorString)}"

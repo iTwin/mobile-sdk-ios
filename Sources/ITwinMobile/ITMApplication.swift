@@ -553,7 +553,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 observers.addObserver(forName: NSNotification.Name.reachabilityChanged) { [weak self] _ in
                     self?.updateReachability()
                 }
-                observers.addObserver(forName: UIDevice.orientationDidChangeNotification) { [weak self] note in
+                observers.addObserver(forName: UIDevice.orientationDidChangeNotification) { [weak self] _ in
                     self?.reactToOrientationChange()
                 }
                 frontendLoadedContinuation?.resume(returning: ())

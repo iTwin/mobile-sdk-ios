@@ -286,12 +286,10 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
     
     /// Determine if the given permission indicates the user is authorized to check location.
-    ///
-    /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter permission: The `CLAuthorizationStatus` to check.
-    /// - Returns: By default, returns `true` if `permission` is `authorizedAlways` or `authorizedWhenInUse`,
+    /// - Returns: `true` if `permission` is `authorizedAlways` or `authorizedWhenInUse`,
     /// and `false` otherwise.
-    public class func isAuthorized(_ permission: CLAuthorizationStatus) -> Bool {
+    public static func isAuthorized(_ permission: CLAuthorizationStatus) -> Bool {
         return permission == .authorizedAlways || permission == .authorizedWhenInUse
     }
 

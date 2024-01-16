@@ -290,6 +290,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Note: This can only be used to unregister a handler that was previously registered using ``registerQueryHandler(_:_:)``.
     /// - Parameter type: The type used when the query was registered.
     /// - Returns: `true` if the given query was previously registered (and thus unregistered here), or `false` otherwise.
+    @discardableResult
     public func unregisterQueryHandler(_ type: String) -> Bool {
         guard let index = (queryHandlers.firstIndex { $0.getQueryType() == type}) else {
             return false

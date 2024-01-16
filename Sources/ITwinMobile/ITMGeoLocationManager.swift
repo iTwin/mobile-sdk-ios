@@ -398,11 +398,10 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     @MainActor
     private func requireAsyncLocationManager() -> AsyncLocationManager {
-        if let result = _asyncLocationManager {
-            return result
-        } else {
+        if _asyncLocationManager == nil {
             _asyncLocationManager = AsyncLocationManager(desiredAccuracy: .bestAccuracy)
-            return _asyncLocationManager!
+        }
+        return _asyncLocationManager!
         }
     }
 

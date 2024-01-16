@@ -119,6 +119,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             saveState()
         }
     }
+    public var keychainHelper: ITMKeychainHelper
     internal static var currentAuthorizationFlow: OIDExternalUserAgentSession?
     private var loadStateActive = false
     private let defaultScopes = "projects:read imodelaccess:read itwinjs organization profile email imodels:read realitydata:read savedviews:read savedviews:modify itwins:read openid offline_access"
@@ -148,77 +149,20 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return nil
         }
         settings = Settings(issuerURL: issuerURL, clientId: clientId, redirectURL: redirectURL, scopes: scope.components(separatedBy: " "))
+        keychainHelper = ITMKeychainHelper(service: "ITMOIDCAuthorizationClient", account: "\(settings.issuerURL)@\(settings.clientId)")
         promptForLogin = settings.scopes.contains("offline_access")
         super.init()
         loadState()
     }
 
-    /// Creates a dictionary populated with the common keys and values needed for every keychain query.
-    /// - Returns: A dictionary with the common query items, or nil if issuerURL and clientId are not set in authSettings.
-    public func commonKeychainQuery() -> [String: Any]? {
-        return [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "ITMOIDCAuthorizationClient",
-            kSecAttrAccount as String: "\(settings.issuerURL)@\(settings.clientId)",
-        ]
-    }
-    
-    /// Loads the stored secret data from the app keychain.
-    /// - Returns: A Data object with the encoded secret data, or nil if nothing is currently saved in the keychain.
-    public func loadFromKeychain() -> Data? {
-        guard var getQuery = commonKeychainQuery() else {
-            return nil
-        }
-        getQuery[kSecMatchLimit as String] = kSecMatchLimitOne
-        getQuery[kSecReturnData as String] = kCFBooleanTrue
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(getQuery as CFDictionary, &item)
-        if status != errSecItemNotFound, status != errSecSuccess {
-            ITMApplication.logger.log(.warning, "Unknown error: \(status)")
-        }
-        guard status == errSecSuccess else { return nil }
-        return item as? Data
-    }
-    
-    /// Saves the given secret data to the app's keychain.
-    /// - Parameter value: A Data object containing the ``ITMOIDCAuthorizationClient`` secret data.
-    /// - Returns: true if it succeeds, or false otherwise.
-    @discardableResult public func saveToKeychain(value: Data) -> Bool {
-        guard var query = commonKeychainQuery() else {
-            return false
-        }
-        let secValueData = kSecValueData as String
-        query[secValueData] = value
-        var status = SecItemAdd(query as CFDictionary, nil)
-        if status == errSecDuplicateItem {
-            query.removeValue(forKey: secValueData)
-            status = SecItemUpdate(query as CFDictionary, [secValueData: value] as CFDictionary)
-        }
-        return status == errSecSuccess
-    }
-    
-    /// Deletes the ``ITMOIDCAuthorizationClient`` secret data from the app's keychain.
-    /// - Returns: true if it succeeds, or false otherwise.
-    @discardableResult public func deleteFromKeychain() -> Bool {
-        guard let deleteQuery = commonKeychainQuery() else {
-            return false
-        }
-        let status = SecItemDelete(deleteQuery as CFDictionary)
-        return status == errSecSuccess
-    }
-    
     /// Loads the receiver's state data from the keychain.
     open func loadState() {
         loadStateActive = true
         authState = nil
         serviceConfig = nil
-        if let archivedKeychainData = loadFromKeychain(),
-           let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: archivedKeychainData) {
-            unarchiver.requiresSecureCoding = false
-            if let keychainDict = unarchiver.decodeObject(of: NSDictionary.self, forKey: NSKeyedArchiveRootObjectKey) {
-                authState = keychainDict["auth-state"] as? OIDAuthState
-                serviceConfig = keychainDict["service-config"] as? OIDServiceConfiguration
-            }
+        if let keychainDict = keychainHelper.loadDict() {
+            authState = keychainDict["auth-state"] as? OIDAuthState
+            serviceConfig = keychainDict["service-config"] as? OIDServiceConfiguration
         }
         loadStateActive = false
     }
@@ -233,10 +177,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         if let serviceConfig = serviceConfig {
             keychainDict["service-config"] = serviceConfig
         }
-        if !keychainDict.isEmpty {
-            if let archivedKeychainDict = try? NSKeyedArchiver.archivedData(withRootObject: keychainDict as NSDictionary, requiringSecureCoding: true) {
-                saveToKeychain(value: archivedKeychainDict)
-            }
+        if keychainDict.isEmpty {
+            keychainHelper.deleteData()
+        } else {
+            keychainHelper.save(dict: keychainDict)
         }
     }
     
@@ -453,7 +397,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         defer {
             authState = nil
             serviceConfig = nil
-            deleteFromKeychain()
+            keychainHelper.deleteData()
             raiseOnAccessTokenChanged(nil, nil)
         }
         try await revokeTokens()

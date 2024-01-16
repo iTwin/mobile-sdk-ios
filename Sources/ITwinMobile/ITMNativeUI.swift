@@ -12,8 +12,8 @@ import WebKit
 ///
 /// See ``ITMRect`` for example usage.
 public class ITMDictionaryDecoder<T: Decodable> {
-    public static func decode(_ d: [String: Any]) throws -> T {
-        let jsonData = try JSONSerialization.data(withJSONObject: d, options: .prettyPrinted)
+    public static func decode(_ json: JSON) throws -> T {
+        let jsonData = try JSONSerialization.data(withJSONObject: json, options: .prettyPrinted)
         return try JSONDecoder().decode(T.self, from: jsonData)
     }
 }
@@ -21,10 +21,10 @@ public class ITMDictionaryDecoder<T: Decodable> {
 /// Struct for converting between JSON dictionary and Swift representing a rectangle.
 ///
 /// You can use ``ITMDictionaryDecoder`` to decode dictionary data to create an ``ITMRect``, and then
-/// use a custom `init` on `CGRect` to convert that to a CGRect:
+/// use a custom `init` on `CGRect` to convert that to a `CGRect`:
 ///
 /// ```swift
-/// if let sourceRectDict = params["sourceRect"] as? [String: Any],
+/// if let sourceRectDict = params["sourceRect"] as? JSON,
 ///    let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
 ///     alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
 /// }
@@ -36,15 +36,15 @@ public struct ITMRect: Codable, Equatable {
     let height: Double
 }
 
-/// CGRect extension to initialize a CGRect from an ``ITMRect``.
+/// Extension to initialize a `CGRect` from an ``ITMRect``.
 public extension CGRect {
     /// Create a CGRect from an ``ITMRect``.
-    init(_ alertRect: ITMRect) {
-        // NOTE: Even though CGFloat is Float on 32-bit hardware, CGPoint and CGSize both have overridden initializers
-        // that explicitly take Double.
+    init(_ itmRect: ITMRect) {
+        // NOTE: Even though CGFloat is Float on 32-bit hardware, CGPoint and CGSize both have
+        // overridden initializers that explicitly take Double.
         self.init(
-            origin: CGPoint(x: alertRect.x, y: alertRect.y),
-            size: CGSize(width: alertRect.width, height: alertRect.height)
+            origin: CGPoint(x: itmRect.x, y: itmRect.y),
+            size: CGSize(width: itmRect.width, height: itmRect.height)
         )
     }
 }
@@ -59,6 +59,9 @@ open class ITMNativeUI: NSObject {
     /// The ``ITMMessenger`` that sends messages to components, and optionally receives messages.
     public var itmMessenger: ITMMessenger
     
+    /// Create an ``ITMNativeUI``.
+    /// - Note: This registers all standard ``ITMNativeUIComponent`` types that are built into the iTwin Mobile SDK. You
+    /// must use ``addComponent(_:)`` to register custom ``ITMNativeUIComponent`` types.
     /// - Parameters:
     ///   - viewController: The `UIViewController` to display the native UI components in.
     ///   - itmMessenger: The ``ITMMessenger`` to communicate with the iTwin Mobile app's frontend.
@@ -84,7 +87,7 @@ open class ITMNativeUI: NSObject {
     }
 }
 
-// MARK: - ITMNativeUI class
+// MARK: - ITMNativeUIComponent class
 
 /// Base class for all UI components in ``ITMNativeUI``.
 open class ITMNativeUIComponent: NSObject {
@@ -93,8 +96,8 @@ open class ITMNativeUIComponent: NSObject {
     /// The query handler handling messages from the iTwin Mobile app frontend.
     public var queryHandler: ITMQueryHandler?
 
-    /// - Parameters:
-    ///   - itmNativeUI: The ``ITMNativeUI`` used to present the component.
+    /// Create an ``ITMNativeUIComponent``.
+    /// - Parameter itmNativeUI: The ``ITMNativeUI`` used to present the component.
     @objc public init(itmNativeUI: ITMNativeUI) {
         self.itmNativeUI = itmNativeUI
         super.init()

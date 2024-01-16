@@ -24,12 +24,13 @@ public typealias ITMOIDCAuthorizationClientCallback = (Error?) -> Void
 
 /// Extension to add async wrappers to `OIDAuthState` functions that don't get them automatically.
 ///
-/// See here for automatic wrapper rules:
-/// https://developer.apple.com/documentation/swift/calling-objective-c-apis-asynchronously
+/// See [here](https://developer.apple.com/documentation/swift/calling-objective-c-apis-asynchronously)
+/// for automatic wrapper rules.
 public extension OIDAuthState {
     /// async wrapper for `-performActionWithFreshTokens:` Objective-C function.
     /// - Returns: A tuple containing the optional authorizationToken and idToken.
     /// - Throws: If the `OIDAuthStateAction` callback has a non-nil `error`, that error is thrown.
+    @discardableResult
     func performAction() async throws -> (String?, String?) {
         // The action parameter of -performActionWithFreshTokens: doesn't trigger an automatic async wrapper.
         return try await withCheckedThrowingContinuation { continuation in
@@ -48,7 +49,7 @@ public extension OIDAuthState {
     /// - Note: Because the return value for the original function is not used with the app delegate in iOS 11 and later, that is hidden by this function.
     /// - Returns: The auth state, if the authorization request succeeded.
     /// - Throws: If the `OIDAuthStateAuthorizationCallback` has a non-nil `error`, that error is thrown. Also, if
-    ///           `OIDAuthStateAuthorizationCallback` produces a nil `authState`, an exception is thrown.
+    /// `OIDAuthStateAuthorizationCallback` produces a nil `authState`, an exception is thrown.
     @MainActor
     static func authState(byPresenting request: (OIDAuthorizationRequest), presenting viewController: UIViewController) async throws -> OIDAuthState {
         // +authStateByPresentingAuthorizationRequest:presentingViewController:callback: returns a value,
@@ -86,7 +87,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         public var scopes: [String]
     }
 
-    /// Instance for `errorDomain` property from the `ITMAuthorizationClient` protocol.
+    /// Value for `errorDomain` property from the `ITMAuthorizationClient` protocol.
     public let errorDomain = "com.bentley.itwin-mobile-sdk"
 
     /// The settings for this ``ITMOIDCAuthorizationClient``. These are initialized using the contents of the `configData`
@@ -124,9 +125,14 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     private let defaultRedirectUri = "imodeljs://app/signin-callback"
 
     /// Initializes and returns a newly allocated authorization client object with the specified view controller.
-    /// - Parameter itmApplication: The ``ITMApplication`` in which this ``ITMOIDCAuthorizationClient`` is being used.
-    /// - Parameter viewController: The view controller in which to display the sign in Safari WebView.
-    /// - Parameter configData: A JSON object containing at least an `ITMAPPLICATION_CLIENT_ID` value, and optionally `ITMAPPLICATION_ISSUER_URL`, `ITMAPPLICATION_REDIRECT_URI`, `ITMAPPLICATION_SCOPE`, and/or `ITMAPPLICATION_API_PREFIX` values. If `ITMAPPLICATION_CLIENT_ID` is not present or empty, this initializer will fail. If the values in `ITMAPPLICATION_ISSUER_URL` or `ITMAPPLICATION_REDIRECT_URI` are not valid URLs, this initializer will fail. If the value in `ITMAPPLICATION_SCOPE` is empty, this initializer will fail.
+    /// - Parameters:
+    ///   - itmApplication: The ``ITMApplication`` in which this ``ITMOIDCAuthorizationClient`` is being used.
+    ///   - viewController: The view controller in which to display the sign in Safari WebView.
+    ///   - configData: A JSON object containing at least an `ITMAPPLICATION_CLIENT_ID` value, and optionally
+    ///   `ITMAPPLICATION_ISSUER_URL`, `ITMAPPLICATION_REDIRECT_URI`, `ITMAPPLICATION_SCOPE`, and/or
+    ///   `ITMAPPLICATION_API_PREFIX` values. If `ITMAPPLICATION_CLIENT_ID` is not present or empty, this initializer will
+    ///   fail. If the values in `ITMAPPLICATION_ISSUER_URL` or `ITMAPPLICATION_REDIRECT_URI` are not valid URLs, this
+    ///   initializer will fail. If the value in `ITMAPPLICATION_SCOPE` is empty, this initializer will fail.
     public init?(itmApplication: ITMApplication, viewController: UIViewController? = nil, configData: JSON) {
         self.itmApplication = itmApplication
         self.viewController = viewController
@@ -147,26 +153,26 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         loadState()
     }
 
-    /// Creates a mutable dictionary populated with the common keys and values needed for every keychain query.
-    /// - Returns: An NSMutableDictionary with the common query items, or nil if issuerURL and clientId are not set in authSettings.
-    public func commonKeychainQuery() -> NSMutableDictionary? {
-        return (([
+    /// Creates a dictionary populated with the common keys and values needed for every keychain query.
+    /// - Returns: A dictionary with the common query items, or nil if issuerURL and clientId are not set in authSettings.
+    public func commonKeychainQuery() -> [String: Any]? {
+        return [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "ITMOIDCAuthorizationClient",
             kSecAttrAccount as String: "\(settings.issuerURL)@\(settings.clientId)",
-        ] as NSDictionary).mutableCopy() as! NSMutableDictionary)
+        ]
     }
     
     /// Loads the stored secret data from the app keychain.
     /// - Returns: A Data object with the encoded secret data, or nil if nothing is currently saved in the keychain.
     public func loadFromKeychain() -> Data? {
-        guard let getQuery = commonKeychainQuery() else {
+        guard var getQuery = commonKeychainQuery() else {
             return nil
         }
         getQuery[kSecMatchLimit as String] = kSecMatchLimitOne
         getQuery[kSecReturnData as String] = kCFBooleanTrue
         var item: CFTypeRef?
-        let status = SecItemCopyMatching(getQuery as CFMutableDictionary, &item)
+        let status = SecItemCopyMatching(getQuery as CFDictionary, &item)
         if status != errSecItemNotFound, status != errSecSuccess {
             ITMApplication.logger.log(.warning, "Unknown error: \(status)")
         }
@@ -175,32 +181,33 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     }
     
     /// Saves the given secret data to the app's keychain.
-    /// - Parameter value: A Data object containing the ITMOIDCAuthorizationClient secret data.
+    /// - Parameter value: A Data object containing the ``ITMOIDCAuthorizationClient`` secret data.
     /// - Returns: true if it succeeds, or false otherwise.
     @discardableResult public func saveToKeychain(value: Data) -> Bool {
-        guard let query = commonKeychainQuery() else {
+        guard var query = commonKeychainQuery() else {
             return false
         }
-        query[kSecValueData as String] = value
-        var status = SecItemAdd(query as CFMutableDictionary, nil)
+        let secValueData = kSecValueData as String
+        query[secValueData] = value
+        var status = SecItemAdd(query as CFDictionary, nil)
         if status == errSecDuplicateItem {
-            query.removeObject(forKey: kSecValueData as String)
-            status = SecItemUpdate(query as CFMutableDictionary, [kSecValueData as String: value] as CFDictionary)
+            query.removeValue(forKey: secValueData)
+            status = SecItemUpdate(query as CFDictionary, [secValueData: value] as CFDictionary)
         }
         return status == errSecSuccess
     }
     
-    /// Deletes the ITMOIDCAuthorizationClient secret data from the app's keychain.
+    /// Deletes the ``ITMOIDCAuthorizationClient`` secret data from the app's keychain.
     /// - Returns: true if it succeeds, or false otherwise.
     @discardableResult public func deleteFromKeychain() -> Bool {
-        guard let deleteQuery = commonKeychainQuery() as CFDictionary? else {
+        guard let deleteQuery = commonKeychainQuery() else {
             return false
         }
-        let status = SecItemDelete(deleteQuery)
+        let status = SecItemDelete(deleteQuery as CFDictionary)
         return status == errSecSuccess
     }
     
-    /// Loads the ITMOIDCAuthorizationClient's state data from the keychain.
+    /// Loads the receiver's state data from the keychain.
     open func loadState() {
         loadStateActive = true
         authState = nil
@@ -227,8 +234,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             keychainDict["service-config"] = serviceConfig
         }
         if !keychainDict.isEmpty {
-            let nsDict = NSDictionary(dictionary: keychainDict)
-            if let archivedKeychainDict = try? NSKeyedArchiver.archivedData(withRootObject: nsDict, requiringSecureCoding: true) {
+            if let archivedKeychainDict = try? NSKeyedArchiver.archivedData(withRootObject: keychainDict as NSDictionary, requiringSecureCoding: true) {
                 saveToKeychain(value: archivedKeychainDict)
             }
         }
@@ -261,27 +267,34 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
         return (accessToken, expirationDate)
     }
+    
+    /// Ensure that an auth state is available.
+    /// - Returns: The current value of ``authState`` if that is non-nil, or the result of ``signIn()`` otherwise.
+    /// - Throws: If ``authState`` is nil and ``signIn()`` throws an exception, that exception is thrown.
+    public func requireAuthState() async throws -> OIDAuthState {
+        // Note: this function exists because the following is not legal in Swift:
+        // let authState = self.authState ?? try await signIn()
+        // Neither try nor await is legal on the right hand side of ??.
+        if let authState = authState {
+            return authState
+        }
+        return try await signIn()
+    }
 
     /// Refreshes the user's access token if needed.
     /// - Returns: A tuple containg an access token (with token type prefix) and its expiration date.
     /// - Throws: If there are any problems refreshing the access token, this will throw an exception.
+    @discardableResult
     open func refreshAccessToken() async throws -> (String, Date) {
-        let authState: OIDAuthState
-        if self.authState == nil {
-            // The reason that this is an if/then/else is that it's illegal to put try OR async on
-            // the right hand side of a ?? operator.
-            authState = try await signIn()
-        } else {
-            authState = self.authState!
-        }
+        let authState = try await requireAuthState()
         do {
-            let _ = try await authState.performAction()
+            try await authState.performAction()
             return try getLastAccessToken()
         } catch {
             if self.isInvalidGrantError(error) || self.isTokenRefreshError(error) {
                 do {
                     try? await self.signOut() // If signOut fails, ignore the failure.
-                    _ = try await signIn()
+                    try await signIn()
                     return try getLastAccessToken()
                 } catch {
                     ITMApplication.logger.log(.error, "Error refreshing tokens: \(error)")
@@ -298,13 +311,13 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// - Returns: ``viewController`` if that is non, nil, otherwise `ITMApplication.topViewController`.
     /// - Throws: If both ``viewController`` and `ITMApplication.topViewController` are nil, throws an exception.
     open func requireViewController() async throws -> UIViewController {
-        guard let viewController = viewController else {
-            guard let viewController = await ITMApplication.topViewController else {
-                throw createError(reason: "No view controller is available.")
-            }
+        if let viewController = viewController {
             return viewController
         }
-        return viewController
+        if let topViewController = await ITMApplication.topViewController {
+            return topViewController
+        }
+        throw createError(reason: "No view controller is available.")
     }
 
     /// Presents a Safari WebView to the user to sign in.
@@ -413,12 +426,13 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// Sign in to OIDC and fetch ``serviceConfig`` and ``authState`` if necessary.
     /// - Returns: The `OIDAuthState` object generated by the sign in.
     /// - Throws: Anything preventing the sign in (including user cancel and lack of internet) will throw an exception.
+    @discardableResult
     open func signIn() async throws -> OIDAuthState {
         if authState == nil {
             return try await doAuthCodeExchange()
         } else {
             do {
-                _ = try await refreshAccessToken()
+                try await refreshAccessToken()
                 guard let authState = authState else {
                     throw createError(reason: "No auth state after refreshAccessToken")
                 }

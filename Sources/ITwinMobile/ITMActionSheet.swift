@@ -7,10 +7,12 @@ import UIKit
 import WebKit
 
 /// ``ITMNativeUIComponent`` that presents a `UIAlertController` with a style of `.actionSheet`.
-/// This class is used by the `ActionSheet` TypeScript class in @itwin/mobile-core.
+/// This class is used by the `presentActionSheet` TypeScript function in @itwin/mobile-core as well as
+/// the `ActionSheetButton` TypeScript React Component in @itwin/mobile-ui-react.
 final public class ITMActionSheet: ITMNativeUIComponent {
-    var activeContinuation: CheckedContinuation<String?, Never>? = nil
-    ///   - itmNativeUI: The ``ITMNativeUI`` used to present the action sheet.
+    private var activeContinuation: CheckedContinuation<String?, Never>? = nil
+    /// Creates an ``ITMActionSheet``.
+    /// - Parameter itmNativeUI: The ``ITMNativeUI`` used to present the action sheet.
     override init(itmNativeUI: ITMNativeUI) {
         super.init(itmNativeUI: itmNativeUI)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentActionSheet", handleQuery)
@@ -20,13 +22,27 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         activeContinuation?.resume(returning: value)
         activeContinuation = nil
     }
+    
+    /// Try to convert the `sourceRect` property of `params` into an ``ITMRect``.
+    /// - Parameter params: JSON data from the web app.
+    /// - Throws: If `params` does not contain a `sourceRect` property that can be converted to an ``ITMRect``,
+    /// an exception is thrown.
+    /// - Returns: The contents of the `sourceRect` property in `params` converted to an ``ITMRect``.
+    public static func getSourceRect(from params: JSON) throws -> ITMRect {
+        guard let sourceRectDict = params["sourceRect"] as? JSON,
+              let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) else {
+            throw ITMError(json: ["message": "ITMActionSheet: no source rect"])
+        }
+        return sourceRect
+    }
 
     @MainActor
-    private func handleQuery(params: [String: Any]) async throws -> String? {
+    private func handleQuery(params: JSON) async throws -> String? {
         guard let viewController = viewController else {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")
+        let sourceRect = try Self.getSourceRect(from: params)
         // If a previous query hasn't fully resolved yet, resolve it now with nil.
         resume(returning: nil)
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
@@ -49,15 +65,8 @@ final public class ITMActionSheet: ITMNativeUIComponent {
             }
             alert.onClose = alert.onDeinit
             alert.popoverPresentationController?.sourceView = itmMessenger.webView
-            if let sourceRectDict = params["sourceRect"] as? [String: Any],
-               let sourceRect: ITMRect = try? ITMDictionaryDecoder.decode(sourceRectDict) {
-                alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
-            } else {
-                // We shouldn't ever get here, but a 0,0 popover is better than an unhandled exception.
-                assert(false)
-                alert.popoverPresentationController?.sourceRect = CGRect()
-            }
-            ITMAlertAction.addActions(alertActions, to: alert) { [self] _, action in
+            alert.popoverPresentationController?.sourceRect = CGRect(sourceRect)
+            ITMAlertAction.add(actions: alertActions, to: alert) { [self] action in
                 resume(returning: action.name)
             }
             viewController.present(alert, animated: true)

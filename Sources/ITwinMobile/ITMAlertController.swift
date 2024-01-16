@@ -39,18 +39,18 @@ open class ITMAlertController: UIAlertController {
         // This avoids cases where topmost view controller is dismissed while presenting alert
         // Create temporary window to show alert anywhere and anytime and avoid view hiearchy issues.
         if alertWindow == nil {
-            alertWindow = UIWindow(frame: UIScreen.main.bounds)
-            alertWindow!.rootViewController = ITMErrorViewController()
-            alertWindow!.windowLevel = UIWindow.Level.alert + 1
+            var alertWindow = UIWindow(frame: UIScreen.main.bounds)
+            alertWindow.rootViewController = ITMErrorViewController()
+            alertWindow.windowLevel = UIWindow.Level.alert + 1
             ITMAlertController.alertWindow = alertWindow
         }
-        alertWindow?.windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        alertWindow!.windowScene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
         alertWindow!.makeKeyAndVisible()
         // Even though we initialized the UIWindow with the proper frame, makeKeyAndVisible sometimes
         // corrupts the frame, changing the orientation and moving it completely off-screen. I think
         // this is a bug in iOS, and I am not sure why it happens sometimes and not other times.
         // However, resetting the frame after the makeKeyAndVisible call fixes the problem.
-        alertWindow!.frame = UIScreen.main.bounds
+        alertWindow!.frame = alertWindow?.windowScene?.screen.bounds ?? UIScreen.main.bounds
         return alertWindow!.rootViewController!
     }
     

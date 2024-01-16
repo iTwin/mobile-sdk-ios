@@ -19,15 +19,11 @@ open class ITMLogger {
             guard var lowercaseValue = value?.lowercased() else {
                 return nil
             }
-            switch lowercaseValue {
-            case "log":
-                lowercaseValue = "debug"
-            case "assert":
-                lowercaseValue = "fatal"
-            case "warn":
-                lowercaseValue = "warning"
-            default:
-                break
+            lowercaseValue = switch lowercaseValue {
+            case "log": "debug"
+            case "assert": "fatal"
+            case "warn": "warning"
+            default: lowercaseValue
             }
             if let result = Severity(rawValue: lowercaseValue) {
                 self = result

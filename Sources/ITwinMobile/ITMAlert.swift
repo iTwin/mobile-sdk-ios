@@ -30,28 +30,29 @@ extension UIAlertAction.Style {
 
 /// Swift class that holds data passed from JavaScript for each action in an ``ITMAlert`` and ``ITMActionSheet``.
 public struct ITMAlertAction: Codable, Equatable {
-    /// The name of the alert, passed back to JavaScript when the user selects it.
+    /// The name of the action, passed back to JavaScript when the user selects it.
     let name: String
-    /// The title of the alert.
+    /// The title of the action.
     /// - Note: UIAlertAction's title is in theory optional. However, if the title is missing when used in an action sheet
     /// on an iPad, it will ALWAYS throw an exception. So title here is not optional.
     let title: String
-    /// The style of the alert.
+    /// The style of the action.
     let style: ITMAlertActionStyle
     
-    /// Create an array ``ITMAlertAction`` from the given JSON data passed from JavaScript.
+    /// Create an array of ``ITMAlertAction`` values from the given JSON data passed from JavaScript.
     /// - Parameters:
-    ///   - params: The JSON data for the ``ITMAlertAction`` passed from JavaScript.
+    ///   - params: The JSON data passed from JavaScript. This must contain an `actions` array property
+    ///   containing the individual alert actions.
     ///   - errorPrefix: The prefix to use in any error thrown if `params` contains invalid data.
     /// - Returns: An array of ``ITMAlertAction`` values based on the data in `params`.
-    static func createArray(from params: [String: Any], errorPrefix: String) throws -> [ITMAlertAction] {
-        guard let actions = params["actions"] as? [[String: Any]], !actions.isEmpty else {
+    static func createArray(from params: JSON, errorPrefix: String) throws -> [ITMAlertAction] {
+        guard let actions = params["actions"] as? [JSON], !actions.isEmpty else {
             throw ITMError(json: ["message": "\(errorPrefix): actions must be present and not empty"])
         }
         do {
             return try actions.map { try ITMDictionaryDecoder.decode($0) }
         } catch {
-            throw ITMError(json: ["message": "\(errorPrefix): invalid action"])
+            throw ITMError(json: ["message": "\(errorPrefix): invalid actions"])
         }
     }
     
@@ -60,10 +61,10 @@ public struct ITMAlertAction: Codable, Equatable {
     ///   - actions: The actions to add to the alert controller.
     ///   - alertController: The `UIAlertController` to add the actions to.
     ///   - handler: The handler that is called when an action is selected by the `UIAlertController`.
-    static func addActions(_ actions: [ITMAlertAction], to alertController: UIAlertController, handler: ((UIAlertAction, ITMAlertAction) -> Void)? = nil) {
+    static func add(actions: [ITMAlertAction], to alertController: UIAlertController, handler: ((ITMAlertAction) -> Void)? = nil) {
         for action in actions {
-            alertController.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { alertAction in
-                handler?(alertAction, action)
+            alertController.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in
+                handler?(action)
             })
         }
     }
@@ -74,9 +75,9 @@ public struct ITMAlertAction: Codable, Equatable {
 /// ``ITMNativeUIComponent`` that presents a `UIAlertController` with a style of `.alert`.
 /// This class is used by the `presentAlert` TypeScript function in @itwin/mobile-core.
 final public class ITMAlert: ITMNativeUIComponent {
-    var activeContinuation: CheckedContinuation<String?, Never>? = nil
-    /// - Parameters:
-    ///   - itmNativeUI: The ``ITMNativeUI`` used to present the alert.
+    private var activeContinuation: CheckedContinuation<String?, Never>? = nil
+    /// Creates an ``ITMAlert``.
+    /// - Parameter itmNativeUI: The ``ITMNativeUI`` used to present the alert.
     override init(itmNativeUI: ITMNativeUI) {
         super.init(itmNativeUI: itmNativeUI)
         queryHandler = itmMessenger.registerQueryHandler("Bentley_ITM_presentAlert", handleQuery)
@@ -88,7 +89,7 @@ final public class ITMAlert: ITMNativeUIComponent {
     }
 
     @MainActor
-    private func handleQuery(params: [String: Any]) async throws -> String? {
+    private func handleQuery(params: JSON) async throws -> String? {
         guard let viewController = viewController else {
             throw ITMError(json: ["message": "ITMAlert: no view controller"])
         }
@@ -99,7 +100,7 @@ final public class ITMAlert: ITMNativeUIComponent {
             activeContinuation = continuation
             let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
             alert.showStatusBar = params["showStatusBar"] as? Bool ?? false
-            ITMAlertAction.addActions(alertActions, to: alert) { _, action in
+            ITMAlertAction.add(actions: alertActions, to: alert) { action in
                 self.resume(returning: action.name)
             }
             alert.onDeinit = {

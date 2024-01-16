@@ -45,7 +45,7 @@ open class ITMKeychainHelper {
         if status != errSecItemNotFound, status != errSecSuccess {
             ITMApplication.logger.log(.warning, "ITMKeychain: Unknown load error: \(status)")
         }
-        return status == errSecSuccess ? item as? Data: nil
+        return status == errSecSuccess ? item as? Data : nil
     }
 
     /// Loads the stored secret data from the app keychain as an `NSKeyedUnarchiver`.

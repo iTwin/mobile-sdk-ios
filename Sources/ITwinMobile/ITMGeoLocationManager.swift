@@ -402,7 +402,6 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             _asyncLocationManager = AsyncLocationManager(desiredAccuracy: .bestAccuracy)
         }
         return _asyncLocationManager!
-        }
     }
 
     /// This ``ITMGeolocationManager``'s `AsyncLocationManager`. If this has not yet been initialized, that

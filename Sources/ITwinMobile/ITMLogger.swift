@@ -39,7 +39,7 @@ open class ITMLogger {
     public init() {
         // do nothing, just here so it can be sub-classed
     }
-    
+
     /// Log a message. This default implementation uses NSLog. Replace ITMMessenger's static logger instance
     /// with a subclass that overrides this function to change the logging behavior.
     /// - Note: NSLog truncates all log messages to 1024 bytes.

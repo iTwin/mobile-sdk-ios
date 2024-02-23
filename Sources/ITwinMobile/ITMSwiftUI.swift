@@ -9,7 +9,7 @@ import SwiftUI
 public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
     /// The ``ITMApplication`` that this Swift UI WebView is attached to.
     public var application: ITMApplication
-    
+
     /// Creates a `UIViewController` for this `UIViewControllerRepresentable`.
     /// - Parameter context: The `UIViewControllerRepresentableContext` for this ``ITMSwiftUIWebView``
     /// - Returns: An ``ITMViewController`` with the appropritate ``ITMApplication``.
@@ -17,7 +17,7 @@ public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
         ITMViewController.application = application
         return ITMViewController()
     }
-    
+
     /// Intentionally does nothing, since ``ITMViewController`` does not accept data from Swift UI.
     public func updateUIViewController(_ uiViewController: ITMViewController, context: Context) {
         // intentionally doing nothing here
@@ -28,7 +28,7 @@ public struct ITMSwiftUIWebView: UIViewControllerRepresentable {
 public struct ITMSwiftUIContentView: View {
     /// The ``ITMApplication`` that this Swift UI WebView is attached to.
     public var application: ITMApplication
-    
+
     public init(application: ITMApplication) {
         self.application = application
     }

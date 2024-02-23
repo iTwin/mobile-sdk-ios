@@ -53,7 +53,7 @@ open class ITMAlertController: UIAlertController {
         alertWindow!.frame = alertWindow?.windowScene?.screen.bounds ?? UIScreen.main.bounds
         return alertWindow!.rootViewController!
     }
-    
+
     deinit {
         // If an ITMAlertController is presented in a view that has been asked to present a different
         // one but hasn't had time to yet, the viewDidAppear and viewDidDisappear functions never get
@@ -94,7 +94,7 @@ open class ITMAlertController: UIAlertController {
         rootBounds = view.window?.rootViewController?.view.bounds
         deviceOrientation = UIDevice.current.orientation
     }
-    
+
     open override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         onClose?()
@@ -102,7 +102,7 @@ open class ITMAlertController: UIAlertController {
 
     open override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
-        
+
         // don't dismiss modal alerts as they stay in the center of the screen and should be handled by the user
         if preferredStyle == .alert { return }
 

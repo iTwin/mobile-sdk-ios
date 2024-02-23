@@ -32,7 +32,7 @@ class ITMInternetReachability {
     public enum NetworkStatus: Int {
         case notReachable, reachableViaWiFi, reachableViaWWAN
     }
-    
+
     /// Get current internet reachability status
     /// - Returns: The current internet reachability status.
     func currentReachabilityStatus() -> NetworkStatus {

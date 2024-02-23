@@ -30,7 +30,7 @@ public extension JSON {
         }
         return nil
     }
-    
+
     /// Check if a key's value equals "YES"
     /// - Parameter key: The key to check.
     /// - Returns: True if the value of the given key equals "YES".
@@ -77,7 +77,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Type used to store an array of hash parameters.
     public typealias HashParams = [HashParam]
-    
+
     /// The `WKWebView` that the web app runs in.
     @MainActor
     public let webView: WKWebView
@@ -106,7 +106,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The ``ITMLogger`` responsible for handling log messages (both from native code and JavaScript code). The default logger
     /// uses `NSLog` for the messages. Replace this object with an ``ITMLogger`` subclass to change the logging behavior.
     public static var logger = ITMLogger()
-    
+
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
     /// The `AuthorizationClient` used by the `IModelJsHost`.
@@ -132,7 +132,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ]
     /// The app config JSON from the main bundle.
     public var configData: JSON?
-    
+
     /// Creates an ``ITMApplication``
     @objc required public override init() {
         // Self (capital S) is equivalent to type(of: self)
@@ -196,7 +196,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             }
         }
     }
-    
+
     /// Set up the given `WKWebViewConfiguration` value so it can successfully be used with a `WKWebView` object
     /// being used by iTwin Mobile.
     ///
@@ -239,7 +239,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
         return webView
     }
-    
+
     /// Override this to update the `WKWebViewConfiguration` used for the web view before the web view is created.
     ///
     /// An example use for this would be to add a custom URL scheme handler, which must be done before the web view is created.
@@ -308,7 +308,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let js = "window.Bentley_InternetReachabilityStatus = \(ITMInternetReachability.shared.currentReachabilityStatus().rawValue)"
         itmMessenger.evaluateJavaScript(js)
     }
-    
+
     /// If ``fullyLoaded`` is `true`, updates the `isHidden` state on ``webView`` to match the value in ``dormant``.
     /// - Note: This is automatically called every time the orientation changes. This prevents a problem where if the
     /// web view is shown while the orientation animation is playing, it immediately gets re-hidden at the end of the
@@ -487,7 +487,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             await backendLoadedTask.value
         }
     }
-    
+
     /// Async property that resolves when the frontend has finished loading.
     public var frontendLoaded: Void {
         get async {
@@ -577,7 +577,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             await loadFrontend(request: request)
         }
     }
-    
+
     /// Controls whether web panels will be shown for the given frame. By default, they are only shown in the main frame.
     ///
     /// Override this function in a subclass in order to add custom behavior.

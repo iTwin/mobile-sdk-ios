@@ -18,7 +18,7 @@ open class ITMDevicePermissionsHelper {
     public static var settingsStr = NSLocalizedString("Settings", comment: "Button label for navigating to app setting page")
     /// Button label for cancelling operation
     public static var cancelStr = NSLocalizedString("Cancel", comment: "Button label for cancelling operation")
-    
+
     /// No location access message
     public static var noLocationPermissionsStr = NSLocalizedString("Turn on location services to allow your location to be shown.", comment: "No location access message")
     /// Missing photo galery permission to import
@@ -29,7 +29,7 @@ open class ITMDevicePermissionsHelper {
     public static var noPhotoCapturePermissionsStr = NSLocalizedString("To take photos, allow access to Camera and Photos.", comment: "Missing photo galery and camera permissions to capture photo")
     /// Missing microphone access to record video
     public static var noMicrophonePermissionsStr = NSLocalizedString("To record videos with sound, allow access to Microphone.", comment: "Missing microphone access to record video")
-    
+
     /// Indicates whether the user has denied location access to the app.
     public static var isLocationDenied: Bool {
         return CLLocationManager.authorizationStatus() == .denied || CLLocationManager.authorizationStatus() == .restricted
@@ -54,7 +54,7 @@ open class ITMDevicePermissionsHelper {
     public static var isPhotoCaptureDenied: Bool {
         return isVideoCaptureDenied || isPhotoLibraryDenied
     }
-    
+
     /// Show a dialog telling the user that their action requires location access, which has been denied, and allowing them to
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.

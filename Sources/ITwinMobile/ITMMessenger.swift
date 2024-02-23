@@ -149,7 +149,7 @@ open class ITMError: Error, CustomStringConvertible {
         self.jsonValue = nil
         self.jsonString = ""
     }
-    
+
     /// Create an ITMError with the given JSON string.
     /// - Note: `jsonString` should contain an object, not an array or basic value.
     /// - Parameter jsonString: The ``jsonString`` for this ITMError. This will be parsed to generate
@@ -159,7 +159,7 @@ open class ITMError: Error, CustomStringConvertible {
         self.jsonString = jsonString
         self.jsonValue = JSONSerialization.jsonObject(withString: jsonString) as? JSON
     }
-    
+
     /// Create an ITMError with a JSON string created from the given dictionary.
     /// - Parameter json: A dictionary that will stored in ``jsonValue`` and converted to a string that will be stored
     /// in ``jsonString``.
@@ -167,14 +167,14 @@ open class ITMError: Error, CustomStringConvertible {
         self.jsonValue = json
         self.jsonString = JSONSerialization.string(withITMJSONObject: json) ?? ""
     }
-    
+
     /// Indicates if this is a "not implemented" error, meaning that the web app received a message for which it does
     /// not have a handler.
     /// - Note: This will return `true` if ``jsonValue`` contains a `true` value for its "MessageNotImplemented" field.
     public var isNotImplemented: Bool {
         return jsonValue?["MessageNotImplemented"] as? Bool == true
     }
-    
+
     /// The value of the "Description" property in ``jsonValue``, if present, otherwise nil.
     public var errorDescription: String? {
         jsonValue?["Description"] as? String
@@ -198,7 +198,7 @@ open class ITMError: Error, CustomStringConvertible {
 public struct ITMStringError: LocalizedError {
     /// See `LocalizedError` protocol.
     public var errorDescription: String?
-    
+
     /// Create an ``ITMStringError`` (needed to use this type outside the framework).
     /// - Parameter errorDescription: value for ``errorDescription``.
     public init(errorDescription: String?) {
@@ -266,10 +266,10 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             return (type, responseHandler)
         }
     }
-    
+
     private actor QueryId {
         private var queryId: Int64 = 0
-        
+
         func next() -> Int64 {
             queryId += 1
             return queryId
@@ -366,7 +366,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             webView.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
         }
     }
-    
+
     /// Initializes things in preperation of launching the frontend. This is done automatically from `init`,
     /// and must be done again if the frontend crashes or is killed by iOS or iPadOS due to lack of memory.
     open func initFrontendLaunch() {
@@ -385,7 +385,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         // nothing will work.
         await ITMMessenger.waitUntilReady({ [self] in frontendLaunchContinuation != nil })
     }
-    
+
     /// Wait until the given `isReady` predicate returns true.
     /// - Note: If isReady returns true immediately, no waiting occurs.
     /// - Parameter isReady: Predicate to wait on. This function will not return until `isReady` returns true.
@@ -793,7 +793,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             let voidAsT = () as! T // This has to be a separate variable to avoid a warning in the next line
             return voidAsT
         }
-                                                     
+
         // JSONSerialization converts string "null" to NSNull object, that fails test "data is T" when T is Optional<>.
         if data is NSNull {
             data = nil

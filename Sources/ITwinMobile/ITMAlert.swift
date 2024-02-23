@@ -38,7 +38,7 @@ public struct ITMAlertAction: Codable, Equatable {
     let title: String
     /// The style of the action.
     let style: ITMAlertActionStyle
-    
+
     /// Create an array of ``ITMAlertAction`` values from the given JSON data passed from JavaScript.
     /// - Parameters:
     ///   - params: The JSON data passed from JavaScript. This must contain an `actions` array property
@@ -55,7 +55,7 @@ public struct ITMAlertAction: Codable, Equatable {
             throw ITMError(json: ["message": "\(errorPrefix): invalid actions"])
         }
     }
-    
+
     /// Adds the given array of ``ITMAlertAction`` values to the given `UIAlertController`.
     /// - Parameters:
     ///   - actions: The actions to add to the alert controller.

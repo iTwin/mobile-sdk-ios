@@ -43,7 +43,7 @@ public extension OIDAuthState {
             }
         }
     }
-    
+
     /// async wrapper for `+authStateByPresentingAuthorizationRequest:presentingViewController:callback:`
     /// Objective-C function.
     /// - Note: Because the return value for the original function is not used with the app delegate in iOS 11 and later, that is hidden by this function.
@@ -166,7 +166,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
         loadStateActive = false
     }
-    
+
     /// Saves the ITMOIDCAuthorizationClient's state data to the keychain.
     open func saveState() {
         if loadStateActive { return }
@@ -183,12 +183,12 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             keychainHelper.save(dict: keychainDict)
         }
     }
-    
+
     /// Called when the auth state changes.
     open func stateChanged() {
         saveState()
     }
-    
+
     private func isInvalidGrantError(_ error: Error) -> Bool {
         let error = error as NSError
         return error.code == OIDErrorCodeOAuth.invalidGrant.rawValue && error.domain == OIDOAuthTokenErrorDomain
@@ -211,7 +211,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
         return (accessToken, expirationDate)
     }
-    
+
     /// Ensure that an auth state is available.
     /// - Returns: The current value of ``authState`` if that is non-nil, or the result of ``signIn()`` otherwise.
     /// - Throws: If ``authState`` is nil and ``signIn()`` throws an exception, that exception is thrown.
@@ -388,7 +388,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             }
         }
     }
-    
+
     /// Sign out of OIDC.
     /// - Note: Since Bentley's default OIDC servers don't properly handle sign out, this instead revokes all the current tokens
     ///         and deletes them from the iOS keychain.
@@ -402,7 +402,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
         try await revokeTokens()
     }
-    
+
     /// Returns the access token from the given `OIDTokenResponse`, if present, with the appropriate token type prefix.
     /// - Parameter response: The `OIDTokenResponse` containing the token.
     /// - Returns: The access token from `response`, or nil if it is not present or if `response` is nil.
@@ -412,7 +412,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
         return nil
     }
-    
+
     /// Returns the access token from the given `OIDAuthState`, if present, with the appropriate token type prefix.
     /// - Parameter authState: `OIDAuthState` value possibly containing a token in its `lastTokenResponse` field.
     /// - Returns: The access token from `authState`, or nil if there isn't one.
@@ -444,7 +444,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
         ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
-    
+
     // MARK: - AuthorizationClient Protocol implementation
 
     /// Instance for `onAccessTokenChanged` property from the `AuthorizationClient` protocol.

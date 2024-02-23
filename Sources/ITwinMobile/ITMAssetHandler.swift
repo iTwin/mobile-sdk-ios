@@ -9,14 +9,14 @@ import WebKit
 /// Default asset handler for loading frontend resources.
 public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     private let assetPath: String
-    
+
     /// Create an asset handler to load files from the specified root.
     /// - Parameter assetPath: The root directory from which to load files.
     init(assetPath: String) {
         self.assetPath = assetPath
         super.init()
     }
-    
+
     /// `WKURLSchemeHandler` protocol function.
     /// - Parameters:
     ///   - webView: The web view invoking the method.
@@ -28,14 +28,14 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
             Self.cancelWithFileNotFound(urlSchemeTask: urlSchemeTask)
         }
     }
-    
+
     /// `WKURLSchemeHandler` protocol function.
     /// - Note: Due to the way files are loaded, this stop request is simply ignored.
     /// - Parameters:
     ///   - webView: The web view invoking the method.
     ///   - urlSchemeTask: The task that your app should stop handling.
     public func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
-    
+
     /// Generates a file URL from the given scheme task.
     /// - Parameter urlSchemeTask: The scheme task requesting a file.
     /// - Returns: A file URL if the file is found, otherwise `nil`.
@@ -57,7 +57,7 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
         ITMApplication.logger.log(.error, "ITMAssetHandler: Not found: \(url)")
         return nil
     }
-    
+
     /// Responds to the given file URL with the file contents.
     /// - Note: This loads the whole file into memory and then sends its data to the URL scheme task.
     /// - Parameters:
@@ -80,7 +80,7 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
             }
         }
     }
-    
+
     /// Cancels the request in the `urlSchemeTask` with a "file not found" error.
     /// - Parameter urlSchemeTask: The `WKURLSchemeTask` object to send the error to.
     open class func cancelWithFileNotFound(urlSchemeTask: WKURLSchemeTask) {

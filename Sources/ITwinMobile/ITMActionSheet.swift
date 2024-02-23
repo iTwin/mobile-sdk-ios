@@ -22,7 +22,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
         activeContinuation?.resume(returning: value)
         activeContinuation = nil
     }
-    
+
     /// Try to convert the `sourceRect` property of `params` into an ``ITMRect``.
     /// - Parameter params: JSON data from the web app.
     /// - Throws: If `params` does not contain a `sourceRect` property that can be converted to an ``ITMRect``,

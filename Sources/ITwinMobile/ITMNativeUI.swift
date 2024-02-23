@@ -58,7 +58,7 @@ open class ITMNativeUI: NSObject {
     public weak var viewController: UIViewController?
     /// The ``ITMMessenger`` that sends messages to components, and optionally receives messages.
     public var itmMessenger: ITMMessenger
-    
+
     /// Create an ``ITMNativeUI``.
     /// - Note: This registers all standard ``ITMNativeUIComponent`` types that are built into the iTwin Mobile SDK. You
     /// must use ``addComponent(_:)`` to register custom ``ITMNativeUIComponent`` types.
@@ -110,12 +110,12 @@ open class ITMNativeUIComponent: NSObject {
             self.queryHandler = nil
         }
     }
-    
+
     /// The `UIViewController` for this component; this comes from ``itmNativeUI``.
     public var viewController: UIViewController? {
         itmNativeUI.viewController
     }
-    
+
     /// The ``ITMMessenger`` this component uses to communicate with the iTwin Mobile app's frontend; this comes from ``itmNativeUI``.
     public var itmMessenger: ITMMessenger {
         itmNativeUI.itmMessenger

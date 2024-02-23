@@ -225,7 +225,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     deinit {
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "Bentley_ITMGeolocation")
     }
-    
+
     /// Sets the threshold when "last location" is used in location requests instead of requesting a
     /// new location. The default of `0.0` means that all location requests ask for the location (which
     /// can take time).
@@ -284,7 +284,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             locationManager.startUpdatingHeading()
         }
     }
-    
+
     /// Determine if the given permission indicates the user is authorized to check location.
     /// - Parameter permission: The `CLAuthorizationStatus` to check.
     /// - Returns: `true` if `permission` is `authorizedAlways` or `authorizedWhenInUse`,
@@ -389,7 +389,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         let js = "window.Bentley_ITMGeolocationResponse('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
         itmMessenger.evaluateJavaScript(js)
     }
-    
+
     private func sendErrorToWatchers(_ messageName: String, errorJson: JSON) {
         for positionId in watchIds {
             sendError(messageName, positionId: positionId, errorJson: errorJson)
@@ -489,7 +489,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     // MARK: CLLocationManagerDelegate
-    
+
     /// `CLLocationManagerDelegate` function that reports location updates to the JavaScript side of the polyfill.
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         sendLocationUpdates()

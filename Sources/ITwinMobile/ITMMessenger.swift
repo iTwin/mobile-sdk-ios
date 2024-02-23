@@ -21,7 +21,7 @@ extension WKWebView {
     /// Unfortunately, using the async version results in a run-time crash, because its return type is Any instead of Any?. This works around that bug.
     /// This bug has been reported to Apple.
     func evaluateJavaScriptAsync(_ str: String) async throws -> Any? {
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Any?, Error>) in
+        return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
                 self.evaluateJavaScript(str) { data, error in
                     if let error = error {

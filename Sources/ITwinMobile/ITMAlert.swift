@@ -96,7 +96,7 @@ final public class ITMAlert: ITMNativeUIComponent {
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMAlert")
         // If a previous query hasn't fully resolved yet, resolve it now with nil.
         resume(returning: nil)
-        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+        return await withCheckedContinuation { continuation in
             activeContinuation = continuation
             let alert = ITMAlertController(title: params["title"] as? String, message: params["message"] as? String, preferredStyle: .alert)
             alert.showStatusBar = params["showStatusBar"] as? Bool ?? false

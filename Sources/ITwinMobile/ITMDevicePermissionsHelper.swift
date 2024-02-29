@@ -117,7 +117,7 @@ open class ITMDevicePermissionsHelper {
     }
 
     private static func openApplicationSettings() {
-        if let url(string: UIApplication.openSettingsURLString) {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url, options: [:])
         }
     }

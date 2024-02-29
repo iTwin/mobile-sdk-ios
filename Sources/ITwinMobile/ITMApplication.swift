@@ -159,7 +159,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             }
         }
         configData = loadITMAppConfig()
-        if let configData {
+        if let configData = configData {
             extractConfigDataToEnv(configData: configData)
             if configData.isYes("ITMAPPLICATION_MESSAGE_LOGGING") {
                 ITMMessenger.isLoggingEnabled = true
@@ -351,7 +351,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
-        if let configData,
+        if let configData = configData,
             let baseUrlString = configData["ITMAPPLICATION_BASE_URL"] as? String {
             usingRemoteServer = true
             return baseUrlString
@@ -525,7 +525,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // can't use itmMessenger.evaluateJavaScript here, even though we use it
         // everywhere else in this file.
         webView.evaluateJavaScript("navigator.userAgent") { [self, weak webView = self.webView] result, error in
-            if let webView {
+            if let webView = webView {
                 if let userAgent = result as? String {
                     var customUserAgent: String
                     if userAgent.contains("Mobile") {

@@ -105,7 +105,7 @@ open class ITMNativeUIComponent: NSObject {
 
     /// Detach this component from its ``ITMMessenger``.
     public func detach() {
-        if let queryHandler {
+        if let queryHandler = queryHandler {
             itmMessenger.unregisterQueryHandler(queryHandler)
             self.queryHandler = nil
         }

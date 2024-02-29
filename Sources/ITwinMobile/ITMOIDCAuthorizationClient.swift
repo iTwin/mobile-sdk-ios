@@ -14,7 +14,7 @@ import AppAuthCore
 
 internal extension Set {
     mutating func insertIfNotNull(_ element: Element?) {
-        if let element = element {
+        if let element {
             insert(element)
         }
     }
@@ -35,7 +35,7 @@ public extension OIDAuthState {
         // The action parameter of -performActionWithFreshTokens: doesn't trigger an automatic async wrapper.
         return try await withCheckedThrowingContinuation { continuation in
             self.performAction() { accessToken, idToken, error in
-                if let error = error {
+                if let error {
                     continuation.resume(throwing: error)
                     return
                 }
@@ -61,7 +61,7 @@ public extension OIDAuthState {
             // variable.
             ITMOIDCAuthorizationClient.currentAuthorizationFlow = Self.authState(byPresenting: request, presenting: viewController) { authState, error in
                 ITMOIDCAuthorizationClient.currentAuthorizationFlow = nil
-                if let error = error {
+                if let error {
                     continuation.resume(throwing: error)
                     return
                 }
@@ -171,10 +171,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     open func saveState() {
         if loadStateActive { return }
         var keychainDict: [String: Any] = [:]
-        if let authState = authState {
+        if let authState {
             keychainDict["auth-state"] = authState
         }
-        if let serviceConfig = serviceConfig {
+        if let serviceConfig {
             keychainDict["service-config"] = serviceConfig
         }
         if keychainDict.isEmpty {
@@ -219,7 +219,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         // Note: this function exists because the following is not legal in Swift:
         // let authState = self.authState ?? try await signIn()
         // Neither try nor await is legal on the right hand side of ??.
-        if let authState = authState {
+        if let authState {
             return authState
         }
         return try await signIn()
@@ -255,7 +255,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// - Returns: ``viewController`` if that is non, nil, otherwise `ITMApplication.topViewController`.
     /// - Throws: If both ``viewController`` and `ITMApplication.topViewController` are nil, throws an exception.
     open func requireViewController() async throws -> UIViewController {
-        if let viewController = viewController {
+        if let viewController {
             return viewController
         }
         if let topViewController = await ITMApplication.topViewController {
@@ -299,7 +299,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// - Returns: The `OIDServiceConfiguration` fetched from the OIDC server.
     /// - Throws: If there are any problems fetching the service configuration, an exception is thrown.
     open func requireServiceConfig() async throws -> OIDServiceConfiguration {
-        if let serviceConfig = serviceConfig {
+        if let serviceConfig {
             return serviceConfig
         }
         do {

@@ -80,7 +80,7 @@ public extension AsyncLocationManager {
         let locationUpdateEvent = try await requestLocation()
         switch locationUpdateEvent {
         case .didUpdateLocations(locations: let locations):
-            if let location = locations.last {
+            if let locations.last {
                 return try location.geolocationPosition()
             } else {
                 throw ITMError(json: ["message": "Locations list empty."])
@@ -477,7 +477,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                     ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
                     sendErrorToWatchers("watchPosition", errorJson: positionUnavailableError)
                 }
-                if let positionJson = positionJson {
+                if let positionJson {
                     for positionId in watchIds {
                         sendPosition(positionJson, positionId: positionId, messageName: "watchPosition")
                     }

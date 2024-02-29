@@ -24,7 +24,7 @@ extension WKWebView {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
                 self.evaluateJavaScript(str) { data, error in
-                    if let error = error {
+                    if let error {
                         continuation.resume(throwing: error)
                     } else {
                         continuation.resume(returning: data)
@@ -590,7 +590,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     open func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
         logQuery("Response SWIFT -> JS", "WKID\(queryId)", type, dataString: responseJson)
         let messageJson: String
-        if let responseJson = responseJson {
+        if let responseJson {
             if responseJson.isEmpty {
                 messageJson = "{}"
             } else {
@@ -606,7 +606,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             } else if let stringError = error as? ITMStringError, let errorDescription = stringError.errorDescription {
                 let errorString = jsonString("\(errorDescription)")
                 messageJson = "{\"error\":\(errorString)}"
-            } else if let error = error {
+            } else if let error {
                 let errorString = jsonString("\(error)")
                 messageJson = "{\"error\":\(errorString)}"
             } else {
@@ -716,7 +716,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     private func processQuery(_ type: String, withBody body: Any?, queryId: Int64) async {
-        if let queryHandler = queryHandlerDict[type] {
+        if let queryHandlerDict[type] {
             if await queryHandler.handleQuery(queryId, type, body) {
                 return
             }
@@ -741,7 +741,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
                 return
             }
             let responseString = jsonString(response)
-            if let error = error {
+            if let error {
                 logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", type, messageData: error)
                 if !handleNotImplementedError(error: error, handler: handler) {
                     handler(.failure(ITMError(json: error as? JSON)))

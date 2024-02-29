@@ -74,8 +74,8 @@ public extension ITMAuthorizationClient {
     ///   - token: The current access token, or nil
     ///   - expirationDate: The expiration date for the current access token, or nil
     func raiseOnAccessTokenChanged(_ token: String?, _ expirationDate: Date?) {
-        if let onAccessTokenChanged = onAccessTokenChanged {
-            if let token = token,
+        if let onAccessTokenChanged {
+            if let token,
                let expirationDate = expirationDate {
                 onAccessTokenChanged(token, expirationDate)
             } else {

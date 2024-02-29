@@ -54,11 +54,13 @@ itwin_non_core_packages = [
     "mobile-ui-react",
 ]
 appui_packages = [
-    "appui-layout-react",
     "appui-react",
     "components-react",
     "core-react",
     "imodel-components-react",
+]
+appui_layout_packages = [
+    "appui-layout-react",
 ]
 imodels_access_packages = [
     "imodels-access-backend",
@@ -74,6 +76,7 @@ presentation_packages = [
     "presentation-components",
 ]
 itwin_non_core_packages.extend(appui_packages)
+itwin_non_core_packages.extend(appui_layout_packages)
 itwin_non_core_packages.extend(imodels_access_packages)
 itwin_non_core_packages.extend(itwins_client_packages)
 itwin_non_core_packages.extend(imodels_client_packages)
@@ -173,8 +176,9 @@ def mobile_base_version_search_tuples(first_format_string, second_value):
         result.append((first_format_string.format(mobile_base_version_search), second_value))
     return result
 
-def get_packages_tuples(packages, prefix):
+def get_packages_tuples(packages, prefix, group_name):
     version = get_latest_version(f'@itwin/{packages[0]}', prefix)
+    print(f'{group_name} version: {version}')
     result = []
     for package in packages:
         result.append((f'("@itwin/{package}"): "[0-9][.0-9a-z-]+', '\\1: "' + version))
@@ -182,11 +186,12 @@ def get_packages_tuples(packages, prefix):
 
 def get_itwin_non_core_tuples():
     result = []
-    result.extend(get_packages_tuples(appui_packages, '4'))
-    result.extend(get_packages_tuples(imodels_access_packages, '4'))
-    result.extend(get_packages_tuples(itwins_client_packages, '1'))
-    result.extend(get_packages_tuples(imodels_client_packages, '4'))
-    result.extend(get_packages_tuples(presentation_packages, '4'))
+    result.extend(get_packages_tuples(appui_packages, '4', 'appui'))
+    result.extend(get_packages_tuples(appui_layout_packages, '4', 'appui_layout'))
+    result.extend(get_packages_tuples(imodels_access_packages, '4', 'imodels_access'))
+    result.extend(get_packages_tuples(itwins_client_packages, '1', 'itwins_client'))
+    result.extend(get_packages_tuples(imodels_client_packages, '4', 'imodels_client'))
+    result.extend(get_packages_tuples(presentation_packages, '4', 'presentation'))
     return result
 
 def modify_package_json(args, dir):
@@ -578,6 +583,7 @@ def checkversions_command(args):
     print("new_itwin: " + args.new_itwin)
     print("new_add_on: " + args.new_add_on)
     print("new_add_on_commit_id: " + args.new_add_on_commit_id)
+    get_itwin_non_core_tuples()
 
 def fetch_arg_from_environment(args, env_name):
     value = os.getenv(env_name)

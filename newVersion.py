@@ -14,7 +14,7 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 3.7.x for now.
+# iTwin base versions to search for. 3.2.x - 4.4.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -26,6 +26,7 @@ itwin_base_version_search_list = [
     "4\\.1\\.",
     "4\\.2\\.",
     "4\\.3\\.",
+    "4\\.4\\.",
 ]
 # iTwin Mobile SDK base version. 0.21.x for now.
 mobile_base_version = "0.22."
@@ -43,7 +44,7 @@ react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.3'
+itwin_version_prefix = '4.4'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.

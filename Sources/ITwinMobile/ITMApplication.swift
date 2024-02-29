@@ -159,7 +159,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             }
         }
         configData = loadITMAppConfig()
-        if let configData = configData {
+        if let configData {
             extractConfigDataToEnv(configData: configData)
             if configData.isYes("ITMAPPLICATION_MESSAGE_LOGGING") {
                 ITMMessenger.isLoggingEnabled = true
@@ -351,7 +351,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The base URL string for the frontend.
     open func getBaseUrl() -> String {
-        if let configData = configData,
+        if let configData,
             let baseUrlString = configData["ITMAPPLICATION_BASE_URL"] as? String {
             usingRemoteServer = true
             return baseUrlString
@@ -525,7 +525,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // can't use itmMessenger.evaluateJavaScript here, even though we use it
         // everywhere else in this file.
         webView.evaluateJavaScript("navigator.userAgent") { [self, weak webView = self.webView] result, error in
-            if let webView = webView {
+            if let webView {
                 if let userAgent = result as? String {
                     var customUserAgent: String
                     if userAgent.contains("Mobile") {
@@ -597,8 +597,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: The top view.
     @MainActor
     public class var topView: UIView? {
-        guard let topViewController = topViewController else { return nil }
-        return topViewController.view
+        return topViewController?.view
     }
 
     /// Top view controller for presenting iTwin Mobile web app.

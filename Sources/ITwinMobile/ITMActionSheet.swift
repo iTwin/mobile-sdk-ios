@@ -38,7 +38,7 @@ final public class ITMActionSheet: ITMNativeUIComponent {
 
     @MainActor
     private func handleQuery(params: JSON) async throws -> String? {
-        guard let viewController = viewController else {
+        guard let viewController else {
             throw ITMError(json: ["message": "ITMActionSheet: no view controller"])
         }
         let alertActions = try ITMAlertAction.createArray(from: params, errorPrefix: "ITMActionSheet")

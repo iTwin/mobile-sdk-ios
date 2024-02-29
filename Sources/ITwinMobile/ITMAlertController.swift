@@ -106,11 +106,11 @@ open class ITMAlertController: UIAlertController {
         // don't dismiss modal alerts as they stay in the center of the screen and should be handled by the user
         if preferredStyle == .alert { return }
 
-        if let deviceOrientation = deviceOrientation, deviceOrientation != UIDevice.current.orientation {
+        if let deviceOrientation, deviceOrientation != UIDevice.current.orientation {
             dismiss(animated: true)
         }
         coordinator.animate(alongsideTransition: nil) { [self] _ in
-            if let rootBounds = rootBounds, let deviceOrientation = deviceOrientation {
+            if let rootBounds, let deviceOrientation {
                 if rootBounds != view.window?.rootViewController?.view.bounds || deviceOrientation != UIDevice.current.orientation {
                     dismiss(animated: true)
                 }

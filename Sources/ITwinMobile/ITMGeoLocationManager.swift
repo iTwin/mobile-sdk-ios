@@ -477,7 +477,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                     ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
                     sendErrorToWatchers("watchPosition", errorJson: positionUnavailableError)
                 }
-                if let positionJson = positionJson {
+                if let positionJson {
                     for positionId in watchIds {
                         sendPosition(positionJson, positionId: positionId, messageName: "watchPosition")
                     }

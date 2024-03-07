@@ -32,7 +32,7 @@ public struct GeolocationCoordinates: Codable {
 /// - SeeAlso: [GeolocationPosition reference](https://developer.mozilla.org/en-US/docs/Web/API/GeolocationPosition)
 public struct GeolocationPosition: Codable {
     var coords: GeolocationCoordinates
-    var timestamp: TimeInterval
+    var timestamp: Int64
 
     func jsonObject() throws -> JSON {
         let jsonData = try JSONEncoder().encode(self)
@@ -111,7 +111,7 @@ public extension CLLocation {
             longitude: coordinate.longitude,
             speed: speed
         )
-        return try GeolocationPosition(coords: coordinates, timestamp: timestamp.timeIntervalSince1970).jsonObject()
+        return try GeolocationPosition(coords: coordinates, timestamp: Int64(timestamp.timeIntervalSince1970 * 1000.0)).jsonObject()
     }
 }
 

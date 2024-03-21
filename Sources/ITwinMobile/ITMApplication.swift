@@ -51,6 +51,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         case dark = 2
     }
 
+    public typealias ConfigStringPair = (key: String, value: String)
+
     /// Struct used to store a hash parameter.
     public struct HashParam {
         /// The name of the hash parameter.
@@ -430,10 +432,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///   - configData: The JSON dictionary containing the configs (by default from ITMAppConfig.json).
     ///   - prefix: The prefix to include values for.
     public func extractConfigDataToEnv(configData: JSON, prefix: String = "ITMAPPLICATION_") {
-        for (key, value) in configData {
-            if key.hasPrefix(prefix), let stringValue = value as? String {
-                setenv(key, stringValue, 1)
-            }
+        for case let (key, value) as ConfigStringPair in configData where key.hasPrefix(prefix) {
+            setenv(key, value, 1)
         }
     }
 

@@ -14,7 +14,7 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 4.4.x for now.
+# iTwin base versions to search for. 3.2.x - 4.5.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -27,6 +27,7 @@ itwin_base_version_search_list = [
     "4\\.2\\.",
     "4\\.3\\.",
     "4\\.4\\.",
+    "4\\.5\\.",
 ]
 # iTwin Mobile SDK base version. 0.21.x for now.
 mobile_base_version = "0.22."
@@ -44,7 +45,7 @@ react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.4'
+itwin_version_prefix = '4.5'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.
@@ -323,8 +324,8 @@ def modify_sample_build_gradle(args, filename):
     if replace_all(
         filename,
         [
-            ("(implementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
-            # ("(debugImplementation 'com.github.itwin:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
+            ("(implementation 'com.github.itwin.mobilesdk:mobile-sdk-android:)[.0-9a-z-]+", "\\g<1>" + args.new_mobile),
+            # ("(debugImplementation 'com.github.itwin.mobilesdk:mobile-sdk-android:)[.0-9a-z-]+-debug", "\\g<1>" + args.new_mobile + "-debug"),
         ]
     ) != 1:
         raise Exception("Wrong number of replacements")

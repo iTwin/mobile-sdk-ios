@@ -44,6 +44,16 @@ internal extension JSONSerialization {
             // Return empty JSON string for void.
             return ""
         }
+        if let array = object as? NSArray, array.count == 0 {
+            // JSONSerialization is broken and puts two newlines between the square brackets. For an empty array we
+            // don't want any newlines, even if prettyPrint is true, so just hard code a replacement.
+            return "[]"
+        }
+        if let dict = object as? NSDictionary, dict.count == 0 {
+            // JSONSerialization is broken and puts two newlines between the curly braces. For an empty dictionary we
+            // don't want any newlines, even if prettyPrint is true, so just hard code a replacement.
+            return "{}"
+        }
         let wrapped: Bool
         let validJSONObject: Any
         if JSONSerialization.isValidJSONObject(object) {
@@ -54,7 +64,7 @@ internal extension JSONSerialization {
             // Wrap object in an array
             validJSONObject = [object]
         }
-        let options: JSONSerialization.WritingOptions = prettyPrint ? [.prettyPrinted, .sortedKeys, .fragmentsAllowed] : [.fragmentsAllowed]
+        let options: JSONSerialization.WritingOptions = prettyPrint && !wrapped ? [.prettyPrinted, .sortedKeys, .fragmentsAllowed] : [.fragmentsAllowed]
         guard let data = try? JSONSerialization.data(withJSONObject: validJSONObject, options: options) else {
             return nil
         }
@@ -650,7 +660,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     open func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?) {
         guard ITMMessenger.isLoggingEnabled, !ITMMessenger.unloggedQueryTypes.contains(type) else {return}
         var message = "ITMMessenger [\(title)] \(queryId): \(type)"
-        if ITMMessenger.isFullLoggingEnabled, let prettyDataString {
+        if ITMMessenger.isFullLoggingEnabled, let prettyDataString, !prettyDataString.isEmpty {
             message.append("\n\(prettyDataString)")
         }
         logInfo(message)

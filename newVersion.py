@@ -14,7 +14,7 @@ import traceback
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 4.5.x for now.
+# iTwin base versions to search for. 3.2.x - 4.7.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -28,10 +28,14 @@ itwin_base_version_search_list = [
     "4\\.3\\.",
     "4\\.4\\.",
     "4\\.5\\.",
+    "4\\.6\\.",
+    "4\\.7\\.",
 ]
-# iTwin Mobile SDK base version. 0.21.x for now.
+# The version prefix when determining the latest iTwin version.
+itwin_version_prefix = '4.7'
+# iTwin Mobile SDK base version. 0.22.x for now.
 mobile_base_version = "0.22."
-# iTwin Mobile SDK base version to search for. 0.21.x for now.
+# iTwin Mobile SDK base version to search for 0.21.x - 0.22.x for now.
 mobile_base_version_search_list = [
     "0\\.21\\.",
     "0\\.22\\.",
@@ -44,8 +48,6 @@ native_package_search = "`itwin-mobile-native` CocoaPod to version "
 react_app_subdir = 'cross-platform/react-app'
 # Subdirectory under mobile-samples of token-server.
 token_server_subdir = 'cross-platform/token-server'
-# The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.5'
 # The scope for iTwin npm packages.
 itwin_scope = '@itwin'
 # The npm packages with an @itwin/ prefix that aren't part of itwinjs-core.

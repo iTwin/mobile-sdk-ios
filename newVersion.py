@@ -476,6 +476,13 @@ def populate_mobile_versions(args, current = False):
 def get_repo(dir):
     return 'https://' + os.getenv('GH_TOKEN') + '@github.com/iTwin/' + os.path.basename(dir)
 
+def lint_dir(dir):
+    # Updated versions of dependent libraries can result in lint errors due to deprecation. Perform
+    # a lint run to verify that that has not happened.
+    dir = os.path.realpath(dir)
+    print("Linting in dir: " + dir)
+    subprocess.check_call(['npm', 'run', 'lint'], cwd=dir)
+
 def push_dir(dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
@@ -516,14 +523,18 @@ def push_command(args, dir, current = False):
     push_dir(dir)
 
 def push1_command(args):
+    # Make sure mobile-sdk-core lint passes before pushing any changes.
+    lint_dir(sdk_dirs.sdk_core)
     push_command(args, sdk_dirs.sdk_ios)
     push_command(args, sdk_dirs.sdk_android)
     push_command(args, sdk_dirs.sdk_core)
 
 def push2_command(args):
+    lint_dir(sdk_dirs.ui_react)
     push_command(args, sdk_dirs.ui_react, True)
 
 def push3_command(args):
+    lint_dir(os.path.join(sdk_dirs.samples, react_app_subdir))
     push_command(args, sdk_dirs.samples, True)
 
 def show_node_version():

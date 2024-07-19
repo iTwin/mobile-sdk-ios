@@ -16,13 +16,13 @@ This package is delivered as source-only and supports two options for dependency
 
 ### Swift Package Manager
 
-With [Swift Package Manager](https://swift.org/package-manager), add `https://github.com/iTwin/mobile-sdk-ios` to your project's Package Dependencies settings in Xcode, making sure to set the "Dependency Rule" to "Exact Version" and the version to "0.22.7".
+With [Swift Package Manager](https://swift.org/package-manager), add `https://github.com/iTwin/mobile-sdk-ios` to your project's Package Dependencies settings in Xcode, making sure to set the "Dependency Rule" to "Exact Version" and the version to "0.22.8".
 
 Or add the following package to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(name: "itwin-mobile-sdk", url: "https://github.com/iTwin/mobile-sdk-ios", .exact("0.22.7"))
+    .package(name: "itwin-mobile-sdk", url: "https://github.com/iTwin/mobile-sdk-ios", .exact("0.22.8"))
 ]
 ```
 
@@ -44,8 +44,8 @@ target 'MyMobileApp' do
 
   # Pods for MyMobileApp
   pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/4.7.29/itwin-mobile-native-ios.podspec'
-  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.7/itwin-mobile-sdk.podspec'
-  pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.7/AsyncLocationKit.podspec'
+  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.8/itwin-mobile-sdk.podspec'
+  pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.8/AsyncLocationKit.podspec'
 end
 
 post_install do |installer|
@@ -63,7 +63,7 @@ end
 ```
 
 ## Notes
-- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 4.7.6__, and your app must use that same version of iTwin.js.
+- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 4.7.7__, and your app must use that same version of iTwin.js.
 
 - If you are using this package via CocoaPods, make sure to set the `itwin-mobile-native` CocoaPod to version 4.7.29
 

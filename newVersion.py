@@ -7,7 +7,9 @@ import sys
 import os
 import textwrap
 import json
+import platform
 import traceback
+from functools import cmp_to_key
 
 # ===================================================================================
 # Begin editable globals.
@@ -538,22 +540,28 @@ def push3_command(args):
     push_command(args, sdk_dirs.samples, True)
 
 def show_node_version():
-    print("Using node version:")
-    subprocess.check_call(['node', '--version'])
-    print("Using npm version:")
-    subprocess.check_call(['npm', '--version'])
+    node_version = subprocess.check_output(['node', '--version'], stderr=subprocess.STDOUT, text=True)
+    print(f'Using node version: {node_version}', end='')
+    npm_version = subprocess.check_output(['npm', '--version'], stderr=subprocess.STDOUT, text=True)
+    print(f'Using npm version: {npm_version}', end='')
+
+def show_python_version():
+    print(f'Using python version: {platform.python_version()}')
 
 def stage1_command(args):
+    show_python_version()
     show_node_version()
     bump_command(args)
     push1_command(args)
 
 def stage2_command(args):
+    show_python_version()
     show_node_version()
     bumpui_command(args)
     push2_command(args)
 
 def stage3_command(args):
+    show_python_version()
     show_node_version()
     populate_mobile_versions(args)
     # iTiwn/mobile-sdk-ios must be released before we can update the samples to point to it.
@@ -576,6 +584,7 @@ def changesamplestest_command(args):
     modify_samples_build_gradle(args)
 
 def test_command(args):
+    show_python_version()
     show_node_version()
     get_versions(args, True)
     change_command(args)
@@ -593,6 +602,7 @@ def test_command(args):
 def checkversions_command(args):
     get_versions(args)
     print("-------------------------------------------------------------------------------")
+    show_python_version()
     show_node_version()
     print("new_mobile: " + args.new_mobile)
     print("new_itwin: " + args.new_itwin)
@@ -640,6 +650,34 @@ def get_latest_itwin_version():
 
 latest_versions = {}
 
+def compare_versions(left_list, right_list):
+    for left, right in zip(left_list, right_list):
+        try:
+            # Try to convert both values into integers
+            left_int = int(left)
+            right_int = int(right)
+            if left_int < right_int:
+                return -1
+            elif right_int < left_int:
+                return 1
+        except ValueError:
+            # Integer conversion failed, so just compare the values as strings
+            if left < right:
+                return -1
+            elif right < left:
+                return 1
+    return 0
+    
+def sort_versions(versions):
+    split = []
+    for version in versions:
+        split.append(version.split('.'))
+    split_sorted = sorted(split, key=cmp_to_key(compare_versions))
+    result = []
+    for version in split_sorted:
+        result.append('.'.join(version))
+    return result
+
 def get_latest_version(package, prefix):
     key = f'{package}@{prefix}'
     if key in latest_versions:
@@ -649,7 +687,9 @@ def get_latest_version(package, prefix):
     if isinstance(version, str):
         result = version
     else:
-        result = version[-1]
+        # The matching versions are returned in chronological order, so a new release of an older
+        # version might come last.
+        result = sort_versions(version)[-1]
     latest_versions[key] = result
     return result
 

@@ -22,7 +22,7 @@
     },
     {
       "name": "Python: newVersion.py bumpsamples",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
@@ -30,7 +30,7 @@
     },
     {
       "name": "Python: newVersion.py release1",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
@@ -38,11 +38,19 @@
     },
     {
       "name": "Python: newVersion.py test --force",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
       "args": ["test", "--force"]
+    },
+    {
+      "name": "Python: newVersion.py checkversions",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "args": ["checkversions"]
     }
   ]
 }

@@ -11,7 +11,7 @@ import PackageDescription
 let package = Package(
     name: "itwin-mobile-sdk",
     platforms: [
-        .iOS("13"),
+        .iOS("17"),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.

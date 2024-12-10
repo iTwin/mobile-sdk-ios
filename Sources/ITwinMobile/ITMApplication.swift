@@ -230,8 +230,10 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         Self.setupWebViewConfiguration(configuration)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-#if DEBUG
-        webView.isInspectable = true
+#if DEBUG && compiler(>=5.8)
+        if #available(iOS 16.4, *) {
+            webView.isInspectable = true
+        }
 #endif
         webView.isHidden = true
         webView.scrollView.pinchGestureRecognizer?.isEnabled = false

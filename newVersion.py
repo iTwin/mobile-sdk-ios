@@ -764,14 +764,14 @@ def add_common_stage_arguments(parser, new_mobile=True):
     parser.add_argument('-t', '--title', dest='title', help='Release title')
     parser.add_argument('--notes', dest='notes', help='Release notes')
 
-# We always want to publish our packages using Node 16 (>= 16.11), so check for that.
+# We always want to publish our packages using Node 20 (>= 20.18), so check for that.
 # This insures that our package-lock.json files are conistent for npm.
 def check_node_version():
-    print("Verifying that node version is 18.x, with minimum of 18.16.")
+    print("Verifying that node version is 20.x, with minimum of 20.18.")
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
-    match = re.search('^v18\\.([0-9]+)\\.', results)
-    if not match or int(match.group(1)) < 16:
-        raise Exception("Error: Node 18.x required, with minimum of 18.16. You have " + results.rstrip('\n') + ".")
+    match = re.search('^v20\\.([0-9]+)\\.', results)
+    if not match or int(match.group(1)) < 18:
+        raise Exception("Error: Node 20.x required, with minimum of 20.18. You have " + results.rstrip('\n') + ".")
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
 

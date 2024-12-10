@@ -210,8 +210,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameter configuration: The `WKWebViewConfiguration` to set up.
     @objc open class func setupWebViewConfiguration(_ configuration: WKWebViewConfiguration) {
         configuration.userContentController = WKUserContentController()
-        configuration.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        configuration.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
 
         let path = getFrontendIndexPath()
         let frontendFolder = path.deletingLastPathComponent()

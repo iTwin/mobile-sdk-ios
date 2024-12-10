@@ -22,7 +22,7 @@ Or add the following package to your `Package.swift` dependencies:
 
 ```swift
 dependencies: [
-    .package(name: "itwin-mobile-sdk", url: "https://github.com/iTwin/mobile-sdk-ios", .exact("0.22.15"))
+    .package(name: "itwin-mobile-sdk", url: "https://github.com/iTwin/mobile-sdk-ios", .exact("0.22.16"))
 ]
 ```
 
@@ -44,8 +44,8 @@ target 'MyMobileApp' do
 
   # Pods for MyMobileApp
   pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/4.10.27/itwin-mobile-native-ios.podspec'
-  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.15/itwin-mobile-sdk.podspec'
-  pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.15/AsyncLocationKit.podspec'
+  pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.16/itwin-mobile-sdk.podspec'
+  pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.22.16/AsyncLocationKit.podspec'
 end
 
 post_install do |installer|

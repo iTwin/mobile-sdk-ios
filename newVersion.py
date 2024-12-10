@@ -382,15 +382,15 @@ def npm_build_dir(dir, relativeDeps = False):
     print('Performing npm run build in dir: ' + dir)
     if relativeDeps:
         rm_args = ['rm', '-rf', 'node_modules/@itwin/mobile-sdk-core', 'node_modules/@itwin/mobile-ui-react']
-        subprocess.check_call(rm_args, cwd=dir)
+        subprocess.check_output(rm_args, cwd=dir, text=True)
         npx_args = ['npx', 'relative-deps']
-        subprocess.check_call(npx_args, cwd=dir)
+        subprocess.check_output(npx_args, cwd=dir, text=True)
     build_args = ['npm', 'run', 'build']
-    subprocess.check_call(build_args, cwd=dir)
+    subprocess.check_output(build_args, cwd=dir, text=True)
 
 def npm_install_dir(dir):
     print('Performing npm install in dir: ' + dir)
-    subprocess.check_call(['npm', 'install', '--force'], cwd=dir)
+    subprocess.check_output(['npm', 'install', '--force'], cwd=dir, text=True)
 
 def bumpui_command(args):
     get_versions(args)
@@ -436,9 +436,9 @@ def ensure_no_dirs_have_diffs():
 def commit_dir(args, dir):
     print("Committing in dir: " + dir)
     if dir_has_diff(dir):
-        subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
-        subprocess.check_call(['git', 'add', '.'], cwd=dir)
-        subprocess.check_call(['git', 'commit', '-m', 'Update version to ' + args.new_mobile], cwd=dir)
+        subprocess.check_output(['git', 'checkout', git_branch], cwd=dir, text=True)
+        subprocess.check_output(['git', 'add', '.'], cwd=dir, text=True)
+        subprocess.check_output(['git', 'commit', '-m', 'Update version to ' + args.new_mobile], cwd=dir, text=True)
     else:
         print("Nothing to commit.")
 
@@ -486,12 +486,12 @@ def lint_dir(dir):
     # a lint run to verify that that has not happened.
     dir = os.path.realpath(dir)
     print("Linting in dir: " + dir)
-    subprocess.check_call(['npm', 'run', 'lint'], cwd=dir)
+    subprocess.check_output(['npm', 'run', 'lint'], cwd=dir, text=True)
 
 def push_dir(dir):
     dir = os.path.realpath(dir)
     print("Pushing in dir: " + dir)
-    subprocess.check_call(['git', 'push', get_repo(dir)], cwd=dir)
+    subprocess.check_output(['git', 'push', get_repo(dir)], cwd=dir, text=True)
 
 def release_dir(args, dir):
     dir = os.path.realpath(dir)
@@ -501,25 +501,25 @@ def release_dir(args, dir):
     if not args.notes:
         itwin_version = get_latest_itwin_version()
         args.notes = 'Release ' + args.new_mobile + ' on iTwin ' + itwin_version + ''
-    subprocess.check_call(['git', 'checkout', git_branch], cwd=dir)
-    subprocess.check_call(['git', 'pull'], cwd=dir)
-    subprocess.check_call(['git', 'tag', args.new_mobile], cwd=dir)
-    subprocess.check_call(['git', 'push', get_repo(dir), args.new_mobile], cwd=dir)
-    subprocess.check_call([
+    subprocess.check_output(['git', 'checkout', git_branch], cwd=dir, text=True)
+    subprocess.check_output(['git', 'pull'], cwd=dir, text=True)
+    subprocess.check_output(['git', 'tag', args.new_mobile], cwd=dir, text=True)
+    subprocess.check_output(['git', 'push', get_repo(dir), args.new_mobile], cwd=dir, text=True)
+    subprocess.check_output([
         'gh', 'release',
         'create', args.new_mobile,
         '--target', git_branch,
         '--title', args.title,
         '--notes', args.notes,
-        ], cwd=dir)
-    subprocess.check_call(['git', 'pull'], cwd=dir)
+        ], cwd=dir, text=True)
+    subprocess.check_output(['git', 'pull'], cwd=dir, text=True)
     if dir.endswith('mobile-sdk-ios'):
         release_upload(args, dir, 'itwin-mobile-sdk.podspec')
         release_upload(args, dir, 'AsyncLocationKit.podspec')
 
 def release_upload(args, dir, filename):
     print("Uploading in dir: {} file: {}".format(dir, filename))
-    subprocess.check_call(['gh', 'release', 'upload', args.new_mobile, filename], cwd=dir)
+    subprocess.check_output(['gh', 'release', 'upload', args.new_mobile, filename], cwd=dir, text=True)
 
 def push_command(args, dir, current = False):
     populate_mobile_versions(args, current)
@@ -775,6 +775,12 @@ def check_node_version():
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
 
+def handle_error(error):
+    # Uncomment this to see the standard traceback
+    # traceback.print_exc()
+    print(error)
+    exit(1)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Script for helping with creating a new Mobile SDK version.',
@@ -867,8 +873,8 @@ if __name__ == '__main__':
             args.func(args)
         else:
             parser.print_help()
+    except subprocess.CalledProcessError as error:
+        print(f'Failed command output:\n{error.output}')
+        handle_error(error)
     except Exception as error:
-        # Uncomment this to see the standard traceback
-        # traceback.print_exc()
-        print(error)
-        exit(1)
+        handle_error(error)

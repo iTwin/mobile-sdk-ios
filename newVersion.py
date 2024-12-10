@@ -95,7 +95,7 @@ itwin_version_package = '@itwin/core-common'
 # The package whose dependencies determine the current add-on version.
 native_version_package = '@itwin/core-backend'
 # The branch this script is running in
-git_branch = 'main'
+git_branch = 'release/itwin-4.x'
 # The names of the iOS sample apps
 ios_sample_names = [
     'CameraSample',

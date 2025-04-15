@@ -160,9 +160,10 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         loadStateActive = true
         authState = nil
         serviceConfig = nil
-        if let keychainDict = keychainHelper.loadDict() {
-            authState = keychainDict["auth-state"] as? OIDAuthState
-            serviceConfig = keychainDict["service-config"] as? OIDServiceConfiguration
+        if let data = keychainHelper.loadData(),
+           let authWrapper = try? NSKeyedUnarchiver.unarchivedObject(ofClass: AuthWrapper.self, from: data) {
+            authState = authWrapper.authState
+            serviceConfig = authWrapper.serviceConfig
         }
         loadStateActive = false
     }
@@ -170,17 +171,9 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     /// Saves the ITMOIDCAuthorizationClient's state data to the keychain.
     open func saveState() {
         if loadStateActive { return }
-        var keychainDict: [String: Any] = [:]
-        if let authState {
-            keychainDict["auth-state"] = authState
-        }
-        if let serviceConfig {
-            keychainDict["service-config"] = serviceConfig
-        }
-        if keychainDict.isEmpty {
-            keychainHelper.deleteData()
-        } else {
-            keychainHelper.save(dict: keychainDict)
+        let dataWrapper = AuthWrapper(authState: authState, serviceConfig: serviceConfig)
+        if let data = try? NSKeyedArchiver.archivedData(withRootObject: dataWrapper, requiringSecureCoding: true) {
+            keychainHelper.save(data: data)
         }
     }
 
@@ -442,7 +435,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
 
     public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
-        ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
+            ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
 
     // MARK: - AuthorizationClient Protocol implementation
@@ -463,5 +456,30 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                 completion(nil, nil, error)
             }
         }
+    }
+}
+
+@objc(ITMAuthWrapper) fileprivate class AuthWrapper: NSObject, NSSecureCoding {
+    static var supportsSecureCoding = true
+    var authState: OIDAuthState?
+    var serviceConfig: OIDServiceConfiguration?
+
+    func encode(with coder: NSCoder) {
+        if let authState = authState {
+            coder.encode(authState, forKey: "authState")
+        }
+        if let serviceConfig = serviceConfig {
+            coder.encode(serviceConfig, forKey: "serviceConfig")
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        self.authState = coder.decodeObject(of: OIDAuthState.self, forKey: "authState")
+        self.serviceConfig = coder.decodeObject(of: OIDServiceConfiguration.self,forKey: "serviceConfig")
+    }
+
+    init(authState: OIDAuthState?, serviceConfig: OIDServiceConfiguration?) {
+        self.authState = authState
+        self.serviceConfig = serviceConfig
     }
 }

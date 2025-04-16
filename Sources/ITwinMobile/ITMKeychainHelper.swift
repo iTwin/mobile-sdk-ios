@@ -48,49 +48,6 @@ open class ITMKeychainHelper {
         return status == errSecSuccess ? item as? Data : nil
     }
 
-    /// Loads the stored secret data from the app keychain as an `NSKeyedUnarchiver`.
-    /// - Note: You must call `finishDecoding` on the returned value after using it to decode.
-    /// - Returns: An `NSKeyedUnarchiver` ready to decode the secret data, or `nil` if nothing is currently saved
-    /// in the keychain, or the data in the keychain isn't a valid keyed archive.
-    public func loadUnarchiver() -> NSKeyedUnarchiver? {
-        if let archivedKeychainData = loadData(),
-           let unarchiver = try? NSKeyedUnarchiver(forReadingFrom: archivedKeychainData) {
-            unarchiver.requiresSecureCoding = false
-            return unarchiver
-        }
-        return nil
-    }
-
-    /// Loads the stored secret data from the app keychain as a `Dictionary`.
-    /// - Returns: A `Dictionary` containing the secret data, or `nil` if nothing is currently saved in the keychain,
-    /// or the data stored in the keychain isn't a `Dictionary`.
-    public func loadDict() -> [String: Any]? {
-        if let unarchiver = loadUnarchiver() {
-            defer {
-                unarchiver.finishDecoding()
-            }
-            if let keychainDict = unarchiver.decodeObject(of: NSDictionary.self, forKey: NSKeyedArchiveRootObjectKey) {
-                return keychainDict as? [String: Any]
-            }
-        }
-        return nil
-    }
-
-    /// Loads the stored secret data from the app keychain as a `String`.
-    /// - Returns: A `String` containing the secret data, or `nil` if nothing is currently saved in the keychain,
-    /// or the data stored in the keychain isn't a `String`.
-    public func loadString() -> String? {
-        if let unarchiver = loadUnarchiver() {
-            defer {
-                unarchiver.finishDecoding()
-            }
-            if let keychainString = unarchiver.decodeObject(of: NSString.self, forKey: NSKeyedArchiveRootObjectKey) {
-                return keychainString as String
-            }
-        }
-        return nil
-    }
-
     /// Saves the given secret `Data` value to the app's keychain.
     /// - Parameter value: A `Data` value containing the secret data.
     /// - Returns: `true` if it succeeds, or `false` otherwise.
@@ -103,26 +60,6 @@ open class ITMKeychainHelper {
             status = SecItemUpdate(commonKeychainQuery() as CFDictionary, [secValueData: data] as CFDictionary)
         }
         return status == errSecSuccess
-    }
-
-    /// Saves the given secret `Dictionary` value to the app's keychain.
-    /// - Parameter value: A `Dictionary` value containing the secret data.
-    /// - Returns: `true` if it succeeds, or `false` otherwise.
-    @discardableResult public func save(dict: Dictionary<String, Any>) -> Bool {
-        if let data = try? NSKeyedArchiver.archivedData(withRootObject: dict as NSDictionary, requiringSecureCoding: true) {
-            return save(data: data)
-        }
-        return false
-    }
-
-    /// Saves the given secret `String` value to the app's keychain.
-    /// - Parameter value: A `String` value containing the secret data.
-    /// - Returns: `true` if it succeeds, or `false` otherwise.
-    @discardableResult public func save(string: String) -> Bool {
-        if let data = try? NSKeyedArchiver.archivedData(withRootObject: string as NSString, requiringSecureCoding: true) {
-            return save(data: data)
-        }
-        return false
     }
 
     /// Deletes the secret data from the app's keychain.

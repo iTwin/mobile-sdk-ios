@@ -435,7 +435,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
 
     public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
-            ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
+        ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
 
     // MARK: - AuthorizationClient Protocol implementation

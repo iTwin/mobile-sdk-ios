@@ -462,7 +462,12 @@ def skip_commit_id(args):
 
 def modify_samples_package_resolved(args):
     if not hasattr(args, 'new_commit_id') and not skip_commit_id(args):
-        args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
+        try:
+            args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, args.new_mobile)
+        except:
+            last_release = get_last_release()
+            print(f'Error: Unable to get commit id for {args.new_mobile}; trying {last_release}.')
+            args.new_commit_id = get_last_commit_id(sdk_dirs.sdk_ios, last_release)
     for dir in get_xcodeproj_dirs():
         modify_package_resolved(args, os.path.join(dir, 'project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
 
@@ -627,24 +632,39 @@ def process_environment(args):
     fetch_arg_from_environment(args, 'ITM_NEW_ADD_ON')
     fetch_arg_from_environment(args, 'ITM_NEW_ADD_ON_COMMIT_ID')
 
-def get_last_release():
+def get_last_release_internal(mobile_base_version_search):
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
     tags = result.splitlines()
     last_patch = 0
+    regex = re.compile(f'^{mobile_base_version_search}([0-9]+)$')
     if isinstance(tags, list):
         for tag in tags:
-            match = re.search('^' + mobile_base_version_search_list[-1] + '([0-9]+)$', tag)
+            match = regex.match(tag)
+            # match = re.search('^' + mobile_base_version_search_list[-1] + '([0-9]+)$', tag)
             if match and len(match.groups()) == 1:
                 this_patch = int(match.group(1))
                 if this_patch > last_patch:
                     last_patch = this_patch
     if last_patch > 0:
-        return mobile_base_version + str(last_patch)
-    return f'{mobile_base_version}0'
+        return mobile_base_version_search.replace('\\', '') + str(last_patch)
+    raise Exception(f'Error: Could not find last release of {mobile_base_version}')
+
+def get_last_release():
+    try:
+        return get_last_release_internal(mobile_base_version_search_list[-1])
+    except:
+        pass
+    try:
+        return get_last_release_internal(mobile_base_version_search_list[-2])
+    except:
+        return f'{mobile_base_version}0'
 
 def get_next_release(last_release):
     parts = last_release.split('.')
+    base_parts = mobile_base_version.split('.')
     if len(parts) == 3:
+        if parts[1] != base_parts[1]:
+            return f'{mobile_base_version}0'
         parts[2] = str(int(parts[2]) + 1)
         new_release = '.'.join(parts)
         return new_release

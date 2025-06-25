@@ -638,7 +638,7 @@ def process_environment(args):
 def get_last_release_internal(mobile_base_version_search):
     result = subprocess.check_output(['git', 'tag'], cwd=sdk_dirs.sdk_ios, encoding='UTF-8')
     tags = result.splitlines()
-    last_patch = 0
+    last_patch = -1
     regex = re.compile(f'^{mobile_base_version_search}([0-9]+)$')
     if isinstance(tags, list):
         for tag in tags:
@@ -648,7 +648,7 @@ def get_last_release_internal(mobile_base_version_search):
                 this_patch = int(match.group(1))
                 if this_patch > last_patch:
                     last_patch = this_patch
-    if last_patch > 0:
+    if last_patch >= 0:
         return mobile_base_version_search.replace('\\', '') + str(last_patch)
     raise Exception(f'Error: Could not find last release of {mobile_base_version}')
 

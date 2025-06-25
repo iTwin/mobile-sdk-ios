@@ -40,7 +40,7 @@ itwin_base_version_search_list = [
 ]
 # The version prefix when determining the latest iTwin version.
 itwin_version_prefix = '5.0'
-# iTwin Mobile SDK base version. 0.24.x for now.
+# iTwin Mobile SDK base version. 0.30.x for now.
 mobile_base_version = "0.30."
 # iTwin Mobile SDK base version to search for 0.22.x through 0.30.x for now.
 mobile_base_version_search_list = [

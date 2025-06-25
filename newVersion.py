@@ -16,7 +16,7 @@ from functools import cmp_to_key
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 4.9.x for now.
+# iTwin base versions to search for. 3.2.x - 5.0.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -36,16 +36,18 @@ itwin_base_version_search_list = [
     "4\\.9\\.",
     "4\\.10\\.",
     "4\\.11\\.",
+    "5\\.0\\.",
 ]
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '4.11'
+itwin_version_prefix = '5.0'
 # iTwin Mobile SDK base version. 0.24.x for now.
-mobile_base_version = "0.24."
-# iTwin Mobile SDK base version to search for 0.22.x through 0.24.x for now.
+mobile_base_version = "0.30."
+# iTwin Mobile SDK base version to search for 0.22.x through 0.30.x for now.
 mobile_base_version_search_list = [
     "0\\.22\\.",
     "0\\.23\\.",
     "0\\.24\\.",
+    "0\\.30\\.",
 ]
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
@@ -75,6 +77,7 @@ appui_layout_packages = [
 ]
 imodels_access_packages = [
     "imodels-access-backend",
+    "imodels-access-common",
     "imodels-access-frontend",
 ]
 itwins_client_packages = [
@@ -197,12 +200,12 @@ def get_packages_tuples(packages, prefix, group_name):
 
 def get_itwin_non_core_tuples():
     result = []
-    result.extend(get_packages_tuples(appui_packages, '4', 'appui'))
+    result.extend(get_packages_tuples(appui_packages, '5', 'appui'))
     result.extend(get_packages_tuples(appui_layout_packages, '4', 'appui_layout'))
-    result.extend(get_packages_tuples(imodels_access_packages, '4', 'imodels_access'))
+    result.extend(get_packages_tuples(imodels_access_packages, '6', 'imodels_access'))
     result.extend(get_packages_tuples(itwins_client_packages, '1', 'itwins_client'))
-    result.extend(get_packages_tuples(imodels_client_packages, '4', 'imodels_client'))
-    result.extend(get_packages_tuples(presentation_packages, '4', 'presentation'))
+    result.extend(get_packages_tuples(imodels_client_packages, '6', 'imodels_client'))
+    result.extend(get_packages_tuples(presentation_packages, '5', 'presentation'))
     return result
 
 def modify_package_json(args, dir):

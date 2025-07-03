@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
   spec.name         = "itwin-mobile-sdk"
-  spec.version      = "0.24.0"
+  spec.version      = "0.30.0"
   spec.summary      = "iTwin Mobile SDK"
   spec.homepage     = "https://github.com/iTwin/mobile-sdk-ios"
   spec.license      = { :type => "MIT", :file => "LICENSE.md" }
@@ -17,5 +17,5 @@ Pod::Spec.new do |spec|
   spec.dependency "ReachabilitySwift"
   spec.dependency "AsyncLocationKit", "~> 1.0.5"
   spec.dependency "AppAuth", "~> 1.4"
-  spec.dependency "itwin-mobile-native", "4.11.35"
+  spec.dependency "itwin-mobile-native", "4.11.39"
 end

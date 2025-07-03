@@ -6,15 +6,37 @@
   "configurations": [
     {
       "name": "Python: newVersion.py bump",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",
       "args": ["bump", "--force"]
     },
     {
+      "name": "Python: newVersion.py change",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "args": ["change", "--new", "0.30.0", "--newITwin", "5.0.2", "--newAddOn", "5.0.110", "--force"]
+    },
+    {
+      "name": "Python: newVersion.py stage1",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/newVersion.py",
+      "console": "integratedTerminal",
+      "env": {
+        "ITM_NEW_MOBILE": "0.30.0",
+        "ITM_NEW_ITWIN": "5.0.2",
+        "ITM_NEW_ADDON": "",
+        "ITM_NEW_ADD_ON_COMMIT_ID": ""
+      },
+      "args": ["stage1", "--force"]
+    },
+    {
       "name": "Python: newVersion.py bumpall",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/newVersion.py",
       "console": "integratedTerminal",

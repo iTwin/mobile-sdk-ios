@@ -39,10 +39,12 @@ open class ITMViewController: UIViewController {
         super.viewWillAppear(animated)
     }
 
-    /// Detaches and clears this view controller's ``ITMNativeUI``.
+    /// Detaches and clears this view controller's ``ITMNativeUI``, and detaches this view conroller from the `ITMApplication`.
+    /// - Note: This calls ``application``'s `viewWillDisappear()` function.
     open override func viewWillDisappear(_ animated: Bool) {
         itmNativeUI?.detach()
         itmNativeUI = nil
+        ITMViewController.application.viewWillDisappear()
         super.viewWillDisappear(animated)
     }
 

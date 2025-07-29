@@ -184,19 +184,27 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let keyboardAnimationDurationUserInfoKey = UIResponder.keyboardAnimationDurationUserInfoKey
         let keyboardFrameEndUserInfoKey = UIResponder.keyboardFrameEndUserInfoKey
         for (key, value) in keyboardNotifications {
-            observers.addObserver(forName: key) { [weak self] notification in
+            observers.addObserver(forName: key) { [weak self, weak viewController] notification in
                 if let messenger = self?.itmMessenger,
                    let duration = notification.userInfo?[keyboardAnimationDurationUserInfoKey] as? Double,
                    let keyboardSize = (notification.userInfo?[keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue {
                     Task {
-                        await messenger.queryAndShowError(viewController, value, [
-                            "duration": duration,
-                            "height": keyboardSize.size.height
-                        ])
+                        if let viewController = viewController {
+                            await messenger.queryAndShowError(viewController, value, [
+                                "duration": duration,
+                                "height": keyboardSize.size.height
+                            ])
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Must be called from the `viewWillDisappear` function of the `UIViewController` that is presenting
+    /// the iTwin app's `UIWebView`. Please note that ``ITMViewController`` calls this function automatically.
+    open func viewWillDisappear() {
+        observers.clear()
     }
 
     /// Set up the given `WKWebViewConfiguration` value so it can successfully be used with a `WKWebView` object

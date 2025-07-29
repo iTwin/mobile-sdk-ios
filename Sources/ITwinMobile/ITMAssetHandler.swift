@@ -48,7 +48,16 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
             ITMApplication.logger.log(.error, "ITMAssetHandler: Bundle does not contain resource path")
             return nil
         }
-        let fileUrl = assetFolderUrl.appendingPathComponent(url.path)
+        var urlPath = url.path
+        var fileUrl = assetFolderUrl.appendingPathComponent(urlPath)
+        if FileManager.default.fileExists(atPath: fileUrl.path) {
+            ITMApplication.logger.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
+            return fileUrl
+        }
+        if let range = urlPath.range(of: "/ITMApplication/"), range.lowerBound == urlPath.startIndex {
+            urlPath = urlPath.replacingCharacters(in: range, with: "/")
+        }
+        fileUrl = assetFolderUrl.appendingPathComponent(urlPath)
         if FileManager.default.fileExists(atPath: fileUrl.path) {
             ITMApplication.logger.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
             return fileUrl

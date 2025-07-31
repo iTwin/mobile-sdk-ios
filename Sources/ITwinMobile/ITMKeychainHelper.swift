@@ -43,7 +43,7 @@ open class ITMKeychainHelper {
         var item: CFTypeRef?
         let status = SecItemCopyMatching(getQuery as CFDictionary, &item)
         if status != errSecItemNotFound, status != errSecSuccess {
-            ITMApplication.logger.log(.warning, "ITMKeychain: Unknown load error: \(status)")
+            ITMApplication.log(.warning, "ITMKeychain: Unknown load error: \(status)")
         }
         return status == errSecSuccess ? item as? Data : nil
     }

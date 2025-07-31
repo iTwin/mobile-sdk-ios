@@ -61,6 +61,7 @@ public struct ITMAlertAction: Codable, Equatable {
     ///   - actions: The actions to add to the alert controller.
     ///   - alertController: The `UIAlertController` to add the actions to.
     ///   - handler: The handler that is called when an action is selected by the `UIAlertController`.
+    @MainActor
     static func add(actions: [ITMAlertAction], to alertController: UIAlertController, handler: ((ITMAlertAction) -> Void)? = nil) {
         for action in actions {
             alertController.addAction(UIAlertAction(title: action.title, style: UIAlertAction.Style(action.style)) { _ in

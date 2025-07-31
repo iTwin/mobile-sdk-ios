@@ -9,6 +9,7 @@ import AVFoundation
 import Photos
 
 /// Helper class for dealing with device permissions such as camera access and location access.
+@MainActor
 open class ITMDevicePermissionsHelper {
     /// Title for missing permissions dialog
     public static var accessRequiredStr = NSLocalizedString("Access required", comment: "Title for missing permissions dialog")
@@ -59,7 +60,6 @@ open class ITMDevicePermissionsHelper {
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.
     /// - Note: This will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
-    @MainActor
     public static func openLocationAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
         openMissingPermissionsDialog(message: noLocationPermissionsStr, title: locationDisabledStr, actionSelected: actionSelected)
     }
@@ -68,7 +68,6 @@ open class ITMDevicePermissionsHelper {
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.
     /// - Note: This will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
-    @MainActor
     public static func openMicrophoneAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
         openMissingPermissionsDialog(message: noMicrophonePermissionsStr, actionSelected: actionSelected)
     }
@@ -77,7 +76,6 @@ open class ITMDevicePermissionsHelper {
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.
     /// - Note: This will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
-    @MainActor
     public static func openPhotoGalleryAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
         openMissingPermissionsDialog(message: noPhotoGalleryPermissionsStr, actionSelected: actionSelected)
     }
@@ -86,7 +84,6 @@ open class ITMDevicePermissionsHelper {
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.
     /// - Note: This will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
-    @MainActor
     public static func openVideoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
         openMissingPermissionsDialog(message: noVideoCapturePermissionsStr, actionSelected: actionSelected)
     }
@@ -95,12 +92,10 @@ open class ITMDevicePermissionsHelper {
     /// either open the iOS Settings app or cancel.
     /// - Parameter actionSelected: Callback indicating the user's response.
     /// - Note: This will have a style of .cancel for the cancel action and .default for the "Open Settings" action.
-    @MainActor
     public static func openPhotoCaptureAccessAccessDialog(actionSelected: ((UIAlertAction) -> Void)? = nil) {
         openMissingPermissionsDialog(message: noPhotoCapturePermissionsStr, actionSelected: actionSelected)
     }
 
-    @MainActor
     private static func openMissingPermissionsDialog(message: String, title: String? = nil, actionSelected: ((UIAlertAction) -> Void)? = nil) {
         let viewController = ITMAlertController.getAlertVC()
         let alert = UIAlertController(title: title == nil ? accessRequiredStr : title, message: message, preferredStyle: .alert)

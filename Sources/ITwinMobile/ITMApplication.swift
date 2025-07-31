@@ -9,7 +9,7 @@ import WebKit
 // MARK: - JSON convenience functionality
 
 /// Convenience type alias for a dictionary intended for interop via JSON.
-public typealias JSON = [String: Any]
+public typealias JSON = [String: Sendable]
 
 /// Extension to create a dictionary from JSON text.
 public extension JSON {
@@ -26,7 +26,7 @@ public extension JSON {
         do {
             return try JSONSerialization.jsonObject(with: stringData!, options: []) as? JSON
         } catch {
-            ITMApplication.logger.log(.error, error.localizedDescription)
+            ITMApplication.log(.error, error.localizedDescription)
         }
         return nil
     }
@@ -81,7 +81,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public typealias HashParams = [HashParam]
 
     /// The `WKWebView` that the web app runs in.
-    @MainActor
     public let webView: WKWebView
     /// The ``ITMWebViewLogger`` for JavaScript console output.
     public let webViewLogger: ITMWebViewLogger?
@@ -108,6 +107,17 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// The ``ITMLogger`` responsible for handling log messages (both from native code and JavaScript code). The default logger
     /// uses `NSLog` for the messages. Replace this object with an ``ITMLogger`` subclass to change the logging behavior.
     public static var logger = ITMLogger()
+
+    /// Convenience wrapper around `logger.log` that does not require `@MainActor` usage.
+    /// - Note: The actual logging happens in the main actor, so may happen after the function has returned.
+    /// - Parameters:
+    ///   - severity: The severity of the log message.
+    ///   - logMessage: The message to log.
+    public static nonisolated func log(_ severity: ITMLogger.Severity?, _ logMessage: String) {
+        Task { @MainActor in
+            logger.log(severity, logMessage)
+        }
+    }
 
     /// The ``ITMGeolocationManager`` handling the application's geo-location requests.
     public let geolocationManager: ITMGeolocationManager
@@ -174,7 +184,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     }
 
     deinit {
-        itmMessenger.unregisterQueryHandlers(queryHandlers)
+        let messengerCopy = itmMessenger
+        let handlersCopy = queryHandlers
+        Task { @MainActor in
+            messengerCopy.unregisterQueryHandlers(handlersCopy)
+        }
     }
 
     /// Must be called from the `viewWillAppear` function of the `UIViewController` that is presenting
@@ -289,7 +303,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Parameters:
     ///   - type: The query type used by the JavaScript code to perform the query.
     ///   - handler: The handler for the query. Note that it will be called on the main thread.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) {
+    public func registerQueryHandler<T, U: Sendable>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) {
         let queryHandler = itmMessenger.registerQueryHandler(type, handler)
         queryHandlers.append(queryHandler)
     }
@@ -394,7 +408,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: An ``ITMOIDCAuthorizationClient`` instance configured using ``configData``.
-    @MainActor
     open func createAuthClient() -> AuthorizationClient? {
         guard let viewController = Self.topViewController,
               configData?.isYes("ITMAPPLICATION_DISABLE_AUTH") != true else {
@@ -448,7 +461,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter allowInspectBackend: Whether or not to all debugging of the backend.
-    @MainActor
     open func loadBackend(_ allowInspectBackend: Bool) {
         if backendLoadStarted {
             return
@@ -506,7 +518,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter request: The `URLRequest` used to load the frontend.
-    @MainActor
     open func showFrontendLoadError(request: URLRequest) {
         let alert = UIAlertController(title: "Error", message: "Could not connect to React debug server at URL \(request.url?.absoluteString ?? "<Missing URL>").", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
@@ -524,7 +535,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter request: The `URLRequest` to load into webview.
-    @MainActor
     open func loadFrontend(request: URLRequest) {
         // NOTE: the below runs before the webView's main page has been loaded, and
         // we wait for the execution to complete before loading the main page. So we
@@ -549,19 +559,23 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 }
                 _ = webView.load(request)
                 if usingRemoteServer {
-                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [self] _ in
-                        if !fullyLoaded {
-                            Task {
-                                await showFrontendLoadError(request: request)
+                    _ = Timer.scheduledTimer(withTimeInterval: 10, repeats: false) { [weak self] _ in
+                        Task { @MainActor in
+                            if self?.fullyLoaded == false {
+                                self?.showFrontendLoadError(request: request)
                             }
                         }
                     }
                 }
                 observers.addObserver(forName: NSNotification.Name.reachabilityChanged) { [weak self] _ in
-                    self?.updateReachability()
+                    Task { @MainActor in
+                        self?.updateReachability()
+                    }
                 }
                 observers.addObserver(forName: UIDevice.orientationDidChangeNotification) { [weak self] _ in
-                    self?.reactToOrientationChange()
+                    Task { @MainActor in
+                        self?.reactToOrientationChange()
+                    }
                 }
                 frontendLoadedContinuation?.resume(returning: ())
                 frontendLoadedContinuation = nil
@@ -580,7 +594,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             await backendLoaded
             let url = getBaseUrl() + getUrlHashParams().toString()
             let request = URLRequest(url: URL(string: url)!)
-            await loadFrontend(request: request)
+            loadFrontend(request: request)
         }
     }
 
@@ -601,7 +615,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view.
-    @MainActor
     public class var topView: UIView? {
         return topViewController?.view
     }
@@ -610,7 +623,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Returns: The top view controller.
-    @MainActor
     public class var topViewController: UIViewController? {
         let keyWindow = UIApplication
             .shared
@@ -638,7 +650,6 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     ///
     /// Override this function in a subclass in order to add custom behavior.
     /// - Parameter view: View to which to add the iTwin Mobile app, or nil to hide the iTwin Mobile app.
-    @MainActor
     open func addApplicationToView(_ view: UIView?) {
         guard let parentView = view ?? Self.topView else {
             return
@@ -684,7 +695,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+    open func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor () -> Void) {
         guard shouldShowWebPanel(forFrame: frame) else {
             completionHandler()
             return
@@ -701,7 +712,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+    open func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor (Bool) -> Void) {
         guard shouldShowWebPanel(forFrame: frame) else {
             completionHandler(false)
             return
@@ -722,7 +733,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// See `WKUIDelegate` documentation.
     ///
     /// Override this function in a subclass in order to add custom behavior.
-    open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
+    open func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping @MainActor (String?) -> Void) {
         guard shouldShowWebPanel(forFrame: frame) else {
             completionHandler(nil)
             return
@@ -763,7 +774,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // This requests that the link be opened in a new window. The check below detects this, and
         // then opens the link in the default browser.
         if navigationAction.targetFrame == nil, let url = navigationAction.request.url {
-            ITMApplication.logger.log(.info, "Opening URL \(url) in Safari.")
+            ITMApplication.log(.info, "Opening URL \(url) in Safari.")
             UIApplication.shared.open(url)
         }
         return nil

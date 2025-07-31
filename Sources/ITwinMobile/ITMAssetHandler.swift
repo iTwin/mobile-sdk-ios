@@ -41,17 +41,17 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
     /// - Returns: A file URL if the file is found, otherwise `nil`.
     public func getFileUrl(urlSchemeTask: WKURLSchemeTask) -> URL? {
         guard let url = urlSchemeTask.request.url else {
-            ITMApplication.logger.log(.error, "ITMAssetHandler: Request for null URL")
+            ITMApplication.log(.error, "ITMAssetHandler: Request for null URL")
             return nil
         }
         guard let assetFolderUrl = Bundle.main.resourceURL?.appendingPathComponent(assetPath) else {
-            ITMApplication.logger.log(.error, "ITMAssetHandler: Bundle does not contain resource path")
+            ITMApplication.log(.error, "ITMAssetHandler: Bundle does not contain resource path")
             return nil
         }
         var urlPath = url.path
         var fileUrl = assetFolderUrl.appendingPathComponent(urlPath)
         if FileManager.default.fileExists(atPath: fileUrl.path) {
-            ITMApplication.logger.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
+            ITMApplication.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
             return fileUrl
         }
         if let range = urlPath.range(of: "/ITMApplication/"), range.lowerBound == urlPath.startIndex {
@@ -59,11 +59,11 @@ public class ITMAssetHandler: NSObject, WKURLSchemeHandler {
         }
         fileUrl = assetFolderUrl.appendingPathComponent(urlPath)
         if FileManager.default.fileExists(atPath: fileUrl.path) {
-            ITMApplication.logger.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
+            ITMApplication.log(.info, "ITMAssetHandler: Loading: \(url.absoluteString)")
             return fileUrl
         }
 
-        ITMApplication.logger.log(.error, "ITMAssetHandler: Not found: \(url)")
+        ITMApplication.log(.error, "ITMAssetHandler: Not found: \(url)")
         return nil
     }
 

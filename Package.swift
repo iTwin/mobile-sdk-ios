@@ -23,9 +23,9 @@ let package = Package(
         // Dependencies declare other packages that this package depends on.
         // .package(url: /* package url */, from: "1.0.0"),
         .package(name: "itwin-mobile-native", url: "https://github.com/iTwin/mobile-native-ios", .exact("5.0.110")),
-        .package(url: "https://github.com/AsyncSwift/AsyncLocationKit.git", .upToNextMajor(from: "1.5.6")),
+        .package(url: "https://github.com/AsyncSwift/AsyncLocationKit.git", .upToNextMajor(from: "1.6.4")),
         .package(name: "Reachability", url: "https://github.com/ashleymills/Reachability.swift", from: "5.1.0"),
-        .package(name: "AppAuth", url: "https://github.com/openid/AppAuth-iOS.git", .upToNextMajor(from: "1.6.0")),
+        .package(name: "AppAuth", url: "https://github.com/openid/AppAuth-iOS.git", .upToNextMajor(from: "2.0.0")),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.

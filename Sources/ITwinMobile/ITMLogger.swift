@@ -10,7 +10,7 @@ open class ITMLogger {
     /// Set this to `false` to completely disable logging.
     public var enabled = true
 
-    public enum Severity: String {
+    public enum Severity: String, Sendable {
         case fatal
         case error
         case warning

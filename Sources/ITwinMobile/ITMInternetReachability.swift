@@ -8,7 +8,7 @@ import Reachability
 /// Singleton object for performing any internet reachability tests.
 class ITMInternetReachability {
     private let reachability = try! Reachability()
-    public static let shared = ITMInternetReachability()
+    @MainActor public static let shared = ITMInternetReachability()
 
     private init() {
         try? reachability.startNotifier()

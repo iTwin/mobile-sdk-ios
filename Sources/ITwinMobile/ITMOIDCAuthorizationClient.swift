@@ -120,7 +120,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
         }
     }
     public var keychainHelper: ITMKeychainHelper
-    internal static var currentAuthorizationFlow: OIDExternalUserAgentSession?
+    @MainActor internal static var currentAuthorizationFlow: OIDExternalUserAgentSession?
     private var loadStateActive = false
     private let defaultScopes = "projects:read imodelaccess:read itwinjs organization profile email imodels:read realitydata:read savedviews:read savedviews:modify itwins:read openid offline_access"
     private let defaultRedirectUri = "imodeljs://app/signin-callback"
@@ -234,11 +234,11 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
                     try await signIn()
                     return try getLastAccessToken()
                 } catch {
-                    ITMApplication.logger.log(.error, "Error refreshing tokens: \(error)")
+                    ITMApplication.log(.error, "Error refreshing tokens: \(error)")
                     throw error
                 }
             } else {
-                ITMApplication.logger.log(.error, "Error refreshing tokens: \(error)")
+                ITMApplication.log(.error, "Error refreshing tokens: \(error)")
                 throw error
             }
         }
@@ -283,7 +283,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return authState
         } catch {
             authState = nil
-            ITMApplication.logger.log(.warning, "Authorization error: \(error.localizedDescription)")
+            ITMApplication.log(.warning, "Authorization error: \(error.localizedDescription)")
             throw error
         }
     }
@@ -301,7 +301,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
             return serviceConfig
         } catch {
             self.serviceConfig = nil
-            ITMApplication.logger.log(.error, "Failed to discover issuer configuration from \(settings.issuerURL): Error \(error)")
+            ITMApplication.log(.error, "Failed to discover issuer configuration from \(settings.issuerURL): Error \(error)")
             throw error
         }
     }
@@ -435,7 +435,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     // MARK: - OIDAuthStateErrorDelegate Protocol implementation
 
     public func authState(_ state: OIDAuthState, didEncounterAuthorizationError error: Error) {
-        ITMApplication.logger.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
+        ITMApplication.log(.error, "ITMOIDCAuthorizationClient didEncounterAuthorizationError: \(error)")
     }
 
     // MARK: - AuthorizationClient Protocol implementation
@@ -444,11 +444,11 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
     public var onAccessTokenChanged: AccessTokenChangedCallback?
 
     open func getAccessToken(_ completion: @escaping GetAccessTokenCallback) {
-        guard itmApplication.itmMessenger.frontendLaunchDone else {
-            completion(nil, nil, nil)
-            return
-        }
         Task {
+            guard await itmApplication.itmMessenger.frontendLaunchDone else {
+                completion(nil, nil, nil)
+                return
+            }
             do {
                 let (accessToken, expirationDate) = try await getAccessToken()
                 completion(accessToken, expirationDate, nil)
@@ -460,7 +460,7 @@ open class ITMOIDCAuthorizationClient: NSObject, ITMAuthorizationClient, OIDAuth
 }
 
 @objc(ITMAuthWrapper) fileprivate class AuthWrapper: NSObject, NSSecureCoding {
-    static var supportsSecureCoding = true
+    static let supportsSecureCoding = true
     var authState: OIDAuthState?
     var serviceConfig: OIDServiceConfiguration?
 

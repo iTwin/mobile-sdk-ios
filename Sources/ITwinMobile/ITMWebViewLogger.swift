@@ -85,6 +85,6 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
     ///   - severity: The log severity string. Must be a value from ``ITMLogger.Severity``.
     ///   - logMessage: The message to log.
     open func log(_ severity: String?, _ logMessage: String) {
-        ITMApplication.logger.log(ITMLogger.Severity(severity), logMessage)
+        ITMApplication.log(ITMLogger.Severity(severity), logMessage)
     }
 }

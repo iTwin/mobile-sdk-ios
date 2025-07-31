@@ -74,7 +74,7 @@ public extension AsyncLocationManager {
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
     func geolocationPosition() async throws -> JSON {
         let permission = await requestPermission(with: .whenInUsage)
-        if !ITMGeolocationManager.isAuthorized(permission) {
+        if await !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }
         let locationUpdateEvent = try await requestLocation()
@@ -216,14 +216,20 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         // kCLLocationAccuracyBestForNavigation, so "best" is a misnomer
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         observers.addObserver(forName: UIDevice.orientationDidChangeNotification) { [weak self] _ in
-            self?.updateHeadingOrientation()
+            Task { @MainActor in
+                self?.updateHeadingOrientation()
+            }
         }
         updateHeadingOrientation()
         webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: "Bentley_ITMGeolocation")
     }
 
     deinit {
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "Bentley_ITMGeolocation")
+        let webViewCopy = webView
+        Task { @MainActor in
+            // Note: this works because we pass a weak reference to self into the add function.
+            webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: "Bentley_ITMGeolocation")
+        }
     }
 
     /// Sets the threshold when "last location" is used in location requests instead of requesting a
@@ -240,7 +246,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
               let data = body.data(using: .utf8),
               let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
         else {
-            ITMApplication.logger.log(.error, "ITMGeolocationManager: bad message format")
+            ITMApplication.log(.error, "ITMGeolocationManager: bad message format")
             return
         }
         if let messageName = jsonObject["messageName"] as? String {
@@ -254,14 +260,14 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                     case "getCurrentPosition":
                         try await getCurrentPosition(jsonObject)
                     default:
-                        ITMApplication.logger.log(.error, "Unknown Bentley_ITMGeolocation messageName: \(messageName)")
+                        ITMApplication.log(.error, "Unknown Bentley_ITMGeolocation messageName: \(messageName)")
                     }
                 } catch {
-                    ITMApplication.logger.log(.error, "\(messageName) error: \(error.localizedDescription)")
+                    ITMApplication.log(.error, "\(messageName) error: \(error.localizedDescription)")
                 }
             }
         } else {
-            ITMApplication.logger.log(.error, "Bentley_ITMGeolocation messageName is not a string.")
+            ITMApplication.log(.error, "Bentley_ITMGeolocation messageName is not a string.")
         }
     }
 
@@ -325,7 +331,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         let positionId = try getPositionId(message)
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true {
-                await ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
+                ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
                     sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
                 }
             } else {
@@ -396,7 +402,6 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    @MainActor
     private func requireAsyncLocationManager() -> AsyncLocationManager {
         if _asyncLocationManager == nil {
             _asyncLocationManager = AsyncLocationManager(desiredAccuracy: .bestAccuracy)
@@ -408,7 +413,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     /// happens automatically in the main thread.
     public var asyncLocationManager: AsyncLocationManager {
         get async {
-            return await requireAsyncLocationManager()
+            return requireAsyncLocationManager()
         }
     }
 
@@ -417,7 +422,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         let positionId = try getPositionId(message)
         if ITMDevicePermissionsHelper.isLocationDenied {
             if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true {
-                await ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
+                ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
                     sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError)
                 }
             } else {
@@ -457,7 +462,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         itmMessenger.evaluateJavaScript(js)
     }
 
-    private func sendLocationUpdates() {
+    private nonisolated func sendLocationUpdates() {
         Task {
             await sendLocationUpdates()
         }
@@ -474,7 +479,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                 do {
                     positionJson = try lastLocation.geolocationPosition(locationManager.heading?.trueHeading)
                 } catch let ex {
-                    ITMApplication.logger.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
+                    ITMApplication.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
                     sendErrorToWatchers("watchPosition", errorJson: positionUnavailableError)
                 }
                 if let positionJson {
@@ -491,39 +496,43 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     // MARK: CLLocationManagerDelegate
 
     /// `CLLocationManagerDelegate` function that reports location updates to the JavaScript side of the polyfill.
-    public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         sendLocationUpdates()
     }
 
     /// `CLLocationManagerDelegate` function that reports heading updates to the JavaScript side of the polyfill.
-    public func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
+    public nonisolated func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
         sendLocationUpdates()
     }
 
     /// `CLLocationManagerDelegate` function that reports location errors to the JavaScript side of the polyfill.
-    public func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+    public nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         let (domain, code) = { ($0.domain, $0.code) }(error as NSError)
         if code == CLError.locationUnknown.rawValue, domain == kCLErrorDomain {
             // Apple docs say you should just ignore this error
         } else {
-            let errorJson: JSON
-            stopUpdatingPosition()
-            if code == CLError.denied.rawValue, domain == kCLErrorDomain {
-                errorJson = notAuthorizedError
-            } else {
-                // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
-                // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
-                // to POSITION_UNAVAILABLE.
-                errorJson = positionUnavailableError
+            Task { @MainActor in
+                let errorJson: JSON
+                stopUpdatingPosition()
+                if code == CLError.denied.rawValue, domain == kCLErrorDomain {
+                    errorJson = notAuthorizedError
+                } else {
+                    // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
+                    // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
+                    // to POSITION_UNAVAILABLE.
+                    errorJson = positionUnavailableError
+                }
+                sendErrorToWatchers("watchPosition", errorJson: errorJson)
             }
-            sendErrorToWatchers("watchPosition", errorJson: errorJson)
         }
     }
 
     /// `CLLocationManagerDelegate` function that reports location to the JavaScript side of the polyfill when the authorization first comes through.
-    public func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
-        if !watchIds.isEmpty {
-            sendLocationUpdates()
+    public nonisolated func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        Task { @MainActor in
+            if !watchIds.isEmpty {
+                sendLocationUpdates()
+            }
         }
     }
 }

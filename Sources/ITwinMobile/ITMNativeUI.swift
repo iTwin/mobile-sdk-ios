@@ -52,6 +52,7 @@ public extension CGRect {
 // MARK: - ITMNativeUI class
 
 /// Container class for all ``ITMNativeUIComponent`` objects.
+@MainActor
 open class ITMNativeUI: NSObject {
     private var components: [ITMNativeUIComponent] = []
     /// The `UIViewController` that components display in.
@@ -90,6 +91,7 @@ open class ITMNativeUI: NSObject {
 // MARK: - ITMNativeUIComponent class
 
 /// Base class for all UI components in ``ITMNativeUI``.
+@MainActor
 open class ITMNativeUIComponent: NSObject {
     /// The ``ITMNativeUI`` used to present the component.
     public let itmNativeUI: ITMNativeUI

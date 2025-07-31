@@ -23,7 +23,7 @@ extension WKWebView {
     func evaluateJavaScriptAsync(_ str: String) async throws -> Any? {
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
-                self.evaluateJavaScript(str) { data, error in
+                self.evaluateJavaScript(str) { (data: Sendable?, error) in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -100,7 +100,7 @@ extension Task where Success == Never, Failure == Never {
 // MARK: - ITMQueryHandler protocol and default extension
 
 /// Protocol for ITMMessenger query handlers.
-public protocol ITMQueryHandler: NSObjectProtocol {
+public protocol ITMQueryHandler: NSObjectProtocol, Sendable {
     /// Called when a query arrives from TypeScript.
     ///
     /// You must eventually call `ITMMessenger.respondToQuery` (passing the given queryId) if you respond
@@ -113,7 +113,7 @@ public protocol ITMQueryHandler: NSObjectProtocol {
     ///   - body: Optional message data sent from TypeScript.
     /// - Returns: true if you handle the given query, or false otherwise. If you return true, the query will not be passed to any other query handlers.
     @MainActor
-    func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) async -> Bool
+    func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool
     /// Gets the type of queries that this ``ITMQueryHandler`` handles.
     func getQueryType() -> String?
 }
@@ -148,7 +148,7 @@ public class ITMWeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
 // MARK: - Concrete Error classes
 
 /// Error with JSON data containing information about what went wrong.
-open class ITMError: Error, CustomStringConvertible {
+open class ITMError: Error, CustomStringConvertible, @unchecked Sendable {
     /// The string version of ``jsonValue`` (Empty string if jsonValue is `null`).
     public let jsonString: String
     /// The JSON data associated with this ``ITMError``.
@@ -219,9 +219,9 @@ public struct ITMStringError: LocalizedError {
 // MARK: - ITMMessenger class
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
-open class ITMMessenger: NSObject, WKScriptMessageHandler {
+open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     private static var unloggedQueryTypes = Set<String>()
-    private class ITMWKQueryHandler<T, U>: NSObject, ITMQueryHandler {
+    private class ITMWKQueryHandler<T, U: Sendable>: NSObject, ITMQueryHandler, @unchecked Sendable {
         private var itmMessenger: ITMMessenger
         private var type: String
         private var handler: (T) async throws -> U
@@ -237,7 +237,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
 
         @MainActor
-        func handleQuery(_ queryId: Int64, _ type: String, _ body: Any?) async -> Bool {
+        func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool {
             itmMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
             do {
                 let response: U
@@ -294,7 +294,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     /// Convenience typealias for a function that takes a `String Result` and returns void.
-    public typealias ITMResponseHandler = (Result<String, Error>) -> Void
+    public typealias ITMResponseHandler = @Sendable (Result<String, Error>) -> Void
     /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
     public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> Void
 
@@ -303,7 +303,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
     /// The default handler simply logs the error using ITMApplication.logger.
     public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> Void in
-        ITMApplication.logger.log(.error, baseError.localizedDescription)
+        ITMApplication.log(.error, baseError.localizedDescription)
     }
 
     /// Add a query type to the list of unlogged queries.
@@ -371,9 +371,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
 
     deinit {
         let weakWebView = WeakWKWebView(webView: webView)
-        ITMMessenger.weakWebViews.removeAll { $0 == weakWebView }
-        for handlerName in handlerNames {
-            webView.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
+        let webViewCopy = webView
+        let handlerNamesCopy = handlerNames
+        Task { @MainActor in
+            ITMMessenger.weakWebViews.removeAll { $0 == weakWebView }
+            for handlerName in handlerNamesCopy {
+                webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
+            }
         }
     }
 
@@ -492,7 +496,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     ///   - type: Query type.
     ///   - handler: Callback function for query.
     /// - Returns: The query handler created to handle the given query type.
-    public func registerQueryHandler<T, U>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) -> ITMQueryHandler {
+    public func registerQueryHandler<T, U: Sendable>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) -> ITMQueryHandler {
         return internalRegisterQueryHandler(type, handler)
     }
 
@@ -669,13 +673,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     /// Log an error message using `ITMApplication.logger`.
     /// - Parameter message: The error message to log.
     public func logError(_ message: String) {
-        ITMApplication.logger.log(.error, message)
+        ITMApplication.log(.error, message)
     }
 
     /// Log an info message using `ITMApplication.logger`.
     /// - Parameter message: The info message to log.
     public func logInfo(_ message: String) {
-        ITMApplication.logger.log(.info, message)
+        ITMApplication.log(.info, message)
     }
 
     /// Call after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
@@ -692,7 +696,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         frontendLaunchContinuation = nil
     }
 
-    private func internalRegisterQueryHandler<T, U>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
+    private func internalRegisterQueryHandler<T, U: Sendable>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
         let queryHandler = ITMWKQueryHandler<T, U>(self, type, handler)
         queryHandlerDict[type] = queryHandler
         return queryHandler
@@ -725,7 +729,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
         }
     }
 
-    private func processQuery(_ type: String, withBody body: Any?, queryId: Int64) async {
+    private func processQuery(_ type: String, withBody body: Sendable?, queryId: Int64) async {
         if let queryHandler = queryHandlerDict[type] {
             if await queryHandler.handleQuery(queryId, type, body) {
                 return
@@ -745,7 +749,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
     }
 
     private func processQueryResponse(_ response: Any?, queryId: Int64, error: Any?) {
-        Task {
+        Task { @MainActor in
             guard let (type, handler) = await responseHandlers.getAndRemoveValue(forKey: queryId) else {
                 logError("Query response with invalid or repeat queryId: \(queryId)")
                 return
@@ -820,7 +824,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler {
             "Could not cast response data from '\(dataType)' to expected type '\(expectedType)'. " +
             "Check your type cast for message response of type '\(messageType)' and if data arrived as expected."
 
-        ITMApplication.logger.log(.error, reason)
+        ITMApplication.log(.error, reason)
         #if DEBUG
             assert(false, reason)
         #endif

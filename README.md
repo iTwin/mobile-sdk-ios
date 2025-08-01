@@ -43,7 +43,7 @@ target 'MyMobileApp' do
   use_frameworks!
 
   # Pods for MyMobileApp
-  pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/5.0.110/itwin-mobile-native-ios.podspec'
+  pod 'itwin-mobile-native', podspec: 'https://github.com/iTwin/mobile-native-ios/releases/download/5.0.114/itwin-mobile-native-ios.podspec'
   pod 'itwin-mobile-sdk', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.30.3/itwin-mobile-sdk.podspec'
   pod 'AsyncLocationKit', podspec: 'https://github.com/iTwin/mobile-sdk-ios/releases/download/0.30.3/AsyncLocationKit.podspec'
 end
@@ -63,8 +63,8 @@ end
 ```
 
 ## Notes
-- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 5.0.2__, and your app must use that same version of iTwin.js.
+- This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 5.0.4__, and your app must use that same version of iTwin.js.
 
-- If you are using this package via CocoaPods, make sure to set the `itwin-mobile-native` CocoaPod to version 5.0.110
+- If you are using this package via CocoaPods, make sure to set the `itwin-mobile-native` CocoaPod to version 5.0.114
 
 - You may get a warning from AppAuth's OIDExternalUserAgentIOS.h when you build any project that includes this as a Swift Package. Unfortunately, there is no way that we know of to disable that warning. It can be ignored, though.

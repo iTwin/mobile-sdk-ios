@@ -17,5 +17,5 @@ Pod::Spec.new do |spec|
   spec.dependency "ReachabilitySwift"
   spec.dependency "AsyncLocationKit", "~> 1.0.5"
   spec.dependency "AppAuth", "~> 1.4"
-  spec.dependency "itwin-mobile-native", "5.0.114"
+  spec.dependency "itwin-mobile-native", "5.2.25"
 end

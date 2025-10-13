@@ -37,17 +37,20 @@ itwin_base_version_search_list = [
     "4\\.10\\.",
     "4\\.11\\.",
     "5\\.0\\.",
+    "5\\.1\\.",
+    "5\\.2\\.",
 ]
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '5.0'
-# iTwin Mobile SDK base version. 0.30.x for now.
-mobile_base_version = "0.30."
-# iTwin Mobile SDK base version to search for 0.22.x through 0.30.x for now.
+itwin_version_prefix = '5.2'
+# iTwin Mobile SDK base version. 0.31.x for now.
+mobile_base_version = "0.31."
+# iTwin Mobile SDK base version to search for 0.22.x through 0.31.x for now.
 mobile_base_version_search_list = [
     "0\\.22\\.",
     "0\\.23\\.",
     "0\\.24\\.",
     "0\\.30\\.",
+    "0\\.31\\.",
 ]
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "

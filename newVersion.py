@@ -16,7 +16,7 @@ from functools import cmp_to_key
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 5.0.x for now.
+# iTwin base versions to search for. 3.2.x - 5.5.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -39,18 +39,22 @@ itwin_base_version_search_list = [
     "5\\.0\\.",
     "5\\.1\\.",
     "5\\.2\\.",
+    "5\\.3\\.",
+    "5\\.4\\.",
+    "5\\.5\\.",
 ]
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '5.2'
-# iTwin Mobile SDK base version. 0.31.x for now.
-mobile_base_version = "0.31."
-# iTwin Mobile SDK base version to search for 0.22.x through 0.31.x for now.
+itwin_version_prefix = '5.5'
+# iTwin Mobile SDK base version. 0.32.x for now.
+mobile_base_version = "0.32."
+# iTwin Mobile SDK base version to search for 0.22.x through 0.32.x for now.
 mobile_base_version_search_list = [
     "0\\.22\\.",
     "0\\.23\\.",
     "0\\.24\\.",
     "0\\.30\\.",
     "0\\.31\\.",
+    "0\\.32\\.",
 ]
 # The search string for Bentley's JS package (iTwin.js or imodeljs).
 js_package_search = "__iTwin\\.js "
@@ -799,7 +803,9 @@ def check_node_version():
     results = subprocess.check_output(['node', '--version'], encoding='UTF-8')
     match = re.search('^v20\\.([0-9]+)\\.', results)
     if not match or int(match.group(1)) < 18:
-        raise Exception("Error: Node 20.x required, with minimum of 20.18. You have " + results.rstrip('\n') + ".")
+        match = re.search('^v22\\.([0-9]+)\\.', results)
+        if not match or int(match.group(1)) < 20:
+            raise Exception("Error: Node 20.x or 22.x required, with minimum of 20.18 or 22.20. You have " + results.rstrip('\n') + ".")
     if len(match.groups()) != 1:
         raise Exception("Error parsing Node version string: " + results.rstrip('\n') + ".")
 

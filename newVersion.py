@@ -16,7 +16,7 @@ from functools import cmp_to_key
 # This section contains global variables with values that might change in the future.
 # ===================================================================================
 
-# iTwin base versions to search for. 3.2.x - 5.5.x for now.
+# iTwin base versions to search for. 3.2.x - 5.x for now.
 itwin_base_version_search_list = [
     "3\\.2\\.",
     "3\\.3\\.",
@@ -36,15 +36,10 @@ itwin_base_version_search_list = [
     "4\\.9\\.",
     "4\\.10\\.",
     "4\\.11\\.",
-    "5\\.0\\.",
-    "5\\.1\\.",
-    "5\\.2\\.",
-    "5\\.3\\.",
-    "5\\.4\\.",
-    "5\\.5\\.",
+    "5\\.[0-9]+\\.",
 ]
 # The version prefix when determining the latest iTwin version.
-itwin_version_prefix = '5.5'
+itwin_version_prefix = '5'
 # iTwin Mobile SDK base version. 0.32.x for now.
 mobile_base_version = "0.32."
 # iTwin Mobile SDK base version to search for 0.22.x through 0.32.x for now.

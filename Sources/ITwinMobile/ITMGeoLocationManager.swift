@@ -341,12 +341,13 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
         do {
-            try await checkAuth()
             watchIds.insert(positionId)
+            try await checkAuth()
             if watchIds.count == 1 {
                 startUpdatingPosition()
             }
         } catch {
+            watchIds.remove(positionId)
             sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
         }
     }

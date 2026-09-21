@@ -303,7 +303,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     private func requestAuth() async throws {
         permissionTask = permissionTask ?? Task { await asyncLocationManager.requestPermission(with: .whenInUsage) }
 
-        let permission = permissionTask?.value
+        let permission = await permissionTask?.value
         permissionTask = nil
         guard let permission, Self.isAuthorized(permission) else {
             throw ITMError(json: ["message": "Permission denied."])

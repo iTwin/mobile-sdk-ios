@@ -191,9 +191,20 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         case getCurrentLocation
     }
 
+    private actor Authorizer {
+        private var task: Task<CLAuthorizationStatus, Never>?
+
+        func getPermission(using locationManager: AsyncLocationManager) async -> CLAuthorizationStatus {
+            let task = self.task ?? Task { await locationManager.requestPermission(with: .whenInUsage) }
+            self.task = task
+            defer { if self.task == task { self.task = nil } }
+            return await task.value
+        }
+    }
+
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
-    var permissionTask: Task<CLAuthorizationStatus, Never>? = nil
+    private let authorizer = Authorizer()
     var itmMessenger: ITMMessenger
     /// Backing variable for ``asyncLocationManager`` computed property.
     private var _asyncLocationManager: AsyncLocationManager?
@@ -301,11 +312,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func requestAuth() async throws {
-        let task = permissionTask ?? Task { await asyncLocationManager.requestPermission(with: .whenInUsage) }
-        permissionTask = task
-        defer { if permissionTask == task { permissionTask = nil } }
-
-        guard Self.isAuthorized(await task.value) else {
+        let permission = await authorizer.getPermission(using: asyncLocationManager)
+        guard Self.isAuthorized(permission) else {
             throw ITMError(json: ["message": "Permission denied."])
         }
     }

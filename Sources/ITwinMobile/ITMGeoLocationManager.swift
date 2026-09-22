@@ -301,11 +301,11 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func requestAuth() async throws {
-        permissionTask = permissionTask ?? Task { await asyncLocationManager.requestPermission(with: .whenInUsage) }
+        let task = permissionTask ?? Task { await asyncLocationManager.requestPermission(with: .whenInUsage) }
+        permissionTask = task
+        defer { if permissionTask == task { permissionTask = nil } }
 
-        let permission = await permissionTask?.value
-        permissionTask = nil
-        guard let permission, Self.isAuthorized(permission) else {
+        guard Self.isAuthorized(await task.value) else {
             throw ITMError(json: ["message": "Permission denied."])
         }
     }
@@ -344,14 +344,14 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             return
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
+        watchIds.insert(positionId)
         do {
-            watchIds.insert(positionId)
             try await checkAuth()
-            if watchIds.count == 1 {
-                startUpdatingPosition()
-            }
+            // The watch may have been cleared while we awaited authorization.
+            guard watchIds.contains(positionId) else { return }
+            startUpdatingPosition()
         } catch {
-            watchIds.remove(positionId)
+            guard watchIds.remove(positionId) != nil else { return }
             sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
         }
     }

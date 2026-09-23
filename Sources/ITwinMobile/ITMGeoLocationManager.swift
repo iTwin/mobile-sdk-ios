@@ -70,16 +70,16 @@ public struct GeolocationPositionError: Codable {
 public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object
     /// converted to a JSON-compatible dictionary.
-    /// - Parameter getPermission: Optional override that supplies an alternative way to get permission. Used
-    /// to manage concurrent requests that can result in a crash if using the default call.
     /// - Throws: Throws if there is anything that prevents the position lookup from working.
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
-    func geolocationPosition(getPermission: (() async -> CLAuthorizationStatus)? = nil) async throws -> JSON {
-        let permission = if let getPermission {
-            await getPermission()
-        } else {
-            await requestPermission(with: .whenInUsage)
-        }
+    func geolocationPosition() async throws -> JSON {
+        try await geolocationPosition { await self.requestPermission(with: .whenInUsage) }
+    }
+
+    /// Variant that lets the caller supply the permission call, so concurrent requests can be managed to avoid a crash in
+    /// AsyncLocationKit's `requestPermission` path.
+    internal func geolocationPosition(getPermission: () async -> CLAuthorizationStatus) async throws -> JSON {
+        let permission = await getPermission()
         if !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }

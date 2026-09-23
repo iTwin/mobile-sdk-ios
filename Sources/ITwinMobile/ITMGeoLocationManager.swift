@@ -70,11 +70,17 @@ public struct GeolocationPositionError: Codable {
 public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object
     /// converted to a JSON-compatible dictionary.
+    /// - Parameter getPermission: Optional override that supplies an alternative way to get permission. Used
+    /// to manage concurrent requests that can result in a crash if using the default call.
     /// - Throws: Throws if there is anything that prevents the position lookup from working.
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
-    func geolocationPosition() async throws -> JSON {
-        let permission = await requestPermission(with: .whenInUsage)
-        if await !ITMGeolocationManager.isAuthorized(permission) {
+    func geolocationPosition(getPermission: (() async -> CLAuthorizationStatus)? = nil) async throws -> JSON {
+        let permission = if let getPermission {
+            await getPermission()
+        } else {
+            await requestPermission(with: .whenInUsage)
+        }
+        if !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }
         let locationUpdateEvent = try await requestLocation()
@@ -192,13 +198,16 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private actor Authorizer {
-        private var task: Task<CLAuthorizationStatus, Never>?
+        private var permissionTask: Task<CLAuthorizationStatus, Never>?
 
         func getPermission(using locationManager: AsyncLocationManager) async -> CLAuthorizationStatus {
-            let task = self.task ?? Task { await locationManager.requestPermission(with: .whenInUsage) }
-            self.task = task
-            defer { if self.task == task { self.task = nil } }
-            return await task.value
+            guard let permissionTask else {
+                let newTask = Task { await locationManager.requestPermission(with: .whenInUsage) }
+                self.permissionTask = newTask
+                defer { self.permissionTask = nil }
+                return await newTask.value
+            }
+            return await permissionTask.value
         }
     }
 
@@ -455,7 +464,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
 
         do {
-            let position = try await asyncLocationManager.geolocationPosition()
+            let position = try await asyncLocationManager.geolocationPosition { [self] in
+                await authorizer.getPermission(using: asyncLocationManager)
+            }
             sendPosition(position, positionId: positionId)
         } catch {
             stopUpdatingPosition()

@@ -73,8 +73,14 @@ public extension AsyncLocationManager {
     /// - Throws: Throws if there is anything that prevents the position lookup from working.
     /// - Returns: ``GeolocationPosition`` object converted to a JSON-compatible dictionary.
     func geolocationPosition() async throws -> JSON {
-        let permission = await requestPermission(with: .whenInUsage)
-        if await !ITMGeolocationManager.isAuthorized(permission) {
+        try await geolocationPosition { await self.requestPermission(with: .whenInUsage) }
+    }
+
+    /// Variant that lets the caller supply the permission call, so concurrent requests can be managed to avoid a crash in
+    /// AsyncLocationKit's `requestPermission` path.
+    internal func geolocationPosition(getPermission: () async -> CLAuthorizationStatus) async throws -> JSON {
+        let permission = await getPermission()
+        if !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }
         let locationUpdateEvent = try await requestLocation()
@@ -191,8 +197,23 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         case getCurrentLocation
     }
 
+    private actor Authorizer {
+        private var permissionTask: Task<CLAuthorizationStatus, Never>?
+
+        func getPermission(using locationManager: AsyncLocationManager) async -> CLAuthorizationStatus {
+            guard let permissionTask else {
+                let newTask = Task { await locationManager.requestPermission(with: .whenInUsage) }
+                self.permissionTask = newTask
+                defer { self.permissionTask = nil }
+                return await newTask.value
+            }
+            return await permissionTask.value
+        }
+    }
+
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
+    private let authorizer = Authorizer()
     var itmMessenger: ITMMessenger
     /// Backing variable for ``asyncLocationManager`` computed property.
     private var _asyncLocationManager: AsyncLocationManager?
@@ -282,7 +303,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         guard orientation != .unknown, locationManager.headingOrientation != orientation else { return }
         locationManager.headingOrientation = orientation
-        if !watchIds.isEmpty {
+        if isUpdatingPosition {
             // I'm not sure if this is necessary or not, but it can't hurt.
             // Note that to force an immediate heading update, you have to
             // call stop then start.
@@ -300,8 +321,8 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func requestAuth() async throws {
-        let permission = await asyncLocationManager.requestPermission(with: .whenInUsage)
-        if !Self.isAuthorized(permission) {
+        let permission = await authorizer.getPermission(using: asyncLocationManager)
+        guard Self.isAuthorized(permission) else {
             throw ITMError(json: ["message": "Permission denied."])
         }
     }
@@ -340,13 +361,17 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             return
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
+        watchIds.insert(positionId)
         do {
             try await checkAuth()
-            watchIds.insert(positionId)
-            if watchIds.count == 1 {
-                startUpdatingPosition()
-            }
+            // The watch may have been cleared while we awaited authorization.
+            guard watchIds.contains(positionId) else { return }
+            startUpdatingPosition()
         } catch {
+            guard watchIds.remove(positionId) != nil else { return }
+            if watchIds.isEmpty {
+                stopUpdatingPosition()
+            }
             sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
         }
     }
@@ -442,7 +467,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
 
         do {
-            let position = try await asyncLocationManager.geolocationPosition()
+            let position = try await asyncLocationManager.geolocationPosition { [self] in
+                await authorizer.getPermission(using: asyncLocationManager)
+            }
             sendPosition(position, positionId: positionId)
         } catch {
             stopUpdatingPosition()

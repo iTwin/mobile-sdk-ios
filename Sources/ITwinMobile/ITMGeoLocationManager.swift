@@ -303,7 +303,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
         guard orientation != .unknown, locationManager.headingOrientation != orientation else { return }
         locationManager.headingOrientation = orientation
-        if !watchIds.isEmpty {
+        if isUpdatingPosition {
             // I'm not sure if this is necessary or not, but it can't hurt.
             // Note that to force an immediate heading update, you have to
             // call stop then start.
@@ -369,6 +369,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             startUpdatingPosition()
         } catch {
             guard watchIds.remove(positionId) != nil else { return }
+            if watchIds.isEmpty {
+                stopUpdatingPosition()
+            }
             sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
         }
     }

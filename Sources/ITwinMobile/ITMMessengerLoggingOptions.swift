@@ -26,7 +26,7 @@ public class ITMMessengerLoggingOptions {
     ///
     /// - SeeAlso: ``removeUnloggedQueryType(_:)``
     /// - Parameter type: The type of the query for which logging is disabled.
-    func addUnloggedQueryType(_ type: String) {
+    public func addUnloggedQueryType(_ type: String) {
         unloggedQueryTypes.insert(type)
     }
 
@@ -34,7 +34,7 @@ public class ITMMessengerLoggingOptions {
     ///
     /// - SeeAlso: ``addUnloggedQueryType(_:)``
     /// - Parameter type: The type of the query to remove.
-    func removeUnloggedQueryType(_ type: String) {
+    public func removeUnloggedQueryType(_ type: String) {
         unloggedQueryTypes.remove(type)
     }
 }

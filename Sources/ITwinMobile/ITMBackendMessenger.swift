@@ -11,7 +11,7 @@ import IModelJsNative
 /// Class for sending queries to, and handling queries from, the backend JavaScript code.
 ///
 /// - Note: Logging settings are shared with ``ITMMessenger`` (see ``ITMMessenger/isLoggingEnabled``).
-public final class ITMBackendMessenger: NSObject, @unchecked Sendable {
+open class ITMBackendMessenger: NSObject, ITMMessengerImplDelegate, @unchecked Sendable {
     private let implementation: ITMMessengerImpl
 
     /// Indicates whether or not the backend has finished launching. Specfically, if ``backendLaunchSucceeded()`` has been called.
@@ -26,11 +26,12 @@ public final class ITMBackendMessenger: NSObject, @unchecked Sendable {
         let transport = ITMBackendQueryTransport(host: IModelJsHost.sharedInstance())
         implementation = ITMMessengerImpl(transport: transport, targetName: "JS backend", incomingIdPrefix: "MBID")
         super.init()
+        implementation.delegate = self
         initBackendLaunch()
     }
 
     /// Initializes things in preperation of launching the backend. This is done automatically from `init`.
-    public func initBackendLaunch() {
+    open func initBackendLaunch() {
         implementation.initLaunch()
     }
 
@@ -41,12 +42,12 @@ public final class ITMBackendMessenger: NSObject, @unchecked Sendable {
 
     /// Call after the backend has successfully launched.
     /// - Important: Until you call this, all queries sent to the backend are kept on hold.
-    public func backendLaunchSucceeded() {
+    open func backendLaunchSucceeded() {
         implementation.launchSucceeded()
     }
 
     /// Call if the backend fails to launch. This prevents any queries from being sent to the backend.
-    public func backendLaunchFailed(_ error: Error) {
+    open func backendLaunchFailed(_ error: Error) {
         implementation.launchFailed(error)
     }
 
@@ -156,8 +157,29 @@ public final class ITMBackendMessenger: NSObject, @unchecked Sendable {
     ///   - type: The type of the query that is being responded to.
     ///   - responseJson: The JSON-encoded response string. If this is `nil`, it indicates an error. To indicate "no response" without
     ///   triggering an error, use an empty string.
-    public func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
-        implementation.respondToQuery(queryId, type, responseJson, error)
+    open func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
+        implementation.completeQuery(queryId, type, responseJson, error)
+    }
+
+    /// Convert a value into a JSON string. This supports both void values and base types (String, Bool, numeric types).
+    /// - Note: If conversion fails (due to the value not being a type that can be converted to JSON), this returns an empty string.
+    /// - Parameter value: The value to convert to a JSON string.
+    /// - Returns: The JSON string for the given value.
+    open func jsonString(_ value: Any?, prettyPrint: Bool = false) -> String {
+        return ITMMessenger.jsonString(value, prettyPrint: prettyPrint)
+    }
+
+    /// Log the given query using ``logInfo(_:)``.
+    /// - Note: If  ``ITMMessenger/isLoggingEnabled`` is false or `type` has been passed to ``ITMMessenger/addUnloggedQueryType(_:)``,
+    /// the query will not be logged.
+    /// - Parameters:
+    ///   - title: A title to show along with the logged message.
+    ///   - queryId: The queryId of the query.
+    ///   - type: The type of the query.
+    ///   - prettyDataString: The pretty-printed JSON representation of the query data. This is ignored if
+    ///   ``ITMMessenger/isFullLoggingEnabled`` is `false`.
+    open func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?) {
+        implementation.writeQueryLog(title, queryId, type, prettyDataString: prettyDataString)
     }
 }
 
@@ -189,13 +211,16 @@ fileprivate final class ITMBackendQueryTransport: ITMQueryTransport, @unchecked 
     }
 
     private func handleQuery(_ type: String, _ data: String, _ onComplete: @escaping QueryResultCallback) {
-        // Wrap data in an object before parsing so that parsed value would be guaranteed to be JSON
-        guard let parsedData = JSONSerialization.jsonObject(withString: "{ \"body\": \(data) }") as? JSON else {
-            delegate?.logError("ITMBackendMessenger: Invalid body for query '\(type)'")
-            onComplete("Failed to parse query data", true)
-            return
+        var queryBody: Sendable?
+        if !data.isEmpty {
+            guard let parsedData = JSONSerialization.jsonObject(withString: data) else {
+                delegate?.logError("ITMBackendMessenger: Invalid body for query '\(type)'")
+                onComplete("Failed to parse query data", true)
+                return
+            }
+            queryBody = parsedData
         }
-        let body = parsedData["body"]
+
         incomingQueryId += 1
         let queryId = incomingQueryId
         Task { @MainActor [weak self] in
@@ -203,7 +228,7 @@ fileprivate final class ITMBackendQueryTransport: ITMQueryTransport, @unchecked 
                 onComplete("No native backend messenger", true)
                 return
             }
-            onComplete(await delegate.processQuery(type, queryId, body), false)
+            onComplete(await delegate.processQuery(type, queryId, queryBody), false)
         }
     }
 

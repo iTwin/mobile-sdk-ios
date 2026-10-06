@@ -5,15 +5,23 @@
 
 import UIKit
 
+/// Delegate that allows customizing some aspects of query handling. The delegate is used to give back control to ``ITMMessenger``
+/// and ``ITMBackendMessenger`` open methods that can be overridden by deriving messenger classes.
+internal protocol ITMMessengerImplDelegate: AnyObject {
+    func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error?)
+    func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?)
+    func jsonString(_ value: Any?, prettyPrint: Bool) -> String
+}
+
 /// Messaging logic shared by ``ITMMessenger`` and ``ITMBackendMessenger``. Queries are sent and received using an ``ITMQueryTransport``.
 internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sendable {
     private final class TypedQueryHandler<T, U: Sendable>: NSObject, ITMQueryHandler, @unchecked Sendable {
-        private weak var impl: ITMMessengerImpl?
+        private weak var messenger: ITMMessengerImpl?
         private let type: String
         private let handler: (T) async throws -> U
 
-        init(_ impl: ITMMessengerImpl, _ type: String, _ handler: @escaping (T) async throws -> U) {
-            self.impl = impl
+        init(_ messenger: ITMMessengerImpl, _ type: String, _ handler: @escaping (T) async throws -> U) {
+            self.messenger = messenger
             self.type = type
             self.handler = handler
         }
@@ -24,8 +32,8 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
 
         @MainActor
         func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool {
-            guard let impl else { return false }
-            impl.logQuery("Request  \(impl.targetName) -> SWIFT", impl.incomingTag(queryId), type, messageData: body)
+            guard let messenger else { return false }
+            messenger.logQuery("Request  \(messenger.targetName) -> SWIFT", messenger.incomingTag(queryId), type, messageData: body)
             do {
                 let response: U
                 if T.self == Void.self {
@@ -33,12 +41,12 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
                 } else if let typedBody = body as? T {
                     response = try await handler(typedBody)
                 } else {
-                    impl.respondToQuery(queryId, type, nil, ITMError(json: ["message": "Invalid input"]))
+                    messenger.respondToQuery(queryId, type, nil, ITMError(json: ["message": "Invalid input"]))
                     return true
                 }
-                impl.respondToQuery(queryId, type, impl.jsonString(response))
+                messenger.respondToQuery(queryId, type, messenger.jsonString(response))
             } catch {
-                impl.respondToQuery(queryId, type, nil, error)
+                messenger.respondToQuery(queryId, type, nil, error)
             }
             return true
         }
@@ -66,6 +74,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     private var queryHandlers: [ITMQueryHandler] = []
     private var pendingResponses: [Int64: CheckedContinuation<String, Never>] = [:]
 
+    weak var delegate: ITMMessengerImplDelegate?
     var launchDone = false
     private var launchTask: Task<Void, Error>?
     private var launchContinuation: CheckedContinuation<Void, Error>?
@@ -83,7 +92,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         transport.delegate = self
     }
 
-    // MARK: Launch management
+    // MARK: - Launch management
 
     func initLaunch() {
         launchDone = false
@@ -115,7 +124,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         }
     }
 
-    // MARK: Outgoing queries
+    // MARK: - Outgoing queries
 
     func send(_ type: String, _ data: Any?) {
         Task {
@@ -163,7 +172,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         }
     }
 
-    // MARK: Incoming queries
+    // MARK: - Incoming queries
 
     func registerQueryHandler<T, U: Sendable>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
         let queryHandler = TypedQueryHandler<T, U>(self, type, handler)
@@ -215,6 +224,14 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     }
 
     func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
+        if let delegate {
+            delegate.respondToQuery(queryId, type, responseJson, error)
+        } else {
+            completeQuery(queryId, type, responseJson, error)
+        }
+    }
+
+    func completeQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error?) {
         logQuery("Response SWIFT -> \(targetName)", incomingTag(queryId), type, dataString: responseJson)
         let messageJson: String
         if let responseJson {
@@ -254,10 +271,13 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         }
     }
 
-    // MARK: Serialization
+    // MARK: - Serialization
 
     func jsonString(_ value: Any?, prettyPrint: Bool = false) -> String {
-        return JSONSerialization.string(withITMJSONObject: value, prettyPrint: prettyPrint) ?? ""
+        if let delegate {
+            return delegate.jsonString(value, prettyPrint: prettyPrint)
+        }
+        return ITMMessenger.jsonString(value, prettyPrint: prettyPrint)
     }
     
     private func convertResult<T>(_ messageType: String, _ dataString: String) throws -> T {
@@ -291,7 +311,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         throw ITMError(json: ["REASON": reason, "Internal": true])
     }
 
-    // MARK: Logging
+    // MARK: - Logging
 
     func logError(_ message: String) {
         ITMApplication.log(.error, message)
@@ -301,7 +321,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         ITMApplication.log(.info, message)
     }
 
-    func logQuery(_ title: String, _ queryTag: String, _ type: String, prettyDataString: String?) {
+    func writeQueryLog(_ title: String, _ queryTag: String, _ type: String, prettyDataString: String?) {
         let options = ITMMessengerLoggingOptions.shared
         guard options.isLoggingEnabled, !options.unloggedQueryTypes.contains(type) else { return }
         var message = "ITMMessenger [\(title)] \(queryTag): \(type)"
@@ -309,6 +329,14 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
             message.append("\n\(prettyDataString)")
         }
         logInfo(message)
+    }
+
+    private func logQuery(_ title: String, _ queryTag: String, _ type: String, prettyDataString: String?) {
+        if let delegate {
+            delegate.logQuery(title, queryTag, type, prettyDataString: prettyDataString)
+        } else {
+            writeQueryLog(title, queryTag, type, prettyDataString: prettyDataString)
+        }
     }
 
     private func logQuery(_ title: String, _ queryTag: String, _ type: String, messageData: Any?) {

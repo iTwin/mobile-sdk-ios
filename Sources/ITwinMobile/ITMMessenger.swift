@@ -190,7 +190,7 @@ public struct ITMStringError: LocalizedError {
 // MARK: - ITMMessenger class
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
-open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
+open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDelegate, @unchecked Sendable {
     /// Convenience typealias for a function that takes a `String Result` and returns void.
     public typealias ITMResponseHandler = @Sendable (Result<String, Error>) -> Void
     /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
@@ -257,6 +257,9 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
         transport = ITMFrontendQueryTransport(webView)
         implementation = ITMMessengerImpl(transport: transport, targetName: "JS", incomingIdPrefix: "WKID", outgoingIdPrefix: "SWID")
         super.init()
+        implementation.delegate = self
+        transport.messenger = self
+        transport.registerScriptMessageHandlers(ITMWeakScriptMessageHandler(self))
         initFrontendLaunch()
     }
 
@@ -294,8 +297,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - data: Optional request data to send.
     public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async {
         do {
-            // TODO: return?
-            let _: Void = try await implementation.queryAndShowError(vc, type, data)
+            return try await implementation.queryAndShowError(vc, type, data)
         } catch {
             // Ignore error (it has been shown, and we aren't being asked to produce a return
             // value that we don't have.)
@@ -401,14 +403,14 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// same time. This function returns immediately, while the JavaScript is scheduled for later evaluation.
     /// - Parameter js: The JavaScript string to evaluate.
     open func evaluateJavaScript(_ js: String) {
-        transport.evaluateJavaScript(js)
+        transport.enqueueJavaScript(js)
     }
 
     /// Implementation of the `WKScriptMessageHandler` function. If you override this function, it is __STRONGLY__ recommended
     /// that you call this version via super as part of your implementation.
     /// - Note: Since query handling is async, this function will return before that finishes if the message is a query.
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        transport.userContentController(userContentController, didReceive: message)
+        transport.handleScriptMessage(message)
     }
 
     /// Send query response to WKWebView.
@@ -418,7 +420,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - responseJson: The JSON-encoded response string. If this is `nil`, it indicates an error. To indicate "no response" without
     ///   triggering an error, use an empty string.
     open func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
-        implementation.respondToQuery(queryId, type, responseJson, error)
+        implementation.completeQuery(queryId, type, responseJson, error)
     }
 
     /// Convert a value into a JSON string. This supports both void values and base types (String, Bool, numeric types).
@@ -447,7 +449,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - prettyDataString: The pretty-printed JSON representation of the query data. This is ignored if
     ///   ``isFullLoggingEnabled`` is `false`.
     open func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?) {
-        implementation.logQuery(title, queryId, type, prettyDataString: prettyDataString)
+        implementation.writeQueryLog(title, queryId, type, prettyDataString: prettyDataString)
     }
 
     /// Log an error message using `ITMApplication.logger`.
@@ -485,7 +487,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
 // MARK: - ITMFrontendQueryTransport class
 
 /// ``ITMQueryTransport`` that communicates with the frontend running in a `WKWebView`.
-fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKScriptMessageHandler, @unchecked Sendable {
+fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, @unchecked Sendable {
     private struct WeakWKWebView: Equatable {
         weak var webView: WKWebView?
         static func == (lhs: WeakWKWebView, rhs: WeakWKWebView) -> Bool {
@@ -499,6 +501,7 @@ fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, 
     private static let handlerNames = [queryName, queryResponseName]
 
     weak var delegate: ITMQueryTransportDelegate?
+    weak var messenger: ITMMessenger?
     var webView: WKWebView
     private var pendingQueries: [Int64: CheckedContinuation<ITMQueryResponse, Never>] = [:]
     private var jsQueue: [String] = []
@@ -515,8 +518,11 @@ fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, 
         Self.weakWebViews.append(weakWebView)
         self.webView = webView
         super.init()
+    }
+
+    func registerScriptMessageHandlers(_ handler: WKScriptMessageHandler) {
         for handlerName in Self.handlerNames {
-            webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
+            webView.configuration.userContentController.add(handler, name: handlerName)
         }
     }
 
@@ -540,8 +546,16 @@ fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, 
         }
     }
 
+    private func evaluateJavaScript(_ js: String) {
+        if let messenger {
+            messenger.evaluateJavaScript(js)
+        } else {
+            enqueueJavaScript(js)
+        }
+    }
+
     /// Evaluates JavaScript strings one at a time, since `WKWebView` loses all but one of multiple concurrent evaluations.
-    func evaluateJavaScript(_ js: String) {
+    func enqueueJavaScript(_ js: String) {
         Task { @MainActor in
             if jsBusy {
                 jsQueue.append(js)
@@ -556,11 +570,11 @@ fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, 
                 return
             }
             let nextJs = jsQueue.removeFirst()
-            evaluateJavaScript(nextJs)
+            enqueueJavaScript(nextJs)
         }
     }
 
-    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+    func handleScriptMessage(_ message: WKScriptMessage) {
         guard let body = message.body as? String,
               let data = body.data(using: .utf8),
               let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON

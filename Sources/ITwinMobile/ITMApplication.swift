@@ -86,6 +86,8 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     public let webViewLogger: ITMWebViewLogger?
     /// The ``ITMMessenger`` for communication between native code and JavaScript code (and vice versa).
     public let itmMessenger: ITMMessenger
+    /// The ``ITMBackendMessenger`` for communication between native code and backend JavaScript code (and vice versa).
+    public let itmBackendMessenger: ITMBackendMessenger
     /// Tracks whether the initial page has been loaded in the web view.
     public var fullyLoaded = false
     /// Tracks whether the web view should be visible in the application, or kept hidden. (Once the web view has been created
@@ -151,6 +153,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         webView = Self.createEmptyWebView()
         webViewLogger = Self.createWebViewLogger(webView)
         itmMessenger = Self.createITMMessenger(webView)
+        itmBackendMessenger = Self.createITMBackendMessenger()
         geolocationManager = ITMGeolocationManager(itmMessenger: itmMessenger, webView: webView)
         super.init()
         backendLoadedTask = Task {
@@ -284,6 +287,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: An ``ITMMessenger`` object attached to ``webView``.
     open class func createITMMessenger(_ webView: WKWebView) -> ITMMessenger {
         return ITMMessenger(webView)
+    }
+
+    /// Creates an ``ITMBackendMessenger`` for use with an iTwin Mobile web app.
+    ///
+    /// Override this function in a subclass in order to add custom behavior.
+    /// - Returns: An ``ITMBackendMessenger`` object.
+    open class func createITMBackendMessenger() -> ITMBackendMessenger {
+        return ITMBackendMessenger()
     }
 
     /// Creates an ``ITMWebViewLogger`` for use with an iTwin Mobile web app.
@@ -476,6 +487,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             await ITMMessenger.waitUntilReady({ [self] in backendLoadedContinuation != nil })
             await ITMMessenger.waitUntilReady({ [self] in frontendLoadedContinuation != nil })
             await itmMessenger.waitUntilReady()
+            await itmBackendMessenger.waitUntilReady()
             IModelJsHost.sharedInstance().loadBackend(
                 backendUrl,
                 withAuthClient: authorizationClient,
@@ -486,6 +498,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 // that cause problems.
                 backendLoadedContinuation?.resume(returning: ())
                 backendLoadedContinuation = nil
+                itmBackendMessenger.backendLaunchSucceeded()
             }
             IModelJsHost.sharedInstance().register(webView)
         }

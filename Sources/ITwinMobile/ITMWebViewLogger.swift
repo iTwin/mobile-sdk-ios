@@ -129,7 +129,11 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         attachedWebView = webView
         webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: "itmLogger")
         loadingObservation = webView.observe(\.isLoading, options: [.new]) { [weak self] view, _ in
-            if view.isLoading { self?.onPageStarted() }
+            if view.isLoading {
+                self?.onPageStarted()
+            } else {
+                self?.reattach(view)
+            }
         }
         reattach(webView)
     }

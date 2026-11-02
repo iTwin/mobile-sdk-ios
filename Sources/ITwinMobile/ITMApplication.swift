@@ -181,7 +181,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 ITMMessenger.isFullLoggingEnabled = true
             }
         }
-        webViewLogger?.attach(webView, allowedOrigins: getWebViewLoggerAllowedOrigins())
+        webViewLogger?.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
     }
 
     deinit {
@@ -299,16 +299,16 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         return ITMWebViewLogger(name: "ITMApplication Logger")
     }
 
-    /// Exact native-configured origins permitted to forward main-frame console output.
+    /// Exact native-configured origins trusted by native WebView bridges.
     ///
-    /// Includes the packaged frontend origin and the HTTP(S) origin of ``getBaseUrl()``.
-    /// Override to customize this policy. Use canonical origins without paths, credentials,
-    /// wildcards, or default ports. An empty set disables native console forwarding.
-    open func getWebViewLoggerAllowedOrigins() -> Set<String> {
-        let defaultOrigins = ITMWebViewLogger.defaultAllowedOrigins
+    /// Includes the packaged frontend origin and the origin of ``getBaseUrl()``.
+    /// Override to customize this policy.
+    /// Use canonical origins without paths, credentials, wildcards, or default ports.
+    /// An empty set authorizes no origins.
+    open func getBridgeAllowedOrigins() -> Set<String> {
+        let defaultOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
         guard let url = URL(string: getBaseUrl()),
-              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
-              let origin = ITMWebViewLogger.origin(for: url) else { return defaultOrigins }
+              let origin = ITMBridgeOriginPolicy.origin(for: url) else { return defaultOrigins }
         return defaultOrigins.union([origin])
     }
 

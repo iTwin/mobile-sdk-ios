@@ -7,8 +7,6 @@ import WebKit
 
 /// Logger that, when attached to a `WKWebView`, redirects console messages from JavaScript to `ITMApplication.logger`.
 open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
-    public static let defaultAllowedOrigins: Set<String> = ["imodeljs://app"]
-
     /// The logger name to show in log messages.
     var name: String
     private var allowedOrigins: Set<String>
@@ -21,31 +19,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
     /// - Parameter name: The logger name to show in log messages.
     public init(name: String) {
         self.name = name
-        self.allowedOrigins = Self.defaultAllowedOrigins
-    }
-
-    /// Gets an exact origin for a supported frontend URL. File and opaque origins are not supported.
-    public static func origin(for url: URL) -> String? {
-        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              components.user == nil, components.password == nil,
-              let scheme = components.scheme?.lowercased(),
-              let host = components.host?.lowercased(), !host.isEmpty, !host.contains("*"),
-              components.port.map({ (1...65535).contains($0) }) ?? true else { return nil }
-        guard scheme == "http" || scheme == "https" ||
-                (scheme == "imodeljs" && host == "app" && components.port == nil) else { return nil }
-        var result = URLComponents()
-        result.scheme = scheme
-        result.host = host
-        let defaultPort = scheme == "https" ? 443 : (scheme == "http" ? 80 : nil)
-        result.port = components.port == defaultPort ? nil : components.port
-        return result.string
-    }
-
-    private static func validOrigins(_ origins: Set<String>) -> Set<String> {
-        Set(origins.filter { value in
-            guard let url = URL(string: value) else { return false }
-            return origin(for: url) == value
-        })
+        self.allowedOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
     }
 
     /// Invalidates queued console output when the main frame starts navigating.
@@ -58,7 +32,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
     /// Reinstalls wrappers in an authorized document without nesting existing wrappers.
     public func reattach(_ webView: WKWebView) {
         guard attachedWebView === webView, !webView.isLoading,
-              let url = webView.url, let origin = Self.origin(for: url),
+              let url = webView.url, let origin = ITMBridgeOriginPolicy.origin(for: url),
               allowedOrigins.contains(origin) else { return }
         let newSessionId = UUID().uuidString
         sessionId = newSessionId
@@ -141,7 +115,7 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
     /// Attaches using exact native-configured origins. Invalid entries are ignored; an empty set disables forwarding.
     public func attach(_ webView: WKWebView, allowedOrigins: Set<String>) {
         detach()
-        self.allowedOrigins = Self.validOrigins(allowedOrigins)
+        self.allowedOrigins = ITMBridgeOriginPolicy.validOrigins(allowedOrigins)
         attach(webView)
     }
 
@@ -175,9 +149,9 @@ open class ITMWebViewLogger: NSObject, WKScriptMessageHandler {
         components.scheme = source.protocol
         components.host = source.host
         components.port = source.port == 0 ? nil : source.port
-        guard let sourceURL = components.url, let origin = Self.origin(for: sourceURL),
+                guard let sourceURL = components.url, let origin = ITMBridgeOriginPolicy.origin(for: sourceURL),
               allowedOrigins.contains(origin), let currentURL = webView.url,
-              Self.origin(for: currentURL) == origin else { return }
+              ITMBridgeOriginPolicy.origin(for: currentURL) == origin else { return }
         let now = ProcessInfo.processInfo.systemUptime
         if now - rateWindowStart >= 1 {
             rateWindowStart = now

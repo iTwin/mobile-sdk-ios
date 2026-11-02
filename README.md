@@ -62,6 +62,25 @@ post_install do |installer|
 end
 ```
 
+## WebView Bridge Origins
+
+`ITMApplication.getBridgeAllowedOrigins()` configures trusted origins for native WebView bridges.
+The packaged frontend origin, `imodeljs://app`, and the origin returned by `getBaseUrl()` are
+trusted by default. This includes remote frontends configured through `ITMAPPLICATION_BASE_URL`
+or a `getBaseUrl()` override. Invalid or unsupported URLs add no origin.
+Override this policy in your application subclass to authorize additional origins:
+
+```swift
+override func getBridgeAllowedOrigins() -> Set<String> {
+  super.getBridgeAllowedOrigins().union(["https://frontend.example.com"])
+}
+```
+
+Use exact origins without paths, credentials, wildcards, or default ports. Development origins
+should only be added in development builds. Standalone loggers accept an explicit origin set;
+`ITMBridgeOriginPolicy` provides shared defaults and origin validation. This policy currently
+controls console forwarding; geolocation and messaging will adopt it in their security migrations.
+
 ## Notes
 - This package is designed to be used with the [@itwin/mobile-sdk-core](https://github.com/iTwin/mobile-sdk-core) and [@itwin/mobile-ui-react](https://github.com/iTwin/mobile-ui-react) packages. Those two packages are intended to be installed via npm, and their version number must match the version number of this package. Furthermore, they use __iTwin.js 5.14.3__, and your app must use that same version of iTwin.js.
 

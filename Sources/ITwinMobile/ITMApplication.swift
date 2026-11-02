@@ -181,12 +181,15 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
                 ITMMessenger.isFullLoggingEnabled = true
             }
         }
+        webViewLogger?.attach(webView, allowedOrigins: getWebViewLoggerAllowedOrigins())
     }
 
     deinit {
         let messengerCopy = itmMessenger
         let handlersCopy = queryHandlers
+        let loggerCopy = webViewLogger
         Task { @MainActor in
+            loggerCopy?.detach()
             messengerCopy.unregisterQueryHandlers(handlersCopy)
         }
     }
@@ -294,6 +297,19 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
     /// - Returns: An ``ITMWebViewLogger`` object attached to ``webView``, or nil for no special log handling.
     open class func createWebViewLogger(_ webView: WKWebView) -> ITMWebViewLogger? {
         return ITMWebViewLogger(name: "ITMApplication Logger")
+    }
+
+    /// Exact native-configured origins permitted to forward main-frame console output.
+    ///
+    /// Includes the packaged frontend origin and the HTTP(S) origin of ``getBaseUrl()``.
+    /// Override to customize this policy. Use canonical origins without paths, credentials,
+    /// wildcards, or default ports. An empty set disables native console forwarding.
+    open func getWebViewLoggerAllowedOrigins() -> Set<String> {
+        let defaultOrigins = ITMWebViewLogger.defaultAllowedOrigins
+        guard let url = URL(string: getBaseUrl()),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              let origin = ITMWebViewLogger.origin(for: url) else { return defaultOrigins }
+        return defaultOrigins.union([origin])
     }
 
     /// Registers a handler for the given query from the web view.
@@ -782,6 +798,11 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     // MARK: WKNavigationDelegate
 
+    /// Invalidates console output from the previous frontend document.
+    open func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        webViewLogger?.onPageStarted()
+    }
+
     /// Handle necessary actions after the frontend web page is loaded (or reloaded).
     ///
     /// See `WKNavigationDelegate` documentation.
@@ -792,13 +813,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // phone with a notch. In that case, the html page content doesn't go all the
         // way across the screen. The setNeedsLayout below fixes it.
         webView.setNeedsLayout()
-        if fullyLoaded {
-            // Reattach our webViewLogger.
-            webViewLogger?.reattach(webView)
-        } else {
-            // Attach our webViewLogger.
-            webViewLogger?.attach(webView)
-        }
+        webViewLogger?.reattach(webView)
         fullyLoaded = true
         if !dormant {
             self.webView.isHidden = false

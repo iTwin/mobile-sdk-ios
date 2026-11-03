@@ -182,13 +182,16 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
             }
         }
         webViewLogger?.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
+        geolocationManager.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
     }
 
     deinit {
         let messengerCopy = itmMessenger
         let handlersCopy = queryHandlers
         let loggerCopy = webViewLogger
+        let geolocationCopy = geolocationManager
         Task { @MainActor in
+            geolocationCopy.detach()
             loggerCopy?.detach()
             messengerCopy.unregisterQueryHandlers(handlersCopy)
         }
@@ -800,6 +803,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Invalidates console output from the previous frontend document.
     open func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        geolocationManager.onPageStarted(webView)
         webViewLogger?.onPageStarted()
     }
 
@@ -813,12 +817,18 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // phone with a notch. In that case, the html page content doesn't go all the
         // way across the screen. The setNeedsLayout below fixes it.
         webView.setNeedsLayout()
+        geolocationManager.onPageFinished(webView)
         webViewLogger?.reattach(webView)
         fullyLoaded = true
         if !dormant {
             self.webView.isHidden = false
         }
         updateReachability()
+    }
+
+    /// Discard location work when WebKit loses its document process.
+    open func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        geolocationManager.onPageStarted(webView)
     }
 }
 

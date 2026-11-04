@@ -66,6 +66,54 @@ public struct GeolocationPositionError: Codable {
 
 // MARK: - CoreLocation extensions
 
+@MainActor
+private final class SingleLocationLookup: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocation, Error>?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    func location() async throws -> CLLocation {
+        try await withTaskCancellationHandler(operation: {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                manager.startUpdatingLocation()
+            }
+        }, onCancel: {
+            Task { @MainActor in
+                self.finish(.failure(CancellationError()))
+            }
+        })
+    }
+
+    private func finish(_ result: Result<CLLocation, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        manager.stopUpdatingLocation()
+        manager.delegate = nil
+        continuation.resume(with: result)
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        Task { @MainActor in
+            finish(.success(location))
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        if (error as NSError).domain == kCLErrorDomain, (error as NSError).code == CLError.locationUnknown.rawValue { return }
+        Task { @MainActor in
+            finish(.failure(error))
+        }
+    }
+}
+
 /// Extension to `AsyncLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
 public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object
@@ -84,19 +132,10 @@ public extension AsyncLocationManager {
         if !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }
-        let locationUpdateEvent = try await requestLocation()
-        switch locationUpdateEvent {
-        case .didUpdateLocations(locations: let locations):
-            if let location = locations.last {
-                return try location.geolocationPosition()
-            } else {
-                throw ITMError(json: ["message": "Locations list empty."])
-            }
-        case .didFailWith(error: let error):
-            throw error
-        default:
-            throw ITMError(json: ["message": "Error getting location."])
-        }
+        let lookup = await SingleLocationLookup()
+        let location = try await lookup.location()
+        try Task.checkCancellation()
+        return try location.geolocationPosition()
     }
 }
 

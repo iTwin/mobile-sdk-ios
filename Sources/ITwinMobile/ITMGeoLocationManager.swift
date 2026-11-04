@@ -82,7 +82,7 @@ private final class SingleLocationLookup: NSObject, CLLocationManagerDelegate {
             try Task.checkCancellation()
             return try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
-                manager.startUpdatingLocation()
+                manager.requestLocation()
             }
         }, onCancel: {
             Task { @MainActor in
@@ -100,14 +100,18 @@ private final class SingleLocationLookup: NSObject, CLLocationManagerDelegate {
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
         Task { @MainActor in
+            guard let location = locations.last(where: {
+                $0.horizontalAccuracy.isFinite && $0.horizontalAccuracy >= 0
+            }) else {
+                finish(.failure(NSError(domain: kCLErrorDomain, code: CLError.locationUnknown.rawValue)))
+                return
+            }
             finish(.success(location))
         }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        if (error as NSError).domain == kCLErrorDomain, (error as NSError).code == CLError.locationUnknown.rawValue { return }
         Task { @MainActor in
             finish(.failure(error))
         }

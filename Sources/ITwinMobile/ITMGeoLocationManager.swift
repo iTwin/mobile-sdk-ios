@@ -131,6 +131,7 @@ public extension AsyncLocationManager {
     /// Variant that lets the caller supply the permission call, so concurrent requests can be managed to avoid a crash in
     /// AsyncLocationKit's `requestPermission` path.
     internal func geolocationPosition(getPermission: () async -> CLAuthorizationStatus) async throws -> JSON {
+        try Task.checkCancellation()
         let permission = await getPermission()
         try Task.checkCancellation()
         if !ITMGeolocationManager.isAuthorized(permission) {
@@ -286,7 +287,6 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
     private let authorizer = Authorizer()
-    var itmMessenger: ITMMessenger
     /// Backing variable for ``asyncLocationManager`` computed property.
     private var _asyncLocationManager: AsyncLocationManager?
     private var lastLocationTimeThreshold: Double = 0.0
@@ -298,10 +298,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     /// Create a geolocation manager.
     /// - Parameters:
-    ///   - itmMessenger: The ``ITMMessenger`` used to communicate with the JavaScript side of this polyfill.
+    ///   - itmMessenger: Accepted for source compatibility; the messenger is not retained.
     ///   - webView: The `WKWebView` containing the JavaScript side of this polyfill.
     public init(itmMessenger: ITMMessenger, webView: WKWebView) {
-        self.itmMessenger = itmMessenger
         self.webView = webView
         super.init()
         locationManager.delegate = self
@@ -460,7 +459,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             session.rateWindowCount = 0
         }
         if session.rateWindowCount >= 100 || session.watchRequests.count + session.positionRequests.count >= 128 {
-            sendResponse(session, messageName: operation, messageData: itmMessenger.jsonString([
+            sendResponse(session, messageName: operation, messageData: ITMMessenger.jsonString([
                 "positionId": positionId, "error": positionUnavailableError
             ]).toBase64())
             return
@@ -598,7 +597,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             "positionId": positionId,
             "error": errorJson
         ]
-        sendResponse(session, messageName: messageName, messageData: itmMessenger.jsonString(message).toBase64())
+        sendResponse(session, messageName: messageName, messageData: ITMMessenger.jsonString(message).toBase64())
         if messageName == "getCurrentPosition" { session.positionRequests.remove(positionId) }
         if messageName == "watchPosition", !watchIds.contains(positionId) { session.watchRequests.remove(positionId) }
     }
@@ -679,7 +678,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             "positionId": positionId,
             "position": position
         ]
-        sendResponse(session, messageName: messageName, messageData: itmMessenger.jsonString(message).toBase64())
+        sendResponse(session, messageName: messageName, messageData: ITMMessenger.jsonString(message).toBase64())
         if messageName == "getCurrentPosition" { session.positionRequests.remove(positionId) }
     }
 

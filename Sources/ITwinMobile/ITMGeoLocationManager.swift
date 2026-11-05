@@ -66,6 +66,58 @@ public struct GeolocationPositionError: Codable {
 
 // MARK: - CoreLocation extensions
 
+@MainActor
+private final class SingleLocationLookup: NSObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    private var continuation: CheckedContinuation<CLLocation, Error>?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    func location() async throws -> CLLocation {
+        try await withTaskCancellationHandler(operation: {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                manager.requestLocation()
+            }
+        }, onCancel: {
+            Task { @MainActor in
+                self.finish(.failure(CancellationError()))
+            }
+        })
+    }
+
+    private func finish(_ result: Result<CLLocation, Error>) {
+        guard let continuation else { return }
+        self.continuation = nil
+        manager.stopUpdatingLocation()
+        manager.delegate = nil
+        continuation.resume(with: result)
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        Task { @MainActor in
+            guard let location = locations.last(where: {
+                $0.horizontalAccuracy.isFinite && $0.horizontalAccuracy >= 0
+            }) else {
+                finish(.failure(NSError(domain: kCLErrorDomain, code: CLError.locationUnknown.rawValue)))
+                return
+            }
+            finish(.success(location))
+        }
+    }
+
+    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        Task { @MainActor in
+            finish(.failure(error))
+        }
+    }
+}
+
 /// Extension to `AsyncLocationManager` that allows getting the location in a format suitable for sending to JavaScript.
 public extension AsyncLocationManager {
     /// Get the current location and convert it into a JavaScript-compatible ``GeolocationPosition`` object
@@ -79,23 +131,16 @@ public extension AsyncLocationManager {
     /// Variant that lets the caller supply the permission call, so concurrent requests can be managed to avoid a crash in
     /// AsyncLocationKit's `requestPermission` path.
     internal func geolocationPosition(getPermission: () async -> CLAuthorizationStatus) async throws -> JSON {
+        try Task.checkCancellation()
         let permission = await getPermission()
+        try Task.checkCancellation()
         if !ITMGeolocationManager.isAuthorized(permission) {
             throw ITMError(json: ["message": "Permission denied."])
         }
-        let locationUpdateEvent = try await requestLocation()
-        switch locationUpdateEvent {
-        case .didUpdateLocations(locations: let locations):
-            if let location = locations.last {
-                return try location.geolocationPosition()
-            } else {
-                throw ITMError(json: ["message": "Locations list empty."])
-            }
-        case .didFailWith(error: let error):
-            throw error
-        default:
-            throw ITMError(json: ["message": "Error getting location."])
-        }
+        let lookup = await SingleLocationLookup()
+        let location = try await lookup.location()
+        try Task.checkCancellation()
+        return try location.geolocationPosition()
     }
 }
 
@@ -211,10 +256,37 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
+    private final class DocumentSession {
+        let id = UUID().uuidString
+        let origin: String
+        var documentId: String?
+        var watchRequests: Set<Int64> = []
+        var positionRequests: Set<Int64> = []
+        var watchTasks: [Int64: Task<Void, Never>] = [:]
+        var positionTasks: [Int64: Task<Void, Never>] = [:]
+        var locationTask: Task<JSON, Error>?
+        var rateWindowStart: TimeInterval = 0
+        var rateWindowCount = 0
+
+        init(origin: String) { self.origin = origin }
+
+        func cancel() {
+            locationTask?.cancel()
+            for task in watchTasks.values { task.cancel() }
+            for task in positionTasks.values { task.cancel() }
+        }
+    }
+
+    private static let bridgeName = "Bentley_ITMGeolocation"
+    private static let secureBridgeScript = "window.Bentley_ITMGeolocationSecureBridge = true;"
+    private var allowedOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
+    private var documentSession: DocumentSession?
+    private var loadingObservation: NSKeyValueObservation?
+    private var attached = false
+
     var locationManager: CLLocationManager = CLLocationManager()
     var watchIds: Set<Int64> = []
     private let authorizer = Authorizer()
-    var itmMessenger: ITMMessenger
     /// Backing variable for ``asyncLocationManager`` computed property.
     private var _asyncLocationManager: AsyncLocationManager?
     private var lastLocationTimeThreshold: Double = 0.0
@@ -226,10 +298,9 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     /// Create a geolocation manager.
     /// - Parameters:
-    ///   - itmMessenger: The ``ITMMessenger`` used to communicate with the JavaScript side of this polyfill.
+    ///   - itmMessenger: Accepted for source compatibility; the messenger is not retained.
     ///   - webView: The `WKWebView` containing the JavaScript side of this polyfill.
     public init(itmMessenger: ITMMessenger, webView: WKWebView) {
-        self.itmMessenger = itmMessenger
         self.webView = webView
         super.init()
         locationManager.delegate = self
@@ -242,15 +313,92 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             }
         }
         updateHeadingOrientation()
-        webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: "Bentley_ITMGeolocation")
+        attach(webView)
     }
 
     deinit {
+        let sessionCopy = documentSession
+        let locationManagerCopy = locationManager
         let webViewCopy = webView
+        let wasAttached = attached
         Task { @MainActor in
-            // Note: this works because we pass a weak reference to self into the add function.
-            webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: "Bentley_ITMGeolocation")
+            sessionCopy?.cancel()
+            locationManagerCopy.stopUpdatingLocation()
+            locationManagerCopy.stopUpdatingHeading()
+            if wasAttached {
+                webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: Self.bridgeName)
+            }
         }
+    }
+
+    /// Attach before loading the frontend, using exact native-configured origins.
+    public func attach(_ webView: WKWebView, allowedOrigins: Set<String> = ITMBridgeOriginPolicy.defaultAllowedOrigins) {
+        let origins = ITMBridgeOriginPolicy.validOrigins(allowedOrigins)
+        if attached, self.webView === webView, self.allowedOrigins == origins { return }
+        detach()
+        self.webView = webView
+        self.allowedOrigins = origins
+        guard !origins.isEmpty else { return }
+        attached = true
+        let controller = webView.configuration.userContentController
+        if !controller.userScripts.contains(where: { $0.source == Self.secureBridgeScript }) {
+            controller.addUserScript(WKUserScript(source: Self.secureBridgeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        controller.add(ITMWeakScriptMessageHandler(self), name: Self.bridgeName)
+        loadingObservation = webView.observe(\.isLoading, options: [.new]) { [weak self] view, _ in
+            if view.isLoading {
+                self?.onPageStarted(view)
+            } else {
+                self?.onPageFinished(view)
+            }
+        }
+        onPageFinished(webView)
+    }
+
+    /// Remove the handler and cancel the attached document's work and location updates.
+    public func detach() {
+        invalidateSession()
+        loadingObservation = nil
+        if attached {
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: Self.bridgeName)
+        }
+        attached = false
+    }
+
+    /// Invalidate requests when the main frame starts navigating.
+    public func onPageStarted(_ webView: WKWebView) {
+        guard attached, self.webView === webView else { return }
+        invalidateSession()
+    }
+
+    /// Initialize an authorized loaded document, including recovery after failed provisional navigation.
+    public func onPageFinished(_ webView: WKWebView) {
+        guard attached, self.webView === webView, !webView.isLoading, documentSession == nil,
+              let url = webView.url, let origin = ITMBridgeOriginPolicy.origin(for: url),
+              allowedOrigins.contains(origin) else { return }
+        let session = DocumentSession(origin: origin)
+        documentSession = session
+        webView.evaluateJavaScript("""
+            (function() {
+                if (window !== window.top) return false;
+                window.Bentley_ITMGeolocationNativeSession = '\(session.id)';
+                if (typeof window.Bentley_ITMGeolocationInitialize !== 'function') return false;
+                window.Bentley_ITMGeolocationInitialize('\(session.id)');
+                return true;
+            })();
+            """) { [weak self] result, _ in
+                if self?.documentSession === session, result as? Bool != true {
+                    ITMApplication.log(.error, "Geolocation requires a session-aware mobile-sdk-core frontend.")
+                }
+            }
+    }
+
+    private func invalidateSession() {
+        let session = documentSession
+        documentSession = nil
+        session?.cancel()
+        watchIds.removeAll()
+        stopUpdatingPosition()
     }
 
     /// Sets the threshold when "last location" is used in location requests instead of requesting a
@@ -263,33 +411,75 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
 
     /// `WKScriptMessageHandler` function for handling messages from the JavaScript side of this polyfill.
     public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? String,
+        guard attached, message.webView === webView, message.name == Self.bridgeName,
+              userContentController === webView.configuration.userContentController,
+              message.frameInfo.isMainFrame, !webView.isLoading, let session = documentSession else { return }
+        let source = message.frameInfo.securityOrigin
+        guard (0...65535).contains(source.port) else { return }
+        var components = URLComponents()
+        components.scheme = source.protocol
+        components.host = source.host
+        components.port = source.port == 0 ? nil : source.port
+        guard let sourceURL = components.url,
+              ITMBridgeOriginPolicy.origin(for: sourceURL) == session.origin,
+              let currentURL = webView.url, ITMBridgeOriginPolicy.origin(for: currentURL) == session.origin else { return }
+        guard let body = message.body as? String, body.utf8.count <= 8192,
               let data = body.data(using: .utf8),
-              let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
-        else {
-            ITMApplication.log(.error, "ITMGeolocationManager: bad message format")
+              let request = try? JSONSerialization.jsonObject(with: data) as? JSON,
+              request["sessionId"] as? String == session.id,
+              let documentId = request["documentId"] as? String,
+              documentId.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+              let operation = request["messageName"] as? String else { return }
+        if operation == "ready" {
+            guard request.count == 3, session.documentId == nil else { return }
+            session.documentId = documentId
+            sendResponse(session, messageName: "ready", messageData: "")
             return
         }
-        if let messageName = jsonObject["messageName"] as? String {
-            Task {
-                do {
-                    switch messageName {
-                    case "watchPosition":
-                        try await watchPosition(jsonObject)
-                    case "clearWatch":
-                        try clearWatch(jsonObject)
-                    case "getCurrentPosition":
-                        try await getCurrentPosition(jsonObject)
-                    default:
-                        ITMApplication.log(.error, "Unknown Bentley_ITMGeolocation messageName: \(messageName)")
-                    }
-                } catch {
-                    ITMApplication.log(.error, "\(messageName) error: \(error.localizedDescription)")
+        guard session.documentId == documentId,
+              Set(request.keys).isSubset(of: ["messageName", "sessionId", "documentId", "positionId", "options"]),
+              let number = request["positionId"] as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue >= 1, number.doubleValue <= 9_007_199_254_740_991,
+              number.doubleValue == Double(number.int64Value) else { return }
+        let positionId = number.int64Value
+        if operation == "clearWatch" {
+            guard session.watchRequests.remove(positionId) != nil else { return }
+            session.watchTasks.removeValue(forKey: positionId)?.cancel()
+            delegate?.geolocationManager(self, willClearWatch: positionId)
+            watchIds.remove(positionId)
+            if watchIds.isEmpty { stopUpdatingPosition() }
+            return
+        }
+        guard operation == "watchPosition" || operation == "getCurrentPosition" else { return }
+        let isWatch = operation == "watchPosition"
+        guard !(isWatch ? session.watchRequests : session.positionRequests).contains(positionId) else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - session.rateWindowStart >= 1 {
+            session.rateWindowStart = now
+            session.rateWindowCount = 0
+        }
+        if session.rateWindowCount >= 100 || session.watchRequests.count + session.positionRequests.count >= 128 {
+            sendResponse(session, messageName: operation, messageData: ITMMessenger.jsonString([
+                "positionId": positionId, "error": positionUnavailableError
+            ]).toBase64())
+            return
+        }
+        session.rateWindowCount += 1
+        if isWatch { session.watchRequests.insert(positionId) } else { session.positionRequests.insert(positionId) }
+        let task = Task { @MainActor [weak self] in
+            guard let self, self.documentSession === session, !Task.isCancelled else { return }
+            defer {
+                if !Task.isCancelled {
+                    if isWatch { session.watchTasks.removeValue(forKey: positionId) } else { session.positionTasks.removeValue(forKey: positionId) }
                 }
             }
-        } else {
-            ITMApplication.log(.error, "Bentley_ITMGeolocation messageName is not a string.")
+            if isWatch {
+                await self.watchPosition(positionId, session: session)
+            } else {
+                await self.getCurrentPosition(positionId, session: session)
+            }
         }
+        if isWatch { session.watchTasks[positionId] = task } else { session.positionTasks[positionId] = task }
     }
 
     private func updateHeadingOrientation() {
@@ -340,48 +530,36 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func getPositionId(_ message: JSON) throws -> Int64 {
-        guard let positionId = message["positionId"] as? Int64 else {
-            throw ITMStringError(errorDescription: "no Int64 positionId in request.")
-        }
-        return positionId
-    }
-
-    private func watchPosition(_ message: JSON) async throws {
+    private func watchPosition(_ positionId: Int64, session: DocumentSession) async {
         // NOTE: this ignores the optional options.
-        let positionId = try getPositionId(message)
+        guard documentSession === session, session.watchRequests.contains(positionId), !Task.isCancelled else { return }
         if ITMDevicePermissionsHelper.isLocationDenied {
-            if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true {
+            let showDialog = delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .watchPosition) ?? true
+            guard documentSession === session, session.watchRequests.contains(positionId), !Task.isCancelled else { return }
+            if showDialog {
                 ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
-                    sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
+                    sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError, session: session)
                 }
             } else {
-                sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
+                sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError, session: session)
             }
             return
         }
         delegate?.geolocationManager(self, willWatchPosition: positionId)
+        guard documentSession === session, session.watchRequests.contains(positionId), !Task.isCancelled else { return }
         watchIds.insert(positionId)
         do {
             try await checkAuth()
             // The watch may have been cleared while we awaited authorization.
-            guard watchIds.contains(positionId) else { return }
+            guard documentSession === session, !Task.isCancelled, watchIds.contains(positionId) else { return }
             startUpdatingPosition()
         } catch {
+            guard documentSession === session, !Task.isCancelled else { return }
             guard watchIds.remove(positionId) != nil else { return }
             if watchIds.isEmpty {
                 stopUpdatingPosition()
             }
-            sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError)
-        }
-    }
-
-    private func clearWatch(_ message: JSON) throws {
-        let positionId = try getPositionId(message)
-        delegate?.geolocationManager(self, willClearWatch: positionId)
-        watchIds.remove(positionId)
-        if watchIds.isEmpty {
-            stopUpdatingPosition()
+            sendError("watchPosition", positionId: positionId, errorJson: notAuthorizedError, session: session)
         }
     }
 
@@ -412,18 +590,21 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         return GeolocationPositionError(code: .POSITION_UNAVAILABLE, message: NSLocalizedString("LocationPositionUnavailable", value: "Unable to determine position.", comment: "Location lookup could not determine position")).jsonObject()
     }
 
-    private func sendError(_ messageName: String, positionId: Int64, errorJson: JSON) {
+    private func sendError(_ messageName: String, positionId: Int64, errorJson: JSON, session: DocumentSession) {
+        guard documentSession === session else { return }
+        if messageName == "watchPosition", !session.watchRequests.contains(positionId) { return }
         let message: JSON = [
             "positionId": positionId,
             "error": errorJson
         ]
-        let js = "window.Bentley_ITMGeolocationResponse('\(messageName)', '\(itmMessenger.jsonString(message).toBase64())')"
-        itmMessenger.evaluateJavaScript(js)
+        sendResponse(session, messageName: messageName, messageData: ITMMessenger.jsonString(message).toBase64())
+        if messageName == "getCurrentPosition" { session.positionRequests.remove(positionId) }
+        if messageName == "watchPosition", !watchIds.contains(positionId) { session.watchRequests.remove(positionId) }
     }
 
-    private func sendErrorToWatchers(_ messageName: String, errorJson: JSON) {
+    private func sendErrorToWatchers(_ messageName: String, errorJson: JSON, session: DocumentSession) {
         for positionId in watchIds {
-            sendError(messageName, positionId: positionId, errorJson: errorJson)
+            sendError(messageName, positionId: positionId, errorJson: errorJson, session: session)
         }
     }
 
@@ -442,51 +623,76 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
         }
     }
 
-    private func getCurrentPosition(_ message: JSON) async throws {
+    private func getCurrentPosition(_ positionId: Int64, session: DocumentSession) async {
         // NOTE: this ignores the optional options.
-        let positionId = try getPositionId(message)
+        guard documentSession === session, !Task.isCancelled else { return }
         if ITMDevicePermissionsHelper.isLocationDenied {
-            if delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true {
+            let showDialog = delegate?.geolocationManager(self, shouldShowLocationAccessDialogFor: .getCurrentLocation) ?? true
+            guard documentSession === session, !Task.isCancelled else { return }
+            if showDialog {
                 ITMDevicePermissionsHelper.openLocationAccessDialog() { [self] _ in
-                    sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError)
+                    sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError, session: session)
                 }
             } else {
-                sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError)
+                sendError("getCurrentPosition", positionId: positionId, errorJson: notAuthorizedError, session: session)
             }
             return
         }
 
         delegate?.geolocationManager(self, willGetCurrentPosition: positionId)
+        guard documentSession === session, !Task.isCancelled else { return }
 
         if lastLocationTimeThreshold != 0.0, let lastLocation = locationManager.location, abs(lastLocation.timestamp.timeIntervalSinceNow) < lastLocationTimeThreshold {
             do {
                 let position = try lastLocation.geolocationPosition()
-                sendPosition(position, positionId: positionId)
+                sendPosition(position, positionId: positionId, session: session)
                 return
             } catch {} // Ignore and do new lookup below
         }
 
         do {
-            let position = try await asyncLocationManager.geolocationPosition { [self] in
-                await authorizer.getPermission(using: asyncLocationManager)
+            let lookup = session.locationTask ?? Task { @MainActor [self, weak session] in
+                defer { session?.locationTask = nil }
+                return try await asyncLocationManager.geolocationPosition { [self] in
+                    await authorizer.getPermission(using: asyncLocationManager)
+                }
             }
-            sendPosition(position, positionId: positionId)
+            session.locationTask = lookup
+            let position = try await lookup.value
+            guard documentSession === session, !Task.isCancelled else { return }
+            sendPosition(position, positionId: positionId, session: session)
         } catch {
+            guard documentSession === session, !Task.isCancelled else { return }
             stopUpdatingPosition()
             // If it's not PERMISSION_DENIED, the only other two options are POSITION_UNAVAILABLE
             // and TIMEOUT. Since we don't have any timeout handling yet, always fall back
             // to POSITION_UNAVAILABLE.
-            sendError("getCurrentPosition", positionId: positionId, errorJson: positionUnavailableError)
+            sendError("getCurrentPosition", positionId: positionId, errorJson: positionUnavailableError, session: session)
         }
     }
 
-    private func sendPosition(_ position: JSON, positionId: Int64, messageName: String? = nil) {
+    private func sendPosition(_ position: JSON, positionId: Int64, session: DocumentSession, messageName: String = "getCurrentPosition") {
+        guard documentSession === session else { return }
+        if messageName == "watchPosition", !session.watchRequests.contains(positionId) { return }
         let message: JSON = [
             "positionId": positionId,
             "position": position
         ]
-        let js = "window.Bentley_ITMGeolocationResponse('\(messageName ?? "getCurrentPosition")', '\(itmMessenger.jsonString(message).toBase64())')"
-        itmMessenger.evaluateJavaScript(js)
+        sendResponse(session, messageName: messageName, messageData: ITMMessenger.jsonString(message).toBase64())
+        if messageName == "getCurrentPosition" { session.positionRequests.remove(positionId) }
+    }
+
+    private func sendResponse(_ session: DocumentSession, messageName: String, messageData: String) {
+        guard attached, documentSession === session, !webView.isLoading,
+              let documentId = session.documentId, let url = webView.url,
+              ITMBridgeOriginPolicy.origin(for: url) == session.origin else { return }
+        webView.evaluateJavaScript("""
+            if (window.Bentley_ITMGeolocationNativeSession === '\(session.id)' &&
+                window.Bentley_ITMGeolocationDocumentId === '\(documentId)' &&
+                typeof window.Bentley_ITMGeolocationResponse === 'function') {
+                window.Bentley_ITMGeolocationResponse('\(messageName)', '\(messageData)', '\(session.id)', '\(documentId)');
+            }
+            """, completionHandler: nil)
     }
 
     private nonisolated func sendLocationUpdates() {
@@ -496,27 +702,27 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
     }
 
     private func sendLocationUpdates() async {
-        if !isUpdatingPosition {
-            return
-        }
+        guard isUpdatingPosition, let session = documentSession else { return }
         do {
             try await checkAuth()
+            guard documentSession === session, isUpdatingPosition else { return }
             if let lastLocation = locationManager.location {
                 var positionJson: JSON?
                 do {
                     positionJson = try lastLocation.geolocationPosition(locationManager.heading?.trueHeading)
                 } catch let ex {
                     ITMApplication.log(.error, "Error converting CLLocation to GeolocationPosition: \(ex)")
-                    sendErrorToWatchers("watchPosition", errorJson: positionUnavailableError)
+                    sendErrorToWatchers("watchPosition", errorJson: positionUnavailableError, session: session)
                 }
                 if let positionJson {
                     for positionId in watchIds {
-                        sendPosition(positionJson, positionId: positionId, messageName: "watchPosition")
+                        sendPosition(positionJson, positionId: positionId, session: session, messageName: "watchPosition")
                     }
                 }
             }
         } catch {
-            sendErrorToWatchers("watchPosition", errorJson: notAuthorizedError)
+            guard documentSession === session else { return }
+            sendErrorToWatchers("watchPosition", errorJson: notAuthorizedError, session: session)
         }
     }
 
@@ -539,6 +745,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
             // Apple docs say you should just ignore this error
         } else {
             Task { @MainActor in
+                guard let session = documentSession else { return }
                 let errorJson: JSON
                 stopUpdatingPosition()
                 if code == CLError.denied.rawValue, domain == kCLErrorDomain {
@@ -549,7 +756,7 @@ public class ITMGeolocationManager: NSObject, CLLocationManagerDelegate, WKScrip
                     // to POSITION_UNAVAILABLE.
                     errorJson = positionUnavailableError
                 }
-                sendErrorToWatchers("watchPosition", errorJson: errorJson)
+                sendErrorToWatchers("watchPosition", errorJson: errorJson, session: session)
             }
         }
     }

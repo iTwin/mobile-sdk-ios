@@ -14,6 +14,7 @@ Interaction with the API starts with the ``ITMApplication`` class. You use this 
 
 - ``ITMApplication``
 - ``ITMMessenger``
+- ``ITMBackendMessenger``
 - ``ITMViewController``
 
 ### Other Classes

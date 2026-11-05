@@ -97,35 +97,6 @@ extension Task where Success == Never, Failure == Never {
     }
 }
 
-// MARK: - ITMQueryHandler protocol and default extension
-
-/// Protocol for ITMMessenger query handlers.
-public protocol ITMQueryHandler: NSObjectProtocol, Sendable {
-    /// Called when a query arrives from TypeScript.
-    ///
-    /// You must eventually call `ITMMessenger.respondToQuery` (passing the given queryId) if you respond
-    /// to a given query. Return true after doing that.
-    /// - Note: If there is an error, call `ITMMessenger.respondToQuery` with a nil `responseJson` and
-    /// an appropriate value for `error`.
-    /// - Parameters:
-    ///   - queryId: The query ID that must be sent back to TypeScript in the reponse.
-    ///   - type: The query type.
-    ///   - body: Optional message data sent from TypeScript.
-    /// - Returns: true if you handle the given query, or false otherwise. If you return true, the query will not be passed to any other query handlers.
-    @MainActor
-    func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool
-    /// Gets the type of queries that this ``ITMQueryHandler`` handles.
-    func getQueryType() -> String?
-}
-
-/// Default implementation for ``ITMQueryHandler`` protocol.
-public extension ITMQueryHandler {
-    /// - Returns: This default implementation always returns `nil`.
-    func getQueryType() -> String? {
-        return nil
-    }
-}
-
 // MARK: - ITMWeakScriptMessageHandler class
 
 /// Because the WKWebView has a strong reference to any WKScriptMessageHandler
@@ -219,87 +190,21 @@ public struct ITMStringError: LocalizedError {
 // MARK: - ITMMessenger class
 
 /// Class for interacting with the Messenger TypeScript class to allow messages to go back and forth between Swift and TypeScript.
-open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
-    private static var unloggedQueryTypes = Set<String>()
-    private class ITMWKQueryHandler<T, U: Sendable>: NSObject, ITMQueryHandler, @unchecked Sendable {
-        private var itmMessenger: ITMMessenger
-        private var type: String
-        private var handler: (T) async throws -> U
-
-        init(_ itmMessenger: ITMMessenger, _ type: String, _ handler: @escaping (T) async throws -> U) {
-            self.itmMessenger = itmMessenger
-            self.type = type
-            self.handler = handler
-        }
-
-        func getQueryType() -> String? {
-            return type
-        }
-
-        @MainActor
-        func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool {
-            itmMessenger.logQuery("Request  JS -> SWIFT", "WKID\(queryId)", type, messageData: body)
-            do {
-                let response: U
-                if T.self == Void.self {
-                    response = try await handler(() as! T)
-                } else if let typedBody = body as? T {
-                    response = try await handler(typedBody)
-                } else {
-                    itmMessenger.respondToQuery(queryId, type, nil, ITMError(json: ["message": "Invalid input"]))
-                    return true
-                }
-                let responseString = itmMessenger.jsonString(response)
-                itmMessenger.respondToQuery(queryId, type, responseString)
-            } catch {
-                itmMessenger.respondToQuery(queryId, type, nil, error)
-            }
-            return true
-        }
-    }
-
-    /// Wrapper for a dictionary that uses an actor to ensure that all modifications happen in the same thread.
-    private actor ResponseHandlers {
-        private var responseHandlers: [Int64: ITMResponseHandler] = [:]
-        private var types: [Int64: String] = [:]
-
-        func set(_ key: Int64, _ type: String, _ value: @escaping ITMResponseHandler) {
-            responseHandlers[key] = value
-            types[key] = type
-        }
-        func getAndRemoveValue(forKey key: Int64) -> (String, ITMResponseHandler)? {
-            guard let type = types[key], let responseHandler = responseHandlers[key] else {
-                return nil
-            }
-            responseHandlers.removeValue(forKey: key)
-            types.removeValue(forKey: key)
-            return (type, responseHandler)
-        }
-    }
-
-    private actor QueryId {
-        private var queryId: Int64 = 0
-
-        func next() -> Int64 {
-            queryId += 1
-            return queryId
-        }
-    }
-
-    private struct WeakWKWebView: Equatable {
-        weak var webView: WKWebView?
-        static func == (lhs: WeakWKWebView, rhs: WeakWKWebView) -> Bool {
-            lhs.webView == rhs.webView
-        }
-    }
-
+open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDelegate, @unchecked Sendable {
     /// Convenience typealias for a function that takes a `String Result` and returns void.
     public typealias ITMResponseHandler = @Sendable (Result<String, Error>) -> Void
     /// Convenience typealias for an async function that takes an optional UIViewController and an Error.
     public typealias ITMErrorHandler = (_ vc: UIViewController?, _ baseError: Error) async -> Void
 
+    private let transport: ITMFrontendQueryTransport
+    private let implementation: ITMMessengerImpl
+
     /// The webView associated with this ITMMessenger.
-    open var webView: WKWebView
+    open var webView: WKWebView {
+        get { transport.webView }
+        set { transport.webView = newValue }
+    }
+
     /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
     /// The default handler simply logs the error using ITMApplication.logger.
     public static var errorHandler: ITMErrorHandler = { (_ vc: UIViewController?, _ baseError: Error) async -> Void in
@@ -311,93 +216,62 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// Unlogged queries are ignored by ``logQuery(_:_:_:prettyDataString:)``. This is useful (for example)
     /// for queries that are themselves intended to produce log output, to prevent double log output.
     ///
+    /// - Note: This is shared with ``ITMBackendMessenger``.
     /// - SeeAlso: ``removeUnloggedQueryType(_:)``
     /// - Parameter type: The type of the query for which logging is disabled.
     open class func addUnloggedQueryType(_ type: String) {
-        unloggedQueryTypes.insert(type)
+        ITMMessengerLoggingOptions.shared.addUnloggedQueryType(type)
     }
 
     /// Remove a query type from the list of unlogged queries.
     ///
+    /// - Note: This is shared with ``ITMBackendMessenger``.
     /// - SeeAlso: ``addUnloggedQueryType(_:)``
     /// - Parameter type: The type of the query to remove.
     open class func removeUnloggedQueryType(_ type: String) {
-        unloggedQueryTypes.remove(type)
+        ITMMessengerLoggingOptions.shared.removeUnloggedQueryType(type)
     }
 
-    // Note: queryId is static so that sequential ITMMessengers that make use of the
-    // same WKWebView will work properly. You cannot have two ITMMessengers refer to
-    // the same WKWebView at the same time, but you can create one, destroy it, then
-    // create another.
-    private static var queryId = QueryId()
-    private static var weakWebViews: [WeakWKWebView] = []
     /// Whether or not to log messages.
-    public static var isLoggingEnabled = false
+    /// - Note: This is shared with ``ITMBackendMessenger``.
+    public static var isLoggingEnabled: Bool {
+        get { ITMMessengerLoggingOptions.shared.isLoggingEnabled }
+        set { ITMMessengerLoggingOptions.shared.isLoggingEnabled = newValue }
+    }
     /// Whether or not full logging of all messages (with their optional bodies) is enabled.
     /// - Important: You should only enable this in debug builds, since message bodies may contain private information.
-    public static var isFullLoggingEnabled = false
+    /// - Note: This is shared with ``ITMBackendMessenger``.
+    public static var isFullLoggingEnabled: Bool {
+        get { ITMMessengerLoggingOptions.shared.isFullLoggingEnabled }
+        set { ITMMessengerLoggingOptions.shared.isFullLoggingEnabled = newValue }
+    }
     /// Indicates whether or not the frontend has finished launching. Specfically, if ``frontendLaunchSucceeded()`` has been called.
-    public var frontendLaunchDone = false
-    private let queryName = "Bentley_ITMMessenger_Query"
-    private let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
-    private let handlerNames: [String]
-    private var queryHandlerDict: [String: ITMQueryHandler] = [:]
-    private var queryHandlers: [ITMQueryHandler] = []
-    private var responseHandlers = ResponseHandlers()
-    private var jsQueue: [String] = []
-    private var jsBusy = false
-    private var frontendLaunchTask: Task<Void, Error>?
-    private var frontendLaunchContinuation: CheckedContinuation<Void, Error>?
+    public var frontendLaunchDone: Bool {
+        get { implementation.launchDone }
+        set { implementation.launchDone = newValue }
+    }
 
     /// Create an ``ITMMessenger`` attached to a `WKWebView`.
     /// - Parameter webView: The `WKWebView` to which to attach this ``ITMMessenger``.
     public init(_ webView: WKWebView) {
-        let weakWebView = WeakWKWebView(webView: webView)
-        if ITMMessenger.weakWebViews.contains(weakWebView) {
-            // Only ONE Messenger can be created at a time for each WKWebView.
-            assert(false)
-        }
-        // Stop tracking all the web views that no longer exist.
-        ITMMessenger.weakWebViews.removeAll { $0.webView == nil }
-        ITMMessenger.weakWebViews.append(weakWebView)
-        self.webView = webView
-        handlerNames = [queryName, queryResponseName]
+        transport = ITMFrontendQueryTransport(webView)
+        implementation = ITMMessengerImpl(transport: transport, targetName: "JS", incomingIdPrefix: "WKID", outgoingIdPrefix: "SWID")
         super.init()
+        implementation.delegate = self
+        transport.messenger = self
+        transport.registerScriptMessageHandlers(ITMWeakScriptMessageHandler(self))
         initFrontendLaunch()
-        for handlerName in handlerNames {
-            webView.configuration.userContentController.add(ITMWeakScriptMessageHandler(self), name: handlerName)
-        }
-    }
-
-    deinit {
-        let weakWebView = WeakWKWebView(webView: webView)
-        let webViewCopy = webView
-        let handlerNamesCopy = handlerNames
-        Task { @MainActor in
-            ITMMessenger.weakWebViews.removeAll { $0 == weakWebView }
-            for handlerName in handlerNamesCopy {
-                webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
-            }
-        }
     }
 
     /// Initializes things in preperation of launching the frontend. This is done automatically from `init`,
     /// and must be done again if the frontend crashes or is killed by iOS or iPadOS due to lack of memory.
     open func initFrontendLaunch() {
-        frontendLaunchDone = false
-        frontendLaunchTask = Task {
-            try await withCheckedThrowingContinuation { continuation in
-                frontendLaunchContinuation = continuation
-            }
-        }
+        implementation.initLaunch()
     }
 
     /// Wait until this ``ITMMessenger`` has fully finished initializing.
     public func waitUntilReady() async {
-        // It's highly unlikely we could get here with frontendLaunchContinuation nil,
-        // but if we do, we need to wait for it to be initialized before continuing, or
-        // nothing will work.
-        await ITMMessenger.waitUntilReady({ [self] in frontendLaunchContinuation != nil })
+        await implementation.waitUntilReady()
     }
 
     /// Wait until the given `isReady` predicate returns true.
@@ -423,7 +297,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - data: Optional request data to send.
     public func queryAndShowError(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async {
         do {
-            return try await internalQueryAndShowError(vc, type, data)
+            return try await implementation.queryAndShowError(vc, type, data)
         } catch {
             // Ignore error (it has been shown, and we aren't being asked to produce a return
             // value that we don't have.)
@@ -440,7 +314,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// - Returns: The value returned by the TypeScript code.
     @discardableResult
     public func queryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {
-        return try await internalQueryAndShowError(vc, type, data)
+        return try await implementation.queryAndShowError(vc, type, data)
     }
 
     /// Send message with no response.
@@ -452,16 +326,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - type: Query type.
     ///   - data: Optional request data to send.
     public func send(_ type: String, _ data: Any? = nil) {
-        Task {
-            do {
-                try await query(type, data)
-            } catch {
-                guard let itmError = error as? ITMError, !itmError.isNotImplemented else {
-                    return
-                }
-                logError("Error with one-way query \"\(type)\": \(error)")
-            }
-        }
+        implementation.send(type, data)
     }
 
     /// Send message without a return value and wait for it to complete.
@@ -476,7 +341,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - type: Query type.
     ///   - data: Optional request data to send.
     public func query(_ type: String, _ data: Any? = nil) async throws {
-        let _: Void = try await internalQuery(type, data)
+        let _: Void = try await implementation.query(type, data)
     }
 
     /// Send message and receive an async parsed typed response.
@@ -486,7 +351,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - data: Optional request data to send.
     /// - Returns: The value returned by the TypeScript code.
     public func query<T>(_ type: String, _ data: Any? = nil) async throws -> T {
-        return try await internalQuery(type, data)
+        return try await implementation.query(type, data)
     }
 
     /// Register a specific query handler for the given query type. Returns created handler, use it with ``unregisterQueryHandler(_:)``
@@ -497,7 +362,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - handler: Callback function for query.
     /// - Returns: The query handler created to handle the given query type.
     public func registerQueryHandler<T, U: Sendable>(_ type: String, _ handler: @MainActor @escaping (T) async throws -> U) -> ITMQueryHandler {
-        return internalRegisterQueryHandler(type, handler)
+        return implementation.registerQueryHandler(type, handler)
     }
 
     /// Register query handler for any otherwise unhandled query type.
@@ -512,7 +377,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// ``unregisterQueryHandlers(_:)``
     /// - Parameter handler: Query handler to register.
     public func registerQueryHandler(_ handler: ITMQueryHandler) {
-        queryHandlers.append(handler)
+        implementation.registerQueryHandler(handler)
     }
 
     /// Unregister a query handler registered with ``registerQueryHandler(_:_:)`` or ``registerQueryHandler(_:)``.
@@ -520,10 +385,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// ``registerQueryHandler(_:)``
     /// - Parameter handler: Query handler to unregister.
     public func unregisterQueryHandler(_ handler: ITMQueryHandler) {
-        if let queryType = handler.getQueryType() {
-            queryHandlerDict.removeValue(forKey: queryType)
-        }
-        queryHandlers.removeAll { $0.isEqual(handler) }
+        implementation.unregisterQueryHandler(handler)
     }
 
     /// Unregister a query handlers registered with ``registerQueryHandler(_:_:)`` or ``registerQueryHandler(_:)``.
@@ -541,58 +403,14 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// same time. This function returns immediately, while the JavaScript is scheduled for later evaluation.
     /// - Parameter js: The JavaScript string to evaluate.
     open func evaluateJavaScript(_ js: String) {
-        Task { @MainActor in
-            // Calling evaluateJavascript multiple times in a row before the prior
-            // evaluation completes results in loss of all but one. Either the first
-            // or last is called, and the rest disappear.
-            if jsBusy {
-                jsQueue.append(js)
-                return
-            }
-            jsBusy = true
-            do {
-                try await webView.evaluateJavaScriptAsync(js)
-            } catch {} // Ignore
-            jsBusy = false
-            if jsQueue.isEmpty {
-                return
-            }
-            let nextJs = jsQueue.removeFirst()
-            evaluateJavaScript(nextJs)
-        }
+        transport.enqueueJavaScript(js)
     }
 
     /// Implementation of the `WKScriptMessageHandler` function. If you override this function, it is __STRONGLY__ recommended
     /// that you call this version via super as part of your implementation.
     /// - Note: Since query handling is async, this function will return before that finishes if the message is a query.
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? String,
-              let data = body.data(using: .utf8),
-              let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
-        else {
-            logError("ITMMessenger: Invalid or missing body")
-            return
-        }
-        switch message.name {
-        case queryName:
-            guard let name = jsonObject["name"] as? String,
-                  let queryId = jsonObject["queryId"] as? Int64 else {
-                logError("ITMMessenger: Invalid message body")
-                return
-            }
-            Task {
-                await processQuery(name, withBody: jsonObject["message"], queryId: queryId)
-            }
-        case queryResponseName:
-            let error = jsonObject["error"]
-            guard let queryId = jsonObject["queryId"] as? Int64 else {
-                logError("ITMMessenger: Invalid message body")
-                return
-            }
-            processQueryResponse(jsonObject["response"], queryId: queryId, error: error)
-        default:
-            logError("ITMMessenger: Unexpected message type: \(message.name)\n")
-        }
+        transport.handleScriptMessage(message)
     }
 
     /// Send query response to WKWebView.
@@ -602,38 +420,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - responseJson: The JSON-encoded response string. If this is `nil`, it indicates an error. To indicate "no response" without
     ///   triggering an error, use an empty string.
     open func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
-        logQuery("Response SWIFT -> JS", "WKID\(queryId)", type, dataString: responseJson)
-        let messageJson: String
-        if let responseJson {
-            if responseJson.isEmpty {
-                messageJson = "{}"
-            } else {
-                messageJson = "{\"response\":\(responseJson)}"
-            }
-        } else {
-            if let itmError = error as? ITMError {
-                if itmError.jsonString.isEmpty {
-                    messageJson = "{\"error\":{}}"
-                } else {
-                    messageJson = "{\"error\":\(itmError.jsonString)}"
-                }
-            } else if let stringError = error as? ITMStringError, let errorDescription = stringError.errorDescription {
-                let errorString = jsonString("\(errorDescription)")
-                messageJson = "{\"error\":\(errorString)}"
-            } else if let error {
-                let errorString = jsonString("\(error)")
-                messageJson = "{\"error\":\(errorString)}"
-            } else {
-                // If we get here, the JS code sent a query that we don't handle. That should never
-                // happen, so assert. Note that if a void response is desired, then responseJson
-                // will be an empty string, not nil.
-                logError("Unhandled query [JS -> Swift]: WKID\(queryId)\n")
-                assert(false)
-                messageJson = "{\"unhandled\":true}"
-            }
-        }
-        let js = "window.Bentley_ITMMessenger_QueryResponse\(queryId)('\(messageJson.toBase64())')"
-        evaluateJavaScript(js)
+        implementation.completeQuery(queryId, type, responseJson, error)
     }
 
     /// Convert a value into a JSON string. This supports both void values and base types (String, Bool, numeric types).
@@ -662,12 +449,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     ///   - prettyDataString: The pretty-printed JSON representation of the query data. This is ignored if
     ///   ``isFullLoggingEnabled`` is `false`.
     open func logQuery(_ title: String, _ queryId: String, _ type: String, prettyDataString: String?) {
-        guard ITMMessenger.isLoggingEnabled, !ITMMessenger.unloggedQueryTypes.contains(type) else {return}
-        var message = "ITMMessenger [\(title)] \(queryId): \(type)"
-        if ITMMessenger.isFullLoggingEnabled, let prettyDataString, !prettyDataString.isEmpty {
-            message.append("\n\(prettyDataString)")
-        }
-        logInfo(message)
+        implementation.writeQueryLog(title, queryId, type, prettyDataString: prettyDataString)
     }
 
     /// Log an error message using `ITMApplication.logger`.
@@ -685,154 +467,152 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, @unchecked Sendable {
     /// Call after the frontend has successfully launched, indicating that any queries that are sent to TypeScript will be received.
     /// - Important: Until you call this, all queries sent to TypeScript are kept on hold.
     open func frontendLaunchSucceeded() {
-        frontendLaunchDone = true
-        frontendLaunchContinuation?.resume(returning: ())
-        frontendLaunchContinuation = nil
+        implementation.launchSucceeded()
     }
 
     /// Called if the frontend fails to launch. This prevents any queries from being sent to TypeScript.
     open func frontendLaunchFailed(_ error: Error) {
-        frontendLaunchContinuation?.resume(throwing: error)
-        frontendLaunchContinuation = nil
-    }
-
-    private func internalRegisterQueryHandler<T, U: Sendable>(_ type: String, _ handler: @escaping (T) async throws -> U) -> ITMQueryHandler {
-        let queryHandler = ITMWKQueryHandler<T, U>(self, type, handler)
-        queryHandlerDict[type] = queryHandler
-        return queryHandler
+        implementation.launchFailed(error)
     }
 
     /// Async property that resolves when the frontend launch has succeeded (``frontendLaunchSucceeded()`` has been called).
     /// - Throws: The value passed to the `error` parameter of ``frontendLaunchFailed(_:)``.
     public var frontendLaunched: () {
         get async throws {
-            try await frontendLaunchTask?.value
+            try await implementation.launched
+        }
+    }
+}
+
+// MARK: - ITMFrontendQueryTransport class
+
+/// ``ITMQueryTransport`` that communicates with the frontend running in a `WKWebView`.
+fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, @unchecked Sendable {
+    private struct WeakWKWebView: Equatable {
+        weak var webView: WKWebView?
+        static func == (lhs: WeakWKWebView, rhs: WeakWKWebView) -> Bool {
+            lhs.webView == rhs.webView
         }
     }
 
-    private func internalQuery(_ type: String, dataString: String) async throws -> String {
-        let queryId = await ITMMessenger.queryId.next()
-        logQuery("Request  SWIFT -> JS", "SWID\(queryId)", type, dataString: dataString)
-        return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                await responseHandlers.set(queryId, type, { result in
-                    switch result {
-                    case .success(let resultString):
-                        continuation.resume(returning: resultString)
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
-                })
-                let js = "window.Bentley_ITMMessenger_Query('\(type)', \(queryId), '\(dataString.toBase64())')"
-                evaluateJavaScript(js)
-            }
+    private static var weakWebViews: [WeakWKWebView] = []
+    private static let queryName = "Bentley_ITMMessenger_Query"
+    private static let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
+    private static let handlerNames = [queryName, queryResponseName]
+
+    weak var delegate: ITMQueryTransportDelegate?
+    weak var messenger: ITMMessenger?
+    var webView: WKWebView
+    private var pendingQueries: [Int64: CheckedContinuation<ITMQueryResponse, Never>] = [:]
+    private var jsQueue: [String] = []
+    private var jsBusy = false
+
+    init(_ webView: WKWebView) {
+        let weakWebView = WeakWKWebView(webView: webView)
+        if Self.weakWebViews.contains(weakWebView) {
+            // Only ONE Messenger can be created at a time for each WKWebView.
+            assert(false)
+        }
+        // Stop tracking all the web views that no longer exist.
+        Self.weakWebViews.removeAll { $0.webView == nil }
+        Self.weakWebViews.append(weakWebView)
+        self.webView = webView
+        super.init()
+    }
+
+    func registerScriptMessageHandlers(_ handler: WKScriptMessageHandler) {
+        for handlerName in Self.handlerNames {
+            webView.configuration.userContentController.add(handler, name: handlerName)
         }
     }
 
-    private func processQuery(_ type: String, withBody body: Sendable?, queryId: Int64) async {
-        if let queryHandler = queryHandlerDict[type] {
-            if await queryHandler.handleQuery(queryId, type, body) {
-                return
-            }
-        }
-        for queryHandler in queryHandlers {
-            // These query handlers don't indicate what queries they handle.
-            // So iterate through all of them until one indicates that it has
-            // handled the query.
-            if await queryHandler.handleQuery(queryId, type, body) {
-                return
-            }
-        }
-        // If we get this far, nothing handled the query. Send an error response back.
-        logError("ITMMessenger no SWIFT handler for WKID\(queryId) '\(type)'")
-        respondToQuery(queryId, type, nil)
-    }
-
-    private func processQueryResponse(_ response: Any?, queryId: Int64, error: Any?) {
+    deinit {
+        let weakWebView = WeakWKWebView(webView: webView)
+        let webViewCopy = webView
         Task { @MainActor in
-            guard let (type, handler) = await responseHandlers.getAndRemoveValue(forKey: queryId) else {
-                logError("Query response with invalid or repeat queryId: \(queryId)")
+            ITMFrontendQueryTransport.weakWebViews.removeAll { $0 == weakWebView }
+            for handlerName in ITMFrontendQueryTransport.handlerNames {
+                webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
+            }
+        }
+    }
+
+    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String) async -> ITMQueryResponse {
+        return await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                pendingQueries[queryId] = continuation
+                evaluateJavaScript("window.\(Self.queryName)('\(type)', \(queryId), '\(dataString.toBase64())')")
+            }
+        }
+    }
+
+    private func evaluateJavaScript(_ js: String) {
+        if let messenger {
+            messenger.evaluateJavaScript(js)
+        } else {
+            enqueueJavaScript(js)
+        }
+    }
+
+    /// Evaluates JavaScript strings one at a time, since `WKWebView` loses all but one of multiple concurrent evaluations.
+    func enqueueJavaScript(_ js: String) {
+        Task { @MainActor in
+            if jsBusy {
+                jsQueue.append(js)
                 return
             }
-            let responseString = jsonString(response)
-            if let error {
-                logQuery("Error Response JS -> SWIFT", "SWID\(queryId)", type, messageData: error)
-                if !handleNotImplementedError(error: error, handler: handler) {
-                    handler(.failure(ITMError(json: error as? JSON)))
-                }
-            } else {
-                logQuery("Response JS -> SWIFT", "SWID\(queryId)", type, messageData: response)
-                handler(.success(responseString))
+            jsBusy = true
+            do {
+                try await webView.evaluateJavaScriptAsync(js)
+            } catch {} // Ignore
+            jsBusy = false
+            if jsQueue.isEmpty {
+                return
             }
+            let nextJs = jsQueue.removeFirst()
+            enqueueJavaScript(nextJs)
         }
     }
 
-    private func logQuery(_ title: String, _ queryId: String, _ type: String, messageData: Any?) {
-        logQuery(title, queryId, type, prettyDataString: messageData != nil && ITMMessenger.isFullLoggingEnabled ? JSONSerialization.string(withITMJSONObject: messageData, prettyPrint: true) : nil)
-    }
-
-    private func logQuery(_ title: String, _ queryId: String, _ type: String, dataString: String?) {
-        // Note: the original string is not pretty-printed, so convert it into an object here, then
-        // logMessage(,,,messageData:) will convert it to a pretty-printed JSON string.
-        logQuery(title, queryId, type, messageData: dataString != nil && ITMMessenger.isFullLoggingEnabled ? JSONSerialization.jsonObject(withString: dataString!) : nil)
-    }
-
-    private func handleNotImplementedError(error: Any, handler: ITMResponseHandler) -> Bool {
-        let itmError = ITMError(json: error as? JSON)
-        guard itmError.isNotImplemented else { return false }
-        let description = itmError.errorDescription ?? "No handler for <Unknown> query."
-        logError("ModelWebApp \(description)")
-        handler(.failure(itmError))
-        return true
-    }
-
-    private func internalQuery<T>(_ type: String, _ data: Any? = nil) async throws -> T {
-        try await frontendLaunched
-        let dataString = try await internalQuery(type, dataString: jsonString(data))
-        return try convertResult(type, dataString)
-    }
-
-    private func internalQueryAndShowError<T>(_ vc: UIViewController?, _ type: String, _ data: Any? = nil) async throws -> T {
-        do {
-            return try await internalQuery(type, data)
-        } catch {
-            _ = await ITMMessenger.errorHandler(vc, error)
-            throw error
+    func handleScriptMessage(_ message: WKScriptMessage) {
+        guard let body = message.body as? String,
+              let data = body.data(using: .utf8),
+              let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
+        else {
+            delegate?.logError("ITMMessenger: Invalid or missing body")
+            return
         }
-    }
-
-    private func convertResult<T>(_ messageType: String, _ dataString: String) throws -> T {
-        var data = ITMMessenger.parseMessageJsonString(dataString)
-        if T.self == Void.self {
-            let voidAsT = () as! T // This has to be a separate variable to avoid a warning in the next line
-            return voidAsT
+        guard let queryId = jsonObject["queryId"] as? Int64 else {
+            delegate?.logError("ITMMessenger: Invalid message body")
+            return
         }
-
-        // JSONSerialization converts string "null" to NSNull object, that fails test "data is T" when T is Optional<>.
-        if data is NSNull {
-            data = nil
+        switch message.name {
+        case Self.queryName:
+            guard let name = jsonObject["name"] as? String else {
+                delegate?.logError("ITMMessenger: Invalid message body")
+                return
+            }
+            let queryBody = jsonObject["message"]
+            Task { @MainActor [weak self] in
+                guard let messageJson = await self?.delegate?.processQuery(name, queryId, queryBody) else { return }
+                self?.evaluateJavaScript("window.\(Self.queryResponseName)\(queryId)('\(messageJson.toBase64())')")
+            }
+        case Self.queryResponseName:
+            let response: ITMQueryResponse
+            if let error = jsonObject["error"] {
+                response = .failure(ITMError(json: error as? JSON))
+            } else {
+                response = .success(jsonObject["response"])
+            }
+            Task { @MainActor in
+                guard let continuation = pendingQueries.removeValue(forKey: queryId) else {
+                    delegate?.logError("Query response with invalid or repeat queryId: \(queryId)")
+                    return
+                }
+                continuation.resume(returning: response)
+            }
+        default:
+            delegate?.logError("ITMMessenger: Unexpected message type: \(message.name)\n")
         }
-
-        if data is T {
-            return data as! T
-        }
-
-        // Type does not match expectation - handle error gracefully.
-        let dataType = data == nil ?"<null>" : String(describing: type(of: data!))
-        let expectedType = String(describing: T.self)
-        let reason =
-            "Could not cast response data from '\(dataType)' to expected type '\(expectedType)'. " +
-            "Check your type cast for message response of type '\(messageType)' and if data arrived as expected."
-
-        ITMApplication.log(.error, reason)
-        #if DEBUG
-            assert(false, reason)
-        #endif
-
-        throw ITMError(json: ["REASON": reason, "Internal": true])
-    }
-
-    private static func parseMessageJsonString(_ jsonStr: String) -> Any? {
-        return JSONSerialization.jsonObject(withString: jsonStr)
     }
 }

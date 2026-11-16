@@ -202,8 +202,22 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
     /// The webView associated with this ITMMessenger.
     open var webView: WKWebView {
         get { transport.webView }
-        set { transport.webView = newValue }
+        set { transport.attach(newValue) }
     }
+
+    /// Attach before loading the frontend, using exact native-configured origins.
+    public final func attach(_ webView: WKWebView, allowedOrigins: Set<String> = ITMBridgeOriginPolicy.defaultAllowedOrigins) {
+        transport.attach(webView, allowedOrigins: allowedOrigins)
+    }
+
+    /// Remove handlers and fail pending document work.
+    public final func detach() { transport.detach() }
+
+    /// Invalidate the previous document before navigation hooks run.
+    public final func onPageStarted(_ webView: WKWebView) { transport.onPageStarted(webView) }
+
+    /// Bootstrap the authorized loaded document.
+    public final func onPageFinished(_ webView: WKWebView) { transport.onPageFinished(webView) }
 
     /// The error handler for this ITMMessenger. Replace this value with a custom ITMErrorHandler to present the error to your user.
     /// The default handler simply logs the error using ITMApplication.logger.
@@ -258,14 +272,17 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         implementation = ITMMessengerImpl(transport: transport, targetName: "JS", incomingIdPrefix: "WKID", outgoingIdPrefix: "SWID")
         super.init()
         implementation.delegate = self
-        transport.messenger = self
-        transport.registerScriptMessageHandlers(ITMWeakScriptMessageHandler(self))
         initFrontendLaunch()
+        transport.sessionEnded = { [weak implementation] error, awaitingLaunch in
+            implementation?.resetFrontendSession(error, awaitingLaunch: awaitingLaunch)
+        }
+        transport.attach(webView)
     }
 
     /// Initializes things in preperation of launching the frontend. This is done automatically from `init`,
     /// and must be done again if the frontend crashes or is killed by iOS or iPadOS due to lack of memory.
     open func initFrontendLaunch() {
+        transport.onPageStarted(webView)
         implementation.initLaunch()
     }
 
@@ -487,132 +504,3 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
 // MARK: - ITMFrontendQueryTransport class
 
 /// ``ITMQueryTransport`` that communicates with the frontend running in a `WKWebView`.
-fileprivate final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, @unchecked Sendable {
-    private struct WeakWKWebView: Equatable {
-        weak var webView: WKWebView?
-        static func == (lhs: WeakWKWebView, rhs: WeakWKWebView) -> Bool {
-            lhs.webView == rhs.webView
-        }
-    }
-
-    private static var weakWebViews: [WeakWKWebView] = []
-    private static let queryName = "Bentley_ITMMessenger_Query"
-    private static let queryResponseName = "Bentley_ITMMessenger_QueryResponse"
-    private static let handlerNames = [queryName, queryResponseName]
-
-    weak var delegate: ITMQueryTransportDelegate?
-    weak var messenger: ITMMessenger?
-    var webView: WKWebView
-    private var pendingQueries: [Int64: CheckedContinuation<ITMQueryResponse, Never>] = [:]
-    private var jsQueue: [String] = []
-    private var jsBusy = false
-
-    init(_ webView: WKWebView) {
-        let weakWebView = WeakWKWebView(webView: webView)
-        if Self.weakWebViews.contains(weakWebView) {
-            // Only ONE Messenger can be created at a time for each WKWebView.
-            assert(false)
-        }
-        // Stop tracking all the web views that no longer exist.
-        Self.weakWebViews.removeAll { $0.webView == nil }
-        Self.weakWebViews.append(weakWebView)
-        self.webView = webView
-        super.init()
-    }
-
-    func registerScriptMessageHandlers(_ handler: WKScriptMessageHandler) {
-        for handlerName in Self.handlerNames {
-            webView.configuration.userContentController.add(handler, name: handlerName)
-        }
-    }
-
-    deinit {
-        let weakWebView = WeakWKWebView(webView: webView)
-        let webViewCopy = webView
-        Task { @MainActor in
-            ITMFrontendQueryTransport.weakWebViews.removeAll { $0 == weakWebView }
-            for handlerName in ITMFrontendQueryTransport.handlerNames {
-                webViewCopy.configuration.userContentController.removeScriptMessageHandler(forName: handlerName)
-            }
-        }
-    }
-
-    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String) async -> ITMQueryResponse {
-        return await withCheckedContinuation { continuation in
-            Task { @MainActor in
-                pendingQueries[queryId] = continuation
-                evaluateJavaScript("window.\(Self.queryName)('\(type)', \(queryId), '\(dataString.toBase64())')")
-            }
-        }
-    }
-
-    private func evaluateJavaScript(_ js: String) {
-        if let messenger {
-            messenger.evaluateJavaScript(js)
-        } else {
-            enqueueJavaScript(js)
-        }
-    }
-
-    /// Evaluates JavaScript strings one at a time, since `WKWebView` loses all but one of multiple concurrent evaluations.
-    func enqueueJavaScript(_ js: String) {
-        Task { @MainActor in
-            if jsBusy {
-                jsQueue.append(js)
-                return
-            }
-            jsBusy = true
-            do {
-                try await webView.evaluateJavaScriptAsync(js)
-            } catch {} // Ignore
-            jsBusy = false
-            if jsQueue.isEmpty {
-                return
-            }
-            let nextJs = jsQueue.removeFirst()
-            enqueueJavaScript(nextJs)
-        }
-    }
-
-    func handleScriptMessage(_ message: WKScriptMessage) {
-        guard let body = message.body as? String,
-              let data = body.data(using: .utf8),
-              let jsonObject = try? JSONSerialization.jsonObject(with: data, options: []) as? JSON
-        else {
-            delegate?.logError("ITMMessenger: Invalid or missing body")
-            return
-        }
-        guard let queryId = jsonObject["queryId"] as? Int64 else {
-            delegate?.logError("ITMMessenger: Invalid message body")
-            return
-        }
-        switch message.name {
-        case Self.queryName:
-            guard let name = jsonObject["name"] as? String else {
-                delegate?.logError("ITMMessenger: Invalid message body")
-                return
-            }
-            let queryBody = jsonObject["message"]
-            Task { @MainActor [weak self] in
-                guard let messageJson = await self?.delegate?.processQuery(name, queryId, queryBody) else { return }
-                self?.evaluateJavaScript("window.\(Self.queryResponseName)\(queryId)('\(messageJson.toBase64())')")
-            }
-        case Self.queryResponseName:
-            let response: ITMQueryResponse
-            if let error = jsonObject["error"] {
-                response = .failure(ITMError(json: error as? JSON))
-            } else {
-                response = .success(jsonObject["response"])
-            }
-            Task { @MainActor in
-                guard let continuation = pendingQueries.removeValue(forKey: queryId) else {
-                    delegate?.logError("Query response with invalid or repeat queryId: \(queryId)")
-                    return
-                }
-                continuation.resume(returning: response)
-            }
-        default:
-            delegate?.logError("ITMMessenger: Unexpected message type: \(message.name)\n")
-        }
-    }
-}

@@ -186,6 +186,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         webViewLogger?.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
         geolocationManager.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
+        itmMessenger.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
     }
 
     deinit {
@@ -195,6 +196,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let geolocationCopy = geolocationManager
         Task { @MainActor in
             geolocationCopy.detach()
+            messengerCopy.detach()
             loggerCopy?.detach()
             messengerCopy.unregisterQueryHandlers(handlersCopy)
         }
@@ -816,6 +818,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Invalidates console output from the previous frontend document.
     open func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        itmMessenger.onPageStarted(webView)
         geolocationManager.onPageStarted(webView)
         webViewLogger?.onPageStarted()
     }
@@ -831,6 +834,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // way across the screen. The setNeedsLayout below fixes it.
         webView.setNeedsLayout()
         geolocationManager.onPageFinished(webView)
+        itmMessenger.onPageFinished(webView)
         webViewLogger?.reattach(webView)
         fullyLoaded = true
         if !dormant {
@@ -841,6 +845,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Discard location work when WebKit loses its document process.
     open func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        itmMessenger.onPageStarted(webView)
         geolocationManager.onPageStarted(webView)
     }
 }

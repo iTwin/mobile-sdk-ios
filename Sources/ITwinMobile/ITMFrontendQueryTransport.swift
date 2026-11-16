@@ -25,6 +25,8 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     private static var incomingId: Int64 = 0
     weak var delegate: ITMQueryTransportDelegate?
     var sessionEnded: ((Error, Bool) -> Void)?
+    var isFrontendLaunched: (() -> Bool)?
+    var restoreFrontendLaunch: (() -> Void)?
     private(set) var webView: WKWebView
     private var allowedOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
     private var session: DocumentSession?
@@ -32,6 +34,7 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     private var hasAttached = false
     private var navigating = false
     private var hasDocument = false
+    private var suspendedDocumentId: String?
     private var loadingObservation: NSKeyValueObservation?
     private var lastDiagnostic: TimeInterval = -1
     private struct Evaluation {
@@ -78,6 +81,7 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     }
 
     func detach() {
+        suspendedDocumentId = nil
         invalidateSession()
         loadingObservation = nil
         if attached {
@@ -108,7 +112,8 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     func onPageStarted(_ view: WKWebView) {
         guard attached, webView === view, !navigating else { return }
         navigating = true
-        if session != nil {
+        if let current = session {
+            suspendedDocumentId = isFrontendLaunched?() == true ? current.documentId : nil
             invalidateSession(awaitingLaunch: true)
         } else if hasDocument {
             sessionEnded?(ITMStringError(errorDescription: "Messenger document session ended."), true)
@@ -135,9 +140,14 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
                 window.Bentley_ITMMessengerInitialize('\(current.id)');
                 return true;
             })();
-            """) { [weak self] result, _ in
-                if self?.session === current, result as? Bool != true {
-                    self?.diagnostic("Messenger requires a session-aware mobile-sdk-core frontend.")
+            """) { [weak self] result, error in
+                guard let self, self.session === current else { return }
+                if error != nil {
+                    self.diagnostic("Messenger bootstrap evaluation failed.")
+                    self.invalidateSession()
+                } else if result as? Bool != true {
+                    // Core can initialize after load, then consume the published native session.
+                    self.diagnostic("Messenger is waiting for a session-aware mobile-sdk-core frontend.")
                 }
             }
     }
@@ -201,6 +211,8 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
             guard request.count == 3, current.documentId == nil else { return }
             current.documentId = documentId
             deliver(["operation": "ready"], session: current)
+            if suspendedDocumentId == documentId { restoreFrontendLaunch?() }
+            suspendedDocumentId = nil
             return
         }
         if operation == "closed", message.name == Self.queryName,
@@ -287,32 +299,29 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
             """, session: current, closing: closing))
     }
 
-    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String) async -> ITMQueryResponse {
-        let expected = session
+    @MainActor
+    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String, isCurrent: @Sendable () -> Bool) async -> ITMQueryResponse {
+        guard isCurrent(), let current = session, current.documentId != nil else {
+            return .failure(ITMStringError(errorDescription: "Messenger has no ready document for this query."))
+        }
         return await withCheckedContinuation { continuation in
-            Task { @MainActor in
-                guard let current = expected, self.session === current, current.documentId != nil else {
-                    continuation.resume(returning: .failure(ITMStringError(errorDescription: "Messenger has no ready document.")))
-                    return
-                }
-                guard current.pending.count < 128 else {
-                    continuation.resume(returning: .failure(ITMStringError(errorDescription: "Messenger request limit reached.")))
-                    return
-                }
-                current.pending[queryId] = continuation
-                deliver(["operation": "query", "queryId": queryId, "name": type, "message": dataString.toBase64()], session: current)
+            guard current.pending.count < 128 else {
+                continuation.resume(returning: .failure(ITMStringError(errorDescription: "Messenger request limit reached.")))
+                return
             }
+            current.pending[queryId] = continuation
+            deliver(["operation": "query", "queryId": queryId, "name": type, "message": dataString.toBase64()], session: current)
         }
     }
 
     /// Public arbitrary evaluation remains available, but sensitive transport delivery never uses it.
-    func enqueueJavaScript(_ js: String) {
+    nonisolated func enqueueJavaScript(_ js: String) {
         enqueueEvaluation(Evaluation(script: js, session: nil, closing: false))
     }
 
-    private func enqueueEvaluation(_ evaluation: Evaluation) {
-        jsQueue.append(evaluation)
+    nonisolated private func enqueueEvaluation(_ evaluation: Evaluation) {
         Task { @MainActor in
+            jsQueue.append(evaluation)
             guard !jsBusy else { return }
             jsBusy = true
             defer { jsBusy = false }

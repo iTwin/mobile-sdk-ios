@@ -24,5 +24,6 @@ internal protocol ITMQueryTransportDelegate: AnyObject {
 /// Transport used by ``ITMMessengerImpl`` to send and receive queries.
 internal protocol ITMQueryTransport: AnyObject {
     var delegate: ITMQueryTransportDelegate? { get set }
-    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String) async -> ITMQueryResponse
+    @MainActor
+    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String, isCurrent: @Sendable () -> Bool) async -> ITMQueryResponse
 }

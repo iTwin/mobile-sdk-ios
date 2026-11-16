@@ -276,6 +276,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         transport.sessionEnded = { [weak implementation] error, awaitingLaunch in
             implementation?.resetFrontendSession(error, awaitingLaunch: awaitingLaunch)
         }
+        transport.isFrontendLaunched = { [weak implementation] in implementation?.launchDone == true }
+        transport.restoreFrontendLaunch = { [weak implementation] in implementation?.launchSucceeded() }
         transport.attach(webView)
     }
 
@@ -419,7 +421,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
     /// string is evaluated at a time. `WKWebView` doesn't work right when multiple `evaluateJavaScript` calls are active at the
     /// same time. This function returns immediately, while the JavaScript is scheduled for later evaluation.
     /// - Parameter js: The JavaScript string to evaluate.
-    open func evaluateJavaScript(_ js: String) {
+    nonisolated open func evaluateJavaScript(_ js: String) {
         transport.enqueueJavaScript(js)
     }
 

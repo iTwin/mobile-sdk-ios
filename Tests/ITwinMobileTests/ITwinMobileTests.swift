@@ -8,8 +8,21 @@ import WebKit
 
 @MainActor
 final class ITwinMobileTests: XCTestCase {
+    private final class PausingMessenger: ITMMessenger, @unchecked Sendable {
+        var beforeSerializing: (() -> Void)?
+
+        override func jsonString(_ value: Any?, prettyPrint: Bool = false) -> String {
+            if value as? String == "sensitive" { beforeSerializing?() }
+            return super.jsonString(value, prettyPrint: prettyPrint)
+        }
+    }
+
     private final class Fixtures: NSObject, WKURLSchemeHandler {
         func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+            if task.request.url?.path == "/cancelled" {
+                task.didFailWithError(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled))
+                return
+            }
             let frame = task.request.url?.path == "/frame"
             let source = frame ? """
                 <script>
@@ -56,12 +69,19 @@ final class ITwinMobileTests: XCTestCase {
         func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
     }
 
-    private func createMessenger() -> (WKWebView, ITMMessenger) {
+    private func createMessenger(
+        documentEndScript: String? = nil,
+        factory: @MainActor (WKWebView) -> ITMMessenger = { ITMMessenger($0) }
+    ) -> (WKWebView, ITMMessenger) {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         configuration.setURLSchemeHandler(Fixtures(), forURLScheme: "imodeljs")
+        if let documentEndScript {
+            configuration.userContentController.addUserScript(WKUserScript(
+                source: documentEndScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 600), configuration: configuration)
-        let messenger = ITMMessenger(view)
+        let messenger = factory(view)
         return (view, messenger)
     }
 
@@ -150,6 +170,139 @@ final class ITwinMobileTests: XCTestCase {
             JSON.parse(atob(received.find(m => m.operation === 'queryResponse' && m.queryId === 0).message)).response === 'x'.repeat(1048577)
             """, in: view) as? Bool
         XCTAssertEqual(matches, true)
+    }
+
+    func testBackgroundJavaScriptEvaluationsAreNotLost() async throws {
+        let (view, messenger) = createMessenger()
+        defer { messenger.detach() }
+        try await load(view)
+        _ = try await evaluate("window.evaluationIds = []; true", in: view)
+        await withTaskGroup(of: Void.self) { group in
+            for id in 0..<200 {
+                group.addTask {
+                    messenger.evaluateJavaScript("evaluationIds.push(\(id));")
+                }
+            }
+        }
+        try await waitFor("evaluationIds.length === 200", in: view)
+        let uniqueCount = try await evaluate("new Set(evaluationIds).size", in: view) as? Int
+        XCTAssertEqual(uniqueCount, 200)
+    }
+
+    func testNavigationDuringSerializationCannotRetargetQuery() async throws {
+        let (view, messenger) = createMessenger(factory: { PausingMessenger($0) })
+        let pausingMessenger = messenger as! PausingMessenger
+        defer { messenger.detach() }
+        try await load(view)
+        messenger.frontendLaunchSucceeded()
+        let serializing = expectation(description: "Old query admitted before navigation")
+        let finished = expectation(description: "Stale query rejected")
+        let release = DispatchSemaphore(value: 0)
+        pausingMessenger.beforeSerializing = {
+            serializing.fulfill()
+            release.wait()
+        }
+        defer { release.signal() }
+        let pending = Task.detached {
+            do {
+                let _: String = try await messenger.query("sensitive-query", "sensitive")
+                XCTFail("An admitted query must not move to a replacement document.")
+            } catch {}
+            finished.fulfill()
+        }
+        await fulfillment(of: [serializing], timeout: 5)
+        try await load(view)
+        XCTAssertFalse(messenger.frontendLaunchDone)
+        release.signal()
+        await fulfillment(of: [finished], timeout: 5)
+        let leaked = try await evaluate("received.some(m => m.name === 'sensitive-query')", in: view) as? Bool
+        XCTAssertEqual(leaked, false)
+        messenger.frontendLaunchSucceeded()
+        let result: String = try await messenger.query("replacement-query")
+        XCTAssertEqual(result, "h\u{00e9}llo")
+        await pending.value
+    }
+
+    func testCancelledNavigationRestoresLaunchedDocumentButDiscardsPendingWork() async throws {
+        let (view, messenger) = createMessenger()
+        defer { messenger.detach() }
+        try await load(view)
+        messenger.frontendLaunchSucceeded()
+        _ = try await evaluate("window.holdResponses = true; true", in: view)
+        let failed = expectation(description: "Old pending query fails")
+        let pending = Task {
+            do {
+                let _: String = try await messenger.query("pending-before-cancellation")
+                XCTFail("Pending work must be discarded even if the document survives.")
+            } catch { failed.fulfill() }
+        }
+        try await waitFor("received.some(m => m.name === 'pending-before-cancellation')", in: view)
+        _ = try await evaluate("""
+            window.originalSession = Bentley_ITMMessengerNativeSession;
+            window.originalDocument = Bentley_ITMMessengerDocumentId;
+            window.ready = false; true;
+            """, in: view)
+        view.load(URLRequest(url: URL(string: "imodeljs://app/cancelled")!))
+        await fulfillment(of: [failed], timeout: 5)
+        try await waitFor("ready && Bentley_ITMMessengerNativeSession !== originalSession", in: view)
+        let sameDocument = try await evaluate("Bentley_ITMMessengerDocumentId === originalDocument", in: view) as? Bool
+        XCTAssertEqual(sameDocument, true)
+        XCTAssertTrue(messenger.frontendLaunchDone)
+        _ = try await evaluate("window.holdResponses = false; true", in: view)
+        let result: String = try await messenger.query("after-cancelled-navigation")
+        XCTAssertEqual(result, "h\u{00e9}llo")
+        await pending.value
+    }
+
+    func testBootstrapEvaluationFailureRejectsLaunchWaitersAndCanRetry() async throws {
+        let (view, messenger) = createMessenger(documentEndScript: """
+            window.initializeNormally = Bentley_ITMMessengerInitialize;
+            window.Bentley_ITMMessengerInitialize = function() { throw new Error('bootstrap failed'); };
+            """)
+        defer { messenger.detach() }
+        let failed = expectation(description: "Bootstrap failure releases launch waiters")
+        let pending = Task {
+            do {
+                let _: String = try await messenger.query("waiting-for-launch")
+                XCTFail("A bootstrap evaluation failure must reject waiting queries.")
+            } catch { failed.fulfill() }
+        }
+        view.load(URLRequest(url: URL(string: "imodeljs://app/main")!))
+        await fulfillment(of: [failed], timeout: 5)
+        _ = try await evaluate("window.Bentley_ITMMessengerInitialize = initializeNormally; true", in: view)
+        messenger.initFrontendLaunch()
+        messenger.onPageFinished(view)
+        try await waitFor("ready", in: view)
+        messenger.frontendLaunchSucceeded()
+        let result: String = try await messenger.query("retry")
+        XCTAssertEqual(result, "h\u{00e9}llo")
+        await pending.value
+    }
+
+    func testCoreMayInitializeAfterPageLoad() async throws {
+        let (view, messenger) = createMessenger(documentEndScript: """
+            window.initializeLater = Bentley_ITMMessengerInitialize;
+            delete window.Bentley_ITMMessengerInitialize;
+            """)
+        defer { messenger.detach() }
+        view.load(URLRequest(url: URL(string: "imodeljs://app/main")!))
+        try await waitFor("typeof Bentley_ITMMessengerNativeSession === 'string'", in: view)
+        let finished = expectation(description: "Query waits for delayed core initialization")
+        let pending = Task {
+            do {
+                let result: String = try await messenger.query("delayed-core")
+                XCTAssertEqual(result, "h\u{00e9}llo")
+            } catch { XCTFail("Delayed core initialization must not fail launch: \(error)") }
+            finished.fulfill()
+        }
+        _ = try await evaluate("""
+            window.Bentley_ITMMessengerInitialize = initializeLater;
+            Bentley_ITMMessengerInitialize(Bentley_ITMMessengerNativeSession); true;
+            """, in: view)
+        try await waitFor("ready", in: view)
+        messenger.frontendLaunchSucceeded()
+        await fulfillment(of: [finished], timeout: 5)
+        await pending.value
     }
 
     func testFrameAndEnvelopeRejectionsInRealWebKit() async throws {

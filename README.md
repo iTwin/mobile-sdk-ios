@@ -89,6 +89,8 @@ The native transport authenticates the WebView, main frame, exact origin, and do
 before dispatch. Responses are delivered only to the authenticated document.
 Navigation, detach, replacement, and process termination settle pending
 work and reset readiness. Late handlers cannot respond to reused IDs in a replacement document.
+If a provisional navigation is cancelled and the launched document survives, reauthentication
+restores its launch readiness without restoring discarded queries.
 There are at most 128 pending queries per direction and 100 incoming native-handler queries per second.
 
 For standalone messengers, call `attach(webView, allowedOrigins: origins)` before loading and
@@ -97,6 +99,8 @@ independently of application delegate overrides. Forward WebKit process terminat
 `onPageStarted(webView)` before reloading. `ITMApplication` provides this integration.
 Missing session-aware frontend support produces a native diagnostic; requests without a current
 document session are rejected.
+Core may initialize asynchronously after page load. Bootstrap evaluation errors fail launch
+waiters; call `initFrontendLaunch()` before retrying frontend startup.
 
 Run the real-WebKit messenger tests from the package directory with
 `xcodebuild -scheme itwin-mobile-sdk -destination 'platform=iOS Simulator,name=<installed simulator>' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO test`,

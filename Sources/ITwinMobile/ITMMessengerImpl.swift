@@ -198,7 +198,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
         let tag = "\(outgoingIdPrefix ?? incomingIdPrefix)\(queryId)"
         let dataString = jsonString(data)
         logQuery("Request  SWIFT -> \(targetName)", tag, type, dataString: dataString)
-        switch await transport.sendQuery(type, queryId, dataString) {
+        switch await transport.sendQuery(type, queryId, dataString, isCurrent: { gate === self.launchGate }) {
         case .success(let response):
             logQuery("Response \(targetName) -> SWIFT", tag, type, messageData: response)
             return try convertResult(type, jsonString(response))

@@ -8,6 +8,17 @@ import WebKit
 
 @MainActor
 final class ITwinMobileTests: XCTestCase {
+    private final class CallbackMessenger: ITMMessenger, @unchecked Sendable {
+        var receivedMessages: [WKScriptMessage] = []
+        var beforeMessage: ((WKScriptMessage) -> Void)?
+
+        override func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            receivedMessages.append(message)
+            beforeMessage?(message)
+            super.userContentController(userContentController, didReceive: message)
+        }
+    }
+
     private final class DispatchProbeMessenger: ITMMessenger, @unchecked Sendable {
         var onDiscardedResponse: (() -> Void)?
 
@@ -72,12 +83,15 @@ final class ITwinMobileTests: XCTestCase {
                 };
                 window.Bentley_ITMMessengerInitialize = function(id) {
                     window.Bentley_ITMMessengerNativeSession = id;
+                    window.ready = false;
                     send({operation:'ready'});
                 };
                 window.Bentley_ITMMessengerReceive = function(payload) {
                     const message = JSON.parse(payload);
                     received.push(message);
                     if (message.operation === 'ready') ready = true;
+                    if (message.operation === 'closed') ready = false;
+                    if (message.operation === 'query' && !ready) throw new Error('Query arrived before ready');
                     if (message.operation === 'query' && !window.holdResponses) {
                         webkit.messageHandlers.Bentley_ITMMessenger_QueryResponse.postMessage(JSON.stringify({
                             operation:'queryResponse', queryId:message.queryId,
@@ -216,6 +230,71 @@ final class ITwinMobileTests: XCTestCase {
         try await waitFor("evaluationIds.length === 200", in: view)
         let uniqueCount = try await evaluate("new Set(evaluationIds).size", in: view) as? Int
         XCTAssertEqual(uniqueCount, 200)
+    }
+
+    func testSubclassCallbacksReceiveOnlyAuthorizedDocumentMessages() async throws {
+        let (view, messenger) = createMessenger(factory: { CallbackMessenger($0) })
+        let observer = messenger as! CallbackMessenger
+        defer { messenger.detach() }
+        _ = messenger.registerQueryHandler("echo") { (body: String) -> String in body }
+        try await load(view)
+        messenger.frontendLaunchSucceeded()
+        _ = try await evaluate("send({operation:'query',queryId:0,name:'echo',message:'valid'}); true", in: view)
+        try await waitFor("received.some(m => m.operation === 'queryResponse' && m.queryId === 0)", in: view)
+        let response: String = try await messenger.query("native-query")
+        XCTAssertEqual(response, "h\u{00e9}llo")
+        _ = try await evaluate("""
+            send({operation:'query',queryId:10,name:'echo',message:'wrong session',sessionId:'wrong'});
+            send({operation:'query',queryId:11,name:'echo',message:'wrong document',documentId:'wrong'});
+            const frame = document.createElement('iframe');
+            frame.src = 'imodeljs://app/frame?payload=' + encodeURIComponent(JSON.stringify({
+                operation:'query',queryId:12,name:'echo',message:'subframe',
+                sessionId:Bentley_ITMMessengerNativeSession,documentId:Bentley_ITMMessengerDocumentId
+            }));
+            document.body.appendChild(frame); true;
+            """, in: view)
+        try await waitFor("attempts === 1", in: view)
+        _ = try await evaluate("send({operation:'query',queryId:1,name:'echo',message:'sentinel'}); true", in: view)
+        try await waitFor("received.some(m => m.operation === 'queryResponse' && m.queryId === 1)", in: view)
+        XCTAssertEqual(observer.receivedMessages.count, 4)
+        XCTAssertEqual(observer.receivedMessages.map(\.name), [
+            "Bentley_ITMMessenger_Query", "Bentley_ITMMessenger_Query",
+            "Bentley_ITMMessenger_QueryResponse", "Bentley_ITMMessenger_Query",
+        ])
+    }
+
+    func testReadyPrecedesHighPriorityQueriesDuringCancelledNavigationRecovery() async throws {
+        let (view, messenger) = createMessenger(factory: { CallbackMessenger($0) })
+        let observer = messenger as! CallbackMessenger
+        defer { messenger.detach() }
+        try await load(view)
+        messenger.frontendLaunchSucceeded()
+        for _ in 0..<8 {
+            let finished = expectation(description: "Recovery query receives a reply after ready")
+            var pending: Task<Void, Never>?
+            observer.beforeMessage = { message in
+                guard let body = message.body as? String, body.contains("\"operation\":\"ready\"") else { return }
+                pending = Task(priority: .high) {
+                    do {
+                        let response: String = try await messenger.query("during-recovery")
+                        XCTAssertEqual(response, "h\u{00e9}llo")
+                    } catch { XCTFail("Recovery query failed: \(error)") }
+                    finished.fulfill()
+                }
+            }
+            _ = try await evaluate("window.originalSession = Bentley_ITMMessengerNativeSession; true", in: view)
+            view.load(URLRequest(url: URL(string: "imodeljs://app/cancelled")!))
+            await fulfillment(of: [finished], timeout: 5)
+            try await waitFor("ready && Bentley_ITMMessengerNativeSession !== originalSession", in: view)
+            let inOrder = try await evaluate("""
+                (function() {
+                    const messages = received.filter(m => m.sessionId === Bentley_ITMMessengerNativeSession);
+                    return messages[0].operation === 'ready' && messages[1].name === 'during-recovery';
+                })();
+                """, in: view) as? Bool
+            XCTAssertEqual(inOrder, true)
+            await pending?.value
+        }
     }
 
     func testNavigationDuringSerializationCannotRetargetQuery() async throws {

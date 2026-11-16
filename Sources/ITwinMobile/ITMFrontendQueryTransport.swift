@@ -24,6 +24,7 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     // Internal handler IDs must never be reused by a replacement document.
     private static var incomingId: Int64 = 0
     weak var delegate: ITMQueryTransportDelegate?
+    weak var messageHandler: WKScriptMessageHandler?
     var sessionEnded: ((Error, Bool) -> Void)?
     var isFrontendLaunched: (() -> Bool)?
     var restoreFrontendLaunch: (() -> Void)?
@@ -176,26 +177,37 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     }
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard controller === webView.configuration.userContentController else { return }
-        handleScriptMessage(message)
+        guard controller === webView.configuration.userContentController,
+              let validated = validateScriptMessage(message) else { return }
+        if let messageHandler {
+            messageHandler.userContentController(controller, didReceive: message)
+        } else {
+            dispatchScriptMessage(message, session: validated.session, request: validated.request)
+        }
     }
 
     func handleScriptMessage(_ message: WKScriptMessage) {
+        // An override may change the document before forwarding through super.
+        guard let validated = validateScriptMessage(message) else { return }
+        dispatchScriptMessage(message, session: validated.session, request: validated.request)
+    }
+
+    private func validateScriptMessage(_ message: WKScriptMessage) -> (session: DocumentSession, request: JSON)? {
         guard attached, message.webView === webView, message.frameInfo.isMainFrame,
               !webView.isLoading, let current = session else {
             diagnostic("Rejected unauthorized Messenger caller.")
-            return
+            return nil
         }
         let source = message.frameInfo.securityOrigin
         var components = URLComponents()
         components.scheme = source.protocol
         components.host = source.host
-        guard (0...65535).contains(source.port) else { return }
+        guard (0...65535).contains(source.port) else { return nil }
         components.port = source.port == 0 ? nil : source.port
         guard let url = components.url, ITMBridgeOriginPolicy.origin(for: url) == current.origin,
               let currentURL = webView.url, ITMBridgeOriginPolicy.origin(for: currentURL) == current.origin else {
             diagnostic("Rejected unauthorized Messenger origin.")
-            return
+            return nil
         }
         guard let body = message.body as? String,
               let data = body.data(using: .utf8),
@@ -203,6 +215,21 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
               request["sessionId"] as? String == current.id,
               let documentId = request["documentId"] as? String,
               documentId.range(of: "^[A-Za-z0-9_-]{1,128}$", options: .regularExpression) != nil,
+              let operation = request["operation"] as? String else {
+            diagnostic("Rejected invalid Messenger envelope.")
+            return nil
+        }
+        let isReady = operation == "ready" && message.name == Self.queryName &&
+            request.count == 3 && current.documentId == nil
+        guard isReady || current.documentId == documentId else {
+            diagnostic("Rejected invalid Messenger document.")
+            return nil
+        }
+        return (current, request)
+    }
+
+    private func dispatchScriptMessage(_ message: WKScriptMessage, session current: DocumentSession, request: JSON) {
+        guard let documentId = request["documentId"] as? String,
               let operation = request["operation"] as? String else {
             diagnostic("Rejected invalid Messenger envelope.")
             return
@@ -316,14 +343,17 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
 
     /// Public arbitrary evaluation remains available, but sensitive transport delivery never uses it.
     nonisolated func enqueueJavaScript(_ js: String) {
-        enqueueEvaluation(Evaluation(script: js, session: nil, closing: false))
+        Task { @MainActor in
+            enqueueEvaluation(Evaluation(script: js, session: nil, closing: false))
+        }
     }
 
-    nonisolated private func enqueueEvaluation(_ evaluation: Evaluation) {
+    @MainActor
+    private func enqueueEvaluation(_ evaluation: Evaluation) {
+        jsQueue.append(evaluation)
+        guard !jsBusy else { return }
+        jsBusy = true
         Task { @MainActor in
-            jsQueue.append(evaluation)
-            guard !jsBusy else { return }
-            jsBusy = true
             defer { jsBusy = false }
             while !jsQueue.isEmpty {
                 let next = jsQueue.removeFirst()

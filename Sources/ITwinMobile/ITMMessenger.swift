@@ -278,6 +278,7 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         }
         transport.isFrontendLaunched = { [weak implementation] in implementation?.launchDone == true }
         transport.restoreFrontendLaunch = { [weak implementation] in implementation?.launchSucceeded() }
+        transport.messageHandler = self
         transport.attach(webView)
     }
 
@@ -425,7 +426,8 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         transport.enqueueJavaScript(js)
     }
 
-    /// Implementation of the `WKScriptMessageHandler` function. If you override this function, it is __STRONGLY__ recommended
+    /// Receives native WebKit messages after transport validation of the caller, origin, and document session.
+    /// If you override this function, it is __STRONGLY__ recommended
     /// that you call this version via super as part of your implementation.
     /// - Note: Since query handling is async, this function will return before that finishes if the message is a query.
     open func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {

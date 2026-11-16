@@ -257,7 +257,7 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
         let queryId = number.int64Value
         if operation == "query", message.name == Self.queryName {
             guard Set(request.keys).isSubset(of: ["operation", "sessionId", "documentId", "queryId", "name", "message"]),
-                  let name = request["name"] as? String, !name.isEmpty, name.utf16.count <= 1024 else {
+                  let name = request["name"] as? String, !name.isEmpty else {
                 diagnostic("Rejected invalid Messenger query.")
                 return
             }

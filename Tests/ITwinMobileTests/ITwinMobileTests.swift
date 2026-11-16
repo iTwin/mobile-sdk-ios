@@ -198,16 +198,16 @@ final class ITwinMobileTests: XCTestCase {
         XCTAssertEqual(reattached, "h\u{00e9}llo")
     }
 
-    func testLargePayloadsRoundTripInBothDirections() async throws {
+    func testLargePayloadsAndLongQueryNamesRoundTrip() async throws {
         let (view, messenger) = createMessenger()
         defer { messenger.detach() }
-        _ = messenger.registerQueryHandler("echo") { (body: String) -> String in body }
+        _ = messenger.registerQueryHandler(String(repeating: "e", count: 1025)) { (body: String) -> String in body }
         try await load(view)
         messenger.frontendLaunchSucceeded()
         let message = String(repeating: "x", count: 1_048_577)
         let result: String = try await messenger.query("large", message)
         XCTAssertEqual(result, message)
-        _ = try await evaluate("send({operation:'query',queryId:0,name:'echo',message:'x'.repeat(1048577)}); true", in: view)
+        _ = try await evaluate("send({operation:'query',queryId:0,name:'e'.repeat(1025),message:'x'.repeat(1048577)}); true", in: view)
         try await waitFor("received.some(m => m.operation === 'queryResponse' && m.queryId === 0)", in: view)
         let matches = try await evaluate("""
             JSON.parse(atob(received.find(m => m.operation === 'queryResponse' && m.queryId === 0).message)).response === 'x'.repeat(1048577)

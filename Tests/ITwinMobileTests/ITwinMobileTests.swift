@@ -8,6 +8,35 @@ import WebKit
 
 @MainActor
 final class ITwinMobileTests: XCTestCase {
+    private final class DispatchProbeMessenger: ITMMessenger, @unchecked Sendable {
+        var onDiscardedResponse: (() -> Void)?
+
+        override func respondToQuery(_ queryId: Int64, _ type: String, _ responseJson: String?, _ error: Error? = nil) {
+            if type == "discarded" {
+                onDiscardedResponse?()
+            } else {
+                super.respondToQuery(queryId, type, responseJson, error)
+            }
+        }
+    }
+
+    private final class AsyncQueryHandler: NSObject, ITMQueryHandler, @unchecked Sendable {
+        private let type: String?
+        private let handle: @MainActor () async -> Bool
+
+        init(type: String? = nil, handle: @escaping @MainActor () async -> Bool) {
+            self.type = type
+            self.handle = handle
+        }
+
+        func getQueryType() -> String? { type }
+
+        @MainActor
+        func handleQuery(_ queryId: Int64, _ type: String, _ body: Sendable?) async -> Bool {
+            await handle()
+        }
+    }
+
     private final class PausingMessenger: ITMMessenger, @unchecked Sendable {
         var beforeSerializing: (() -> Void)?
 
@@ -398,5 +427,48 @@ final class ITwinMobileTests: XCTestCase {
         XCTAssertEqual(response["response"] as? String, "current")
         let count = try await evaluate("received.filter(m => m.queryId === 7).length", in: view) as? Int
         XCTAssertEqual(count, 1)
+    }
+
+    func testCancelledDispatchDoesNotInvokeRemainingHandlersOrFallback() async throws {
+        for navigates in [true, false] {
+            for (named, hasFollowingHandler) in [(true, true), (false, true), (false, false)] {
+                let (view, messenger) = createMessenger(factory: { DispatchProbeMessenger($0) })
+                let probe = messenger as! DispatchProbeMessenger
+                defer { messenger.detach() }
+                let started = expectation(description: "Handler suspended")
+                let resumed = expectation(description: "Cancelled handler resumed")
+                let discardedAction = expectation(description: "No further dispatch after teardown")
+                discardedAction.isInverted = true
+                probe.onDiscardedResponse = { discardedAction.fulfill() }
+                var resume: CheckedContinuation<Bool, Never>?
+                messenger.registerQueryHandler(AsyncQueryHandler(type: named ? "discarded" : nil) {
+                    let handled = await withCheckedContinuation {
+                        resume = $0
+                        started.fulfill()
+                    }
+                    XCTAssertTrue(Task.isCancelled)
+                    resumed.fulfill()
+                    return handled
+                })
+                if hasFollowingHandler {
+                    messenger.registerQueryHandler(AsyncQueryHandler {
+                        discardedAction.fulfill()
+                        return false
+                    })
+                }
+                try await load(view)
+                _ = try await evaluate("send({operation:'query',queryId:7,name:'discarded',message:{}}); true", in: view)
+                await fulfillment(of: [started], timeout: 5)
+                let continuation = try XCTUnwrap(resume)
+                if navigates {
+                    try await load(view)
+                } else {
+                    messenger.detach()
+                }
+                continuation.resume(returning: false)
+                await fulfillment(of: [resumed], timeout: 5)
+                await fulfillment(of: [discardedAction], timeout: 0.1)
+            }
+        }
     }
 }

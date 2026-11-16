@@ -261,12 +261,14 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     
     @MainActor
     private func dispatchQueryToHandlers(_ type: String, _ queryId: Int64, _ body: Sendable?) async {
+        guard !Task.isCancelled else { return }
         if let queryHandler = queryHandlerDict[type] {
             if await queryHandler.handleQuery(queryId, type, body) {
                 return
             }
         }
         for queryHandler in queryHandlers {
+            guard !Task.isCancelled else { return }
             // These query handlers don't indicate what queries they handle.
             // So iterate through all of them until one indicates that it has
             // handled the query.
@@ -274,6 +276,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
                 return
             }
         }
+        guard !Task.isCancelled else { return }
         logError("ITMMessenger no SWIFT handler for \(incomingTag(queryId)) '\(type)'")
         respondToQuery(queryId, type, nil)
     }

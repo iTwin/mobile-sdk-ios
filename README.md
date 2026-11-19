@@ -65,7 +65,7 @@ end
 ## WebView Bridge Origins
 
 `ITMApplication.getBridgeAllowedOrigins()` configures trusted origins for native WebView bridges.
-The packaged frontend origin, `imodeljs://app`, and the origin returned by `getBaseUrl()` are
+The packaged frontend origin, `imodeljs://app`, and any HTTP(S) origin returned by `getBaseUrl()` are
 trusted by default. This includes remote frontends configured through `ITMAPPLICATION_BASE_URL`
 or a `getBaseUrl()` override. Invalid or unsupported URLs add no origin.
 Override this policy in your application subclass to authorize additional origins:
@@ -80,6 +80,71 @@ Use exact origins without paths, credentials, wildcards, or default ports. Devel
 should only be added in development builds. Standalone loggers accept an explicit origin set;
 `ITMBridgeOriginPolicy` provides shared defaults and origin validation. This policy controls
 console forwarding, geolocation, and frontend messaging.
+
+### Loading bundled pages without `file://`
+
+The files can stay on disk; what matters is the URL the WebView loads. The bridge checks
+the sending frame's origin, which does not identify a particular file or directory.
+Adding a file path to `allowedOrigins` or widening `loadFileURL`'s read access does not
+authorize the page.
+
+If you use `ITMApplication`'s packaged frontend, no migration is needed: the SDK already
+serves it at `imodeljs://app/index.html`. For a standalone WebView that currently calls
+`loadFileURL`, register a `WKURLSchemeHandler` **before creating the WebView**, then load
+the entry page through that scheme:
+
+```swift
+let configuration = WKWebViewConfiguration()
+configuration.setURLSchemeHandler(FormsAssetHandler(), forURLScheme: "formswebapp")
+let webView = WKWebView(frame: .zero, configuration: configuration)
+let messenger = ITMMessenger(webView, allowedOrigins: ["formswebapp://app"])
+webView.load(URLRequest(url: URL(string: "formswebapp://app/index.html")!))
+```
+
+Keep the messenger for the lifetime of the view. The allowlist entry is the **origin**
+(`formswebapp://app`), not the entry page URL or the scheme alone.
+
+For example, package `index.html`, `main.js`, and `styles.css` in a `FormsWebApp`
+directory in the app bundle. Reference the script and stylesheet from the HTML as
+`./main.js` and `./styles.css`. This handler maps only those requests to bundled files;
+add an entry for each additional asset your forms page needs.
+
+```swift
+import ITwinMobile
+import WebKit
+
+final class FormsAssetHandler: NSObject, WKURLSchemeHandler {
+    private let assets = [
+        "/index.html": (file: "index.html", mime: "text/html"),
+        "/main.js": (file: "main.js", mime: "text/javascript"),
+        "/styles.css": (file: "styles.css", mime: "text/css"),
+    ]
+
+    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url,
+              ITMBridgeOriginPolicy.origin(for: url) == "formswebapp://app",
+              let asset = assets[url.path],
+              let file = Bundle.main.url(forResource: asset.file, withExtension: nil,
+                                         subdirectory: "FormsWebApp") else {
+            task.didFailWithError(URLError(.fileDoesNotExist))
+            return
+        }
+        do {
+            let data = try Data(contentsOf: file)
+            task.didReceive(URLResponse(url: url, mimeType: asset.mime,
+                                        expectedContentLength: data.count, textEncodingName: "utf-8"))
+            task.didReceive(data)
+            task.didFinish()
+        } catch {
+            task.didFailWithError(error)
+        }
+    }
+
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {
+        // These small bundled assets are read synchronously; there is no pending work to cancel.
+    }
+}
+```
 
 ### Frontend messaging
 

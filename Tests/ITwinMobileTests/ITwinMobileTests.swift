@@ -114,11 +114,12 @@ final class ITwinMobileTests: XCTestCase {
 
     private func createMessenger(
         documentEndScript: String? = nil,
+        scheme: String = "imodeljs",
         factory: @MainActor (WKWebView) -> ITMMessenger = { ITMMessenger($0) }
     ) -> (WKWebView, ITMMessenger) {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
-        configuration.setURLSchemeHandler(Fixtures(), forURLScheme: "imodeljs")
+        configuration.setURLSchemeHandler(Fixtures(), forURLScheme: scheme)
         if let documentEndScript {
             configuration.userContentController.addUserScript(WKUserScript(
                 source: documentEndScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
@@ -160,6 +161,30 @@ final class ITwinMobileTests: XCTestCase {
 
         messenger.attach(view, allowedOrigins: ITMBridgeOriginPolicy.defaultAllowedOrigins)
         try await load(view)
+    }
+
+    func testCustomOriginMustMatchConfiguredHost() async throws {
+        let (view, messenger) = createMessenger(scheme: "mapwebapp") {
+            ITMMessenger($0, allowedOrigins: ["mapwebapp://app"])
+        }
+        defer { messenger.detach() }
+        try await load(view, "mapwebapp://app")
+        try await waitFor("window.ready === true", in: view)
+        messenger.frontendLaunchSucceeded()
+        let result: String = try await messenger.query("custom-origin")
+        XCTAssertEqual(result, "h\u{00e9}llo")
+
+        try await load(view, "mapwebapp://other")
+        try await waitFor("window.ready === false", in: view)
+        let bootstrapped = try await evaluate("typeof window.Bentley_ITMMessengerNativeSession !== 'undefined'", in: view)
+        XCTAssertEqual(bootstrapped as? Bool, false)
+    }
+
+    func testCustomOriginAllowlistRejectsNonOrigins() {
+        XCTAssertEqual(ITMBridgeOriginPolicy.validOrigins([
+            "mapwebapp://app", "mapwebapp://", "mapwebapp://*", "mapwebapp://app/index.html",
+            "file://app", "data://app", "blob://app",
+        ]), ["mapwebapp://app"])
     }
 
     func testBidirectionalQueriesAndDetach() async throws {

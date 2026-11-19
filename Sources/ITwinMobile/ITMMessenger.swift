@@ -205,8 +205,13 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         set { transport.attach(newValue) }
     }
 
-    /// Attach before loading the frontend, using exact native-configured origins.
-    public final func attach(_ webView: WKWebView, allowedOrigins: Set<String> = ITMBridgeOriginPolicy.defaultAllowedOrigins) {
+    /// Attach before loading the frontend, keeping the messenger's current allowed origins.
+    public final func attach(_ webView: WKWebView) {
+        transport.attach(webView)
+    }
+
+    /// Attach before loading the frontend, replacing the messenger's allowed origins.
+    public final func attach(_ webView: WKWebView, allowedOrigins: Set<String>) {
         transport.attach(webView, allowedOrigins: allowedOrigins)
     }
 
@@ -265,10 +270,15 @@ open class ITMMessenger: NSObject, WKScriptMessageHandler, ITMMessengerImplDeleg
         set { implementation.launchDone = newValue }
     }
 
-    /// Create an ``ITMMessenger`` attached to a `WKWebView`.
-    /// - Parameter webView: The `WKWebView` to which to attach this ``ITMMessenger``.
-    public init(_ webView: WKWebView) {
-        transport = ITMFrontendQueryTransport(webView)
+    /// Create a messenger using the SDK's default allowed origins.
+    public convenience init(_ webView: WKWebView) {
+        self.init(webView, allowedOrigins: ITMBridgeOriginPolicy.defaultAllowedOrigins)
+    }
+
+    /// Create a messenger attached to a web view with the specified exact origins.
+    /// An empty set authorizes no origins. Subclass designated initializers must call this initializer.
+    public init(_ webView: WKWebView, allowedOrigins: Set<String>) {
+        transport = ITMFrontendQueryTransport(webView, allowedOrigins: allowedOrigins)
         implementation = ITMMessengerImpl(transport: transport, targetName: "JS", incomingIdPrefix: "WKID", outgoingIdPrefix: "SWID")
         super.init()
         implementation.delegate = self

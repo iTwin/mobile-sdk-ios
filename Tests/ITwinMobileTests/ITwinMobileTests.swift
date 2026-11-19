@@ -151,6 +151,17 @@ final class ITwinMobileTests: XCTestCase {
         if origin == "imodeljs://app" { try await waitFor("window.ready === true", in: view) }
     }
 
+    func testEmptyConstructorOriginsStayDisabledUntilExplicitlyReplaced() async throws {
+        let (view, messenger) = createMessenger { ITMMessenger($0, allowedOrigins: []) }
+        defer { messenger.detach() }
+        XCTAssertTrue(view.configuration.userContentController.userScripts.isEmpty)
+        messenger.attach(view)
+        XCTAssertTrue(view.configuration.userContentController.userScripts.isEmpty)
+
+        messenger.attach(view, allowedOrigins: ITMBridgeOriginPolicy.defaultAllowedOrigins)
+        try await load(view)
+    }
+
     func testBidirectionalQueriesAndDetach() async throws {
         let (view, messenger) = createMessenger()
         defer { messenger.detach() }

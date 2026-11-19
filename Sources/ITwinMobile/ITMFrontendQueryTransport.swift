@@ -29,7 +29,7 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     var isFrontendLaunched: (() -> Bool)?
     var restoreFrontendLaunch: (() -> Void)?
     private(set) var webView: WKWebView
-    private var allowedOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
+    private var allowedOrigins: Set<String>
     private var session: DocumentSession?
     private var attached = false
     private var hasAttached = false
@@ -47,13 +47,14 @@ internal final class ITMFrontendQueryTransport: NSObject, ITMQueryTransport, WKS
     private var jsQueue: [Evaluation] = []
     private var jsBusy = false
 
-    init(_ webView: WKWebView) {
+    init(_ webView: WKWebView, allowedOrigins: Set<String>) {
         self.webView = webView
+        self.allowedOrigins = ITMBridgeOriginPolicy.validOrigins(allowedOrigins)
         super.init()
     }
 
     func attach(_ view: WKWebView, allowedOrigins: Set<String>? = nil) {
-        let origins = ITMBridgeOriginPolicy.validOrigins(allowedOrigins ?? self.allowedOrigins)
+        let origins = allowedOrigins.map(ITMBridgeOriginPolicy.validOrigins) ?? self.allowedOrigins
         if attached, webView === view, self.allowedOrigins == origins { return }
         if attached { detach() }
         if hasAttached { sessionEnded?(ITMStringError(errorDescription: "Messenger document replaced."), true) }

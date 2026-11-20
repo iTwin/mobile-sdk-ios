@@ -73,11 +73,53 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     private var queryHandlerDict: [String: ITMQueryHandler] = [:]
     private var queryHandlers: [ITMQueryHandler] = []
     private var pendingResponses: [Int64: CheckedContinuation<String, Never>] = [:]
+    private var pendingTasks: [Int64: Task<Void, Never>] = [:]
 
     weak var delegate: ITMMessengerImplDelegate?
     var launchDone = false
-    private var launchTask: Task<Void, Error>?
-    private var launchContinuation: CheckedContinuation<Void, Error>?
+    private final class LaunchGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var result: Result<Void, Error>?
+        private var waiters: [CheckedContinuation<Void, Error>] = []
+
+        func finish(_ result: Result<Void, Error>) {
+            lock.lock()
+            guard self.result == nil else { lock.unlock(); return }
+            self.result = result
+            let continuations = waiters
+            waiters.removeAll()
+            lock.unlock()
+            for continuation in continuations { continuation.resume(with: result) }
+        }
+
+        func wait() async throws {
+            try await withCheckedThrowingContinuation { continuation in
+                lock.lock()
+                if let result {
+                    lock.unlock()
+                    continuation.resume(with: result)
+                } else {
+                    waiters.append(continuation)
+                    lock.unlock()
+                }
+            }
+        }
+    }
+
+    private let launchLock = NSLock()
+    private var storedLaunchGate = LaunchGate()
+    private var launchGate: LaunchGate {
+        get {
+            launchLock.lock()
+            defer { launchLock.unlock() }
+            return storedLaunchGate
+        }
+        set {
+            launchLock.lock()
+            storedLaunchGate = newValue
+            launchLock.unlock()
+        }
+    }
 
     /// - Parameters:
     ///   - transport: The transport used to send and receive queries.
@@ -95,32 +137,41 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     // MARK: - Launch management
 
     func initLaunch() {
+        launchGate.finish(.failure(ITMStringError(errorDescription: "Messenger launch replaced.")))
         launchDone = false
-        launchTask = Task {
-            try await withCheckedThrowingContinuation { continuation in
-                launchContinuation = continuation
-            }
-        }
+        launchGate = LaunchGate()
     }
 
     func waitUntilReady() async {
-        await ITMMessenger.waitUntilReady({ [self] in launchContinuation != nil })
+        // The readiness gate is created synchronously, including before the first query.
     }
 
     func launchSucceeded() {
         launchDone = true
-        launchContinuation?.resume(returning: ())
-        launchContinuation = nil
+        launchGate.finish(.success(()))
     }
 
     func launchFailed(_ error: Error) {
-        launchContinuation?.resume(throwing: error)
-        launchContinuation = nil
+        launchGate.finish(.failure(error))
     }
 
     var launched: Void {
         get async throws {
-            try await launchTask?.value
+            try await launchGate.wait()
+        }
+    }
+
+    func resetFrontendSession(_ error: Error, awaitingLaunch: Bool = true) {
+        launchGate.finish(.failure(error))
+        launchGate = LaunchGate()
+        if !awaitingLaunch { launchGate.finish(.failure(error)) }
+        launchDone = false
+        for task in pendingTasks.values { task.cancel() }
+        pendingTasks.removeAll()
+        let responses = pendingResponses
+        pendingResponses.removeAll()
+        for continuation in responses.values {
+            continuation.resume(returning: "{\"error\":\"Messenger document session ended.\"}")
         }
     }
 
@@ -140,12 +191,14 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
     }
 
     func query<T>(_ type: String, _ data: Any?) async throws -> T {
-        try await launched
+        let gate = launchGate
+        try await gate.wait()
         let queryId = await Self.queryId.next()
+        guard gate === launchGate else { throw ITMStringError(errorDescription: "Messenger document session ended.") }
         let tag = "\(outgoingIdPrefix ?? incomingIdPrefix)\(queryId)"
         let dataString = jsonString(data)
         logQuery("Request  SWIFT -> \(targetName)", tag, type, dataString: dataString)
-        switch await transport.sendQuery(type, queryId, dataString) {
+        switch await transport.sendQuery(type, queryId, dataString, isCurrent: { gate === self.launchGate }) {
         case .success(let response):
             logQuery("Response \(targetName) -> SWIFT", tag, type, messageData: response)
             return try convertResult(type, jsonString(response))
@@ -198,20 +251,24 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
                 logError("ITMMessenger: duplicate pending query \(incomingTag(queryId)) '\(type)'")
             }
             pendingResponses[queryId] = continuation
-            Task { @MainActor in
+            pendingTasks[queryId] = Task { @MainActor in
+                guard pendingResponses[queryId] != nil, !Task.isCancelled else { return }
                 await dispatchQueryToHandlers(type, queryId, body)
+                pendingTasks.removeValue(forKey: queryId)
             }
         }
     }
     
     @MainActor
     private func dispatchQueryToHandlers(_ type: String, _ queryId: Int64, _ body: Sendable?) async {
+        guard !Task.isCancelled else { return }
         if let queryHandler = queryHandlerDict[type] {
             if await queryHandler.handleQuery(queryId, type, body) {
                 return
             }
         }
         for queryHandler in queryHandlers {
+            guard !Task.isCancelled else { return }
             // These query handlers don't indicate what queries they handle.
             // So iterate through all of them until one indicates that it has
             // handled the query.
@@ -219,6 +276,7 @@ internal final class ITMMessengerImpl: ITMQueryTransportDelegate, @unchecked Sen
                 return
             }
         }
+        guard !Task.isCancelled else { return }
         logError("ITMMessenger no SWIFT handler for \(incomingTag(queryId)) '\(type)'")
         respondToQuery(queryId, type, nil)
     }

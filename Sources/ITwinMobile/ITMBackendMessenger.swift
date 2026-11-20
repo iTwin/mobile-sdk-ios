@@ -202,7 +202,9 @@ fileprivate final class ITMBackendQueryTransport: ITMQueryTransport, @unchecked 
         }
     }
 
-    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String) async -> ITMQueryResponse {
+    @MainActor
+    func sendQuery(_ type: String, _ queryId: Int64, _ dataString: String, isCurrent: @Sendable () -> Bool) async -> ITMQueryResponse {
+        guard isCurrent() else { return .failure(ITMStringError(errorDescription: "Messenger launch replaced.")) }
         return await withCheckedContinuation { continuation in
             host.queryBackend(type, message: dataString) { result, isError in
                 continuation.resume(returning: Self.parseResponse(result, isError))

@@ -4,6 +4,9 @@ import Foundation
 public enum ITMBridgeOriginPolicy {
     public static let defaultAllowedOrigins: Set<String> = ["imodeljs://app"]
 
+    // An authority-looking URL does not give these schemes a trustworthy host origin.
+    private static let excludedSchemes: Set<String> = ["about", "blob", "data", "file", "filesystem", "javascript"]
+
     /// Gets an exact origin for a supported frontend URL. File and opaque origins are not supported.
     public static func origin(for url: URL) -> String? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
@@ -11,8 +14,7 @@ public enum ITMBridgeOriginPolicy {
               let scheme = components.scheme?.lowercased(),
               let host = components.host?.lowercased(), !host.isEmpty, !host.contains("*"),
               components.port.map({ (1...65535).contains($0) }) ?? true else { return nil }
-        guard scheme == "http" || scheme == "https" ||
-                (scheme == "imodeljs" && host == "app" && components.port == nil) else { return nil }
+        guard !excludedSchemes.contains(scheme) else { return nil }
         var result = URLComponents()
         result.scheme = scheme
         result.host = host

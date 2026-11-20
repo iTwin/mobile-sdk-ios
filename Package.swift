@@ -38,9 +38,9 @@ let package = Package(
                 .product(name: "Reachability", package: "Reachability"),
                 .product(name: "AppAuth", package: "AppAuth"),
             ]),
-//        .testTarget(
-//            name: "ITwinMobileTests",
-//            dependencies: ["ITwinMobile"]),
+        .testTarget(
+            name: "ITwinMobileTests",
+            dependencies: ["ITwinMobile"]),
     ],
     swiftLanguageVersions: [.version("5.5")]
 )

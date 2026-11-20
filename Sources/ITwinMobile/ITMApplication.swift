@@ -186,6 +186,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         }
         webViewLogger?.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
         geolocationManager.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
+        itmMessenger.attach(webView, allowedOrigins: getBridgeAllowedOrigins())
     }
 
     deinit {
@@ -195,6 +196,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         let geolocationCopy = geolocationManager
         Task { @MainActor in
             geolocationCopy.detach()
+            messengerCopy.detach()
             loggerCopy?.detach()
             messengerCopy.unregisterQueryHandlers(handlersCopy)
         }
@@ -315,13 +317,14 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Exact native-configured origins trusted by native WebView bridges.
     ///
-    /// Includes the packaged frontend origin and the origin of ``getBaseUrl()``.
+    /// Includes the packaged frontend origin and the HTTP(S) origin of ``getBaseUrl()``.
     /// Override to customize this policy.
     /// Use canonical origins without paths, credentials, wildcards, or default ports.
     /// An empty set authorizes no origins.
     open func getBridgeAllowedOrigins() -> Set<String> {
         let defaultOrigins = ITMBridgeOriginPolicy.defaultAllowedOrigins
         guard let url = URL(string: getBaseUrl()),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
               let origin = ITMBridgeOriginPolicy.origin(for: url) else { return defaultOrigins }
         return defaultOrigins.union([origin])
     }
@@ -816,6 +819,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Invalidates console output from the previous frontend document.
     open func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        itmMessenger.onPageStarted(webView)
         geolocationManager.onPageStarted(webView)
         webViewLogger?.onPageStarted()
     }
@@ -831,6 +835,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
         // way across the screen. The setNeedsLayout below fixes it.
         webView.setNeedsLayout()
         geolocationManager.onPageFinished(webView)
+        itmMessenger.onPageFinished(webView)
         webViewLogger?.reattach(webView)
         fullyLoaded = true
         if !dormant {
@@ -841,6 +846,7 @@ open class ITMApplication: NSObject, WKUIDelegate, WKNavigationDelegate {
 
     /// Discard location work when WebKit loses its document process.
     open func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        itmMessenger.onPageStarted(webView)
         geolocationManager.onPageStarted(webView)
     }
 }
